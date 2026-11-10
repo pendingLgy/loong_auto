@@ -12,7 +12,7 @@
 
 ## 2. 工程目录
 
-以下目录骨架已创建，子模块使用 .gitkeep 占位，尚未添加业务实现或依赖配置。顶层为工程模块，下一层为子模块；子模块内部结构由各模块设计文档补充。
+以下为逻辑模块结构，部分模块已添加实现。顶层为工程模块，下一层为子模块；子模块内部结构由各模块设计文档补充。Python 实际源码使用 src 包布局，local 的子模块位于 local/src/loong_local，cloud 的子模块位于 cloud/src/loong_cloud，公共 Python 契约位于 shared/contracts/src/loong_contracts。
 
 ```text
 loong_auto/
@@ -57,7 +57,7 @@ loong_auto/
     └── decisions/              # 架构决策记录
 ```
 
-现有架构、技术栈和本文保留在 docs 根目录。根级 workspace、锁文件等不在模块目录树中展开；Python 使用 uv workspace，TypeScript 使用 Bun workspaces，具体配置在工程设计中确定。
+现有架构、技术栈和本文保留在 docs 根目录。根级 workspace、锁文件等不在模块目录树中展开；Python 依赖版本在根 pyproject.toml 统一约束，子包声明实际依赖与构建配置，详见 [工程管理说明](../engineering/workspace/README.md)。TypeScript 工程由 Bun 管理。
 
 ## 3. 模块边界
 

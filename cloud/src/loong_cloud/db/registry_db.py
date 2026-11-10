@@ -1,0 +1,37 @@
+from __future__ import annotations
+
+from typing import Dict, List, Any
+
+from loong_cloud.core.registry import Registry, Ref
+
+# 内置后端名称到类路径的映射，按需惰性导入。
+BUILTIN_DBS: Dict[str, str] = {
+    "sqlite": "loong_cloud.db.sqlite_db.AsyncSqliteDb",
+}
+
+_REGISTRY = Registry("数据库后端", BUILTIN_DBS)
+
+
+def register_db(name: str, ref: Ref) -> None:
+    "登记数据库后端：ref 可为类对象，也可为点分路径字符串。"
+    _REGISTRY.register(name, ref)
+
+
+def register_db_provider(name: str):
+    "装饰器形式登记数据库后端。"
+    return _REGISTRY.decorator(name)
+
+
+def is_db_registered(name: str) -> bool:
+    "判断数据库后端是否已登记。"
+    return name in _REGISTRY
+
+
+def available_dbs() -> List[str]:
+    "返回已登记的后端名，按字典序排列。"
+    return _REGISTRY.names()
+
+
+def resolve_db(name: str) -> Any:
+    "按后端名取得实现类，路径登记的在此惰性导入。"
+    return _REGISTRY.resolve(name)

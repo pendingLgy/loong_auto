@@ -1,0 +1,10 @@
+"""统一注册业务路由；新增接口按领域拆分模块。"""
+
+from fastapi import APIRouter
+
+from .status import router as status_router
+from .tasks import router as tasks_router
+
+router = APIRouter(prefix="/api")
+router.include_router(status_router)
+router.include_router(tasks_router)

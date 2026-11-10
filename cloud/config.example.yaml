@@ -1,0 +1,31 @@
+# GlobalConfig 示例，使用 GlobalConfig.load("cloud/config.example.yaml") 加载。
+# LOONG_ 前缀的进程环境变量可覆盖对应字段，__ 表示嵌套层级。
+log_level: INFO
+white_list_urls:
+  - /api/status
+  - /api/status/health
+
+db_config:
+  db_type: sqlite
+  sqlite:
+    table_prefix: loong
+    # 相对路径以服务进程工作目录为基准；:memory: 表示内存数据库
+    database: loong-cloud.db
+    print_sql: false
+    # SQLite 写锁等待超时时间（秒）
+    timeout: 30.0
+    # 空字符串使用驱动默认事务隔离级别
+    isolation_level: ""
+    check_same_thread: false
+
+  pool:
+    # 常驻连接数量
+    size: 5
+    # 允许的额外连接数量
+    max_overflow: 10
+    # 等待获取连接的超时时间（秒）
+    timeout: 30
+    # 连接回收时间（秒），-1 禁用
+    recycle: 1800
+    # 获取连接前检查连接有效性
+    pre_ping: true

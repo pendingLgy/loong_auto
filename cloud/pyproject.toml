@@ -1,0 +1,22 @@
+[build-system]
+requires = ["hatchling>=1.26,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "loong-cloud"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = ["loong-contracts", "pydantic", "fastapi", "uvicorn", "httpx", "sqlalchemy[asyncio]", "aiosqlite", "python-dotenv", "pyyaml", "loguru"]
+
+[project.optional-dependencies]
+postgres = ["psycopg[binary]", "asyncpg"]
+mysql = ["pymysql[rsa]", "asyncmy"]
+
+[project.scripts]
+loong-cloud = "loong_cloud.startup:main"
+
+[tool.uv.sources]
+loong-contracts = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/loong_cloud"]

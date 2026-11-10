@@ -118,7 +118,7 @@ PydanticAI 需验证本地工具结果回传后的任务继续能力；具体模
 
 | 范围 | 技术 |
 | --- | --- |
-| Python 工程 | uv workspace、pyproject.toml、uv.lock |
+| Python 工程 | uv workspace、根版本约束、子包依赖声明、根 uv.lock |
 | 前端工程 | Bun workspaces、package.json、bun.lock |
 | Python 质量与测试 | Ruff、mypy、pytest |
 | TypeScript 质量与测试 | tsc、ESLint、Prettier、Vitest |

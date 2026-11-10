@@ -1,0 +1,18 @@
+[build-system]
+requires = ["hatchling>=1.26,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "loong-local"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = ["loong-contracts", "fastapi", "uvicorn"]
+
+[project.scripts]
+loong-local = "loong_local.startup:main"
+
+[tool.uv.sources]
+loong-contracts = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/loong_local"]

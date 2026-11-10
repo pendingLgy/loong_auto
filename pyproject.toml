@@ -1,0 +1,30 @@
+[project]
+name = "loong-auto"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.uv]
+package = false
+constraint-dependencies = [
+  "pydantic>=2.10,<3",
+  "fastapi>=0.115,<1",
+  "uvicorn>=0.30,<1",
+  "httpx>=0.28,<1",
+  "sqlalchemy>=2.0,<3",
+  "psycopg>=3.2,<4",
+  "pymysql>=1.1,<2",
+  "aiosqlite>=0.20,<1",
+  "greenlet>=3,<4",
+  "asyncmy>=0.2,<1",
+  "asyncpg>=0.29,<1",
+  "python-dotenv>=1.0,<2",
+  "pyyaml>=6,<7",
+  "loguru>=0.7,<1",
+]
+
+[tool.uv.workspace]
+members = ["shared/contracts", "local", "cloud"]
+
+[dependency-groups]
+dev = ["pytest>=8,<10", "pytest-asyncio>=0.24,<2", "ruff>=0.8,<1", "mypy>=1.13,<2"]
