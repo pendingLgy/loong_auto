@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from threading import RLock
 from typing import Iterator, AsyncIterator
 
+from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from loong_cloud.config.config_db import DatabaseConfig
@@ -40,6 +41,9 @@ class AsyncDatabaseProxy:
 
                 self._async_engine = engine
                 self._async_session = session
+
+            logger.info("db proxy started")
+
 
     async def close_db(self):
         await self._db.close()

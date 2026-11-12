@@ -14,6 +14,7 @@ def loading_middleware(app: FastAPI):
         token_service=app_container.TokenService(),
         user_store=app_container.UserStore(),
     )
+    app.add_middleware(TenantResolveMiddleware)
+
     # 后注册的中间件先执行，确保认证失败也具有请求上下文。
     app.add_middleware(RequestContextMiddleware)
-    app.add_middleware(TenantResolveMiddleware)

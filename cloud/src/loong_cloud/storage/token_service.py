@@ -11,10 +11,10 @@ from starlette import status
 
 from loong_cloud.cache import CacheProxy
 from loong_cloud.config import GlobalConfig
-from loong_cloud.config.config_token import TokenConfig
 from loong_cloud.constant.cache_key import ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY, TOKEN_SESSION_KEY
+from loong_cloud.core.logging import log_exception
 from loong_contracts.request.login import LoginPlatform
-from loong_contracts.response.login import UserInfoResponse
+from loong_contracts.response.login import LoginResponse, UserInfoResponse
 
 
 class TokenService:
@@ -26,7 +26,7 @@ class TokenService:
     def _fingerprint(token: str) -> str:
         return hashlib.sha256(token.encode()).hexdigest()
 
-    def _encode(self, jti: str, user_id: int, kind: str, platform: str, ttl: int) -> tuple[str]:
+    def _encode(self, jti: str, user_id: int, kind: str,  tenant_id:int, platform: str, ttl: int) -> str:
         now = int(time.time())
 
         # 严格遵循 JWT 标准字段与业务扩展字段
@@ -40,6 +40,7 @@ class TokenService:
 
             # --- 2. 业务必需的自定义扩展字段（用于多端与权限控制） ---
             "type": kind,  # 令牌类型 ("access" / "refresh")
+            "tenant_id": tenant_id,  # 令牌类型 ("access" / "refresh")
             "platform": platform  # 登录平台 ("web", "cli", "tui", "electron")
         }
 
@@ -51,7 +52,7 @@ class TokenService:
 
         return token
 
-    def _jwt_decode(self, refresh_token: str) -> tuple[Any, Any, Any, Any, Any]:
+    def _jwt_decode(self, refresh_token: str) -> tuple[Any, Any, Any, Any, Any, Any]:
         payload = jwt.decode(
             refresh_token,
             self.config.secret,
@@ -65,6 +66,7 @@ class TokenService:
                     "exp",  # 过期时间检查 (自动校验是否超时)
                     "jti",  # 唯一身份标识检查
                     "type",  # 令牌类型检查
+                    "tenant_id",  # 租户id
                     "platform"  # 登录平台检查
                 ]
             }
@@ -73,21 +75,23 @@ class TokenService:
         user_id = int(payload["sub"])
         jti = payload["jti"]
         type = payload["type"]
+        tenant_id = int(payload["tenant_id"])
         platform = payload["platform"]
 
-        return jti, user_id, type, platform, payload
+        return jti, user_id, tenant_id, type, platform, payload
 
-    async def issue(self, user: UserInfoResponse, platform: LoginPlatform = "web") -> tuple:
+    async def issue(self, user: UserInfoResponse, platform: LoginPlatform = "web") -> LoginResponse:
         if platform not in ("web", "cli", "tui", "electron"):
             raise ValueError("不支持的登录平台")
 
-        user_info = user.model_dump(mode="json", include={"id", "username", "name", "role"})
+        user_info = user.model_dump(mode="json", include={"id", "tenant_id", "username", "name", "role"})
         user_id = user.id
+        tenant_id = user.tenant_id
         jti = secrets.token_hex(24)
 
-        access_token = self._encode(jti=jti, user_id=user_id, kind="access", platform=platform,
+        access_token = self._encode(jti=jti, user_id=user_id, kind="access", platform=platform, tenant_id=tenant_id,
                                     ttl=self.config.access_ttl)
-        refresh_token = self._encode(jti=jti, user_id=user_id, kind="refresh", platform=platform,
+        refresh_token = self._encode(jti=jti, user_id=user_id, kind="refresh", platform=platform, tenant_id=tenant_id,
                                      ttl=self.config.access_ttl)
 
         session_key = TOKEN_SESSION_KEY.format(user_id=user_id, jti=jti)
@@ -111,15 +115,20 @@ class TokenService:
                 ttl=self.config.refresh_ttl)
 
         except Exception:
-            await self.cache.delete(session_key)
+            await self.remove_cache_keys(access_key, refresh_key, session_key)
             raise
 
-        return access_token, refresh_token
+        return LoginResponse(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            expires_in=self.config.access_ttl,
+            user_info=user_info,
+        )
 
     async def authenticate(self, access_token: str) -> UserInfoResponse:
 
         try:
-            jti, user_id, type, platform, payload = self._jwt_decode(access_token)
+            jti, user_id, tenant_id, type, platform, payload = self._jwt_decode(access_token)
 
             if type != "access" or not isinstance(jti, str):
                 raise ValueError("invalid token type")
@@ -128,26 +137,26 @@ class TokenService:
                 raise ValueError("invalid platform")
 
         except (jwt.InvalidTokenError, ValueError, TypeError) as exc:
-            raise HTTPException(status.HTTP_status.HTTP_401_UNAUTHORIZED_UNAUTHORIZED, "令牌无效或已过期") from exc
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "令牌无效或已过期") from exc
 
         access_key = ACCESS_TOKEN_KEY.format(user_id=user_id, jti=jti)
         exists = await self.cache.exists(access_key)
         if not exists:
-            raise HTTPException(status.HTTP_status.HTTP_401_UNAUTHORIZED_UNAUTHORIZED, "令牌无效或已过期")
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "令牌无效或已过期")
 
         session_key = TOKEN_SESSION_KEY.format(user_id=user_id, jti=jti)
         session = await self.cache.get(session_key)
         if session is None:
-            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "登录会话已失效")
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "令牌无效或已过期")
 
-        return UserInfoResponse.model_validate_json(session["user_info"])
+        return UserInfoResponse.model_validate(session["user_info"])
 
-    async def refresh_access_token(self, refresh_token: str, user_store) -> tuple[str, str]:
+    async def refresh_access_token(self, refresh_token: str, user_store) -> LoginResponse:
         """通过 refresh token 定位 refresh_key，保留其原有有效期。"""
         try:
-            jti, user_id, type, platform, payload = self._jwt_decode(refresh_token)
+            jti, user_id, tenant_id, type, platform, payload = self._jwt_decode(refresh_token)
 
-            if type != "access" or not isinstance(jti, str):
+            if type != "refresh" or not isinstance(jti, str):
                 raise ValueError("invalid token type")
 
             if platform not in ("web", "cli", "tui", "electron"):
@@ -156,24 +165,26 @@ class TokenService:
         except (jwt.InvalidTokenError, ValueError, TypeError) as exc:
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "刷新令牌无效或已过期") from exc
 
+        access_key = ACCESS_TOKEN_KEY.format(user_id=user_id, jti=jti)
         refresh_key = REFRESH_TOKEN_KEY.format(user_id=user_id, jti=jti)
         session_key = TOKEN_SESSION_KEY.format(user_id=user_id, jti=jti)
+
         exists = await self.cache.exists(refresh_key)
         if not exists:
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "刷新令牌无效或已过期")
 
-        session = await self.cache.get(session_key)
-        if not session:
-            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "刷新令牌无效或已过期")
+        user = await user_store.get_user_info(tenant_id,user_id)
 
-        user = await user_store.get_user_info(user_id)
+        await self.remove_cache_keys(access_key, refresh_key, session_key)
 
-        return await self.issue(user, platform)
+        user_info = await self.issue(user, platform)
+
+        return user_info
 
     async def logout(self, access_token: str):
 
         try:
-            jti, user_id, type, platform, payload = self._jwt_decode(access_token)
+            jti, user_id, tenant_id, type, platform, payload = self._jwt_decode(access_token)
         except (jwt.InvalidTokenError, ValueError, TypeError) as exc:
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "令牌无效或已过期") from exc
 
@@ -181,9 +192,20 @@ class TokenService:
         access_key = ACCESS_TOKEN_KEY.format(user_id=user_id, jti=jti)
         refresh_key = REFRESH_TOKEN_KEY.format(user_id=user_id, jti=jti)
 
+        await self.remove_cache_keys(access_key, refresh_key, session_key)
+
+    async def remove_cache_keys(self, access_key: str, refresh_key: str, session_key: str):
+        try:
+            await self.cache.delete(access_key)
+        except Exception as e:
+            log_exception(e, "remove access_key error")
+
+        try:
+            await self.cache.delete(refresh_key)
+        except Exception as e:
+            log_exception(e, "remove refresh_key error")
+
         try:
             await self.cache.delete(session_key)
-            await self.cache.delete(access_key)
-            await self.cache.delete(refresh_key)
-        except:
-            pass
+        except Exception as e:
+            log_exception(e, "remove session_key error")

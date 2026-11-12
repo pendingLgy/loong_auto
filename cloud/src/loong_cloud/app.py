@@ -19,6 +19,7 @@ from loong_cloud.core.container import  ApplicationContainer
 from loong_cloud.db.db_proxy import AsyncDatabaseProxy
 from loong_cloud.install_setting import SERVICE_TARGETS, WIRE_TARGETS
 from loong_cloud.middleware.loading_middleware import loading_middleware
+from loong_contracts.utis.datetime_util import utcnow
 
 
 def _get_path() -> str:
@@ -78,6 +79,8 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Loong Cloud", version="0.1.0", lifespan=lifespan,
                   docs_url="/api/docs", redoc_url="/api/redoc", openapi_url="/api/openapi.json",
                   swagger_ui_oauth2_redirect_url="/api/docs/oauth2-redirect")
+    app.state.started_at = utcnow()
+    app.state.started_monotonic = monotonic()
 
     container = ApplicationContainer(
         global_config=global_config,
@@ -107,13 +110,14 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(RequestValidationError)
     async def invalid_request(request, exc):
-        log_exception(exc, "请求参数校验失败", request_id=request.state.request_id,
+        log_exception(exc, f"请求参数校验失败, path:{request.url.path}", request_id=request.state.request_id,
                       request_date=request.state.request_date.isoformat(), status_code=status.HTTP_422_UNPROCESSABLE_CONTENT)
         return error_response(request, status.HTTP_422_UNPROCESSABLE_CONTENT, "请求参数校验失败")
 
     @app.exception_handler(Exception)
     async def unexpected_error(request, exc):
-        log_exception(exc, "服务内部异常", request_id=request.state.request_id,
+
+        log_exception(exc, f"服务内部异常, path:{request.url.path}", request_id=request.state.request_id,
                       request_date=request.state.request_date.isoformat(), status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
         return error_response(request, status.HTTP_500_INTERNAL_SERVER_ERROR, "服务内部错误")
 

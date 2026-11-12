@@ -2,6 +2,8 @@
 
 from typing import Any
 
+from loguru import logger
+
 from loong_cloud.config.config_cache import CacheConfig
 from .cache_base import BaseCache
 from .registry_cache import resolve_cache
@@ -20,6 +22,8 @@ class CacheProxy:
 
     async def start_proxy(self) -> None:
         await self._backend.start()
+        logger.info("cache proxy started")
+
 
     async def status(self) -> bool:
         status = await self._backend.status()

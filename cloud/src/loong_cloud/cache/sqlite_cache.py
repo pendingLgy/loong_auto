@@ -13,7 +13,7 @@ from loguru import logger
 from sqlalchemy import Column, Float, Index, Integer, MetaData, Table, Text, URL, delete, or_, select
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.pool import AsyncAdaptedQueuePool
+from sqlalchemy.pool import AsyncAdaptedQueuePool, NullPool, NullPool
 
 from loong_cloud.config.config_cache import CacheConfig
 from .cache_base import BaseCache
@@ -74,7 +74,6 @@ class SqliteCache(BaseCache):
             self._cleanup_stop.clear()
             self._cleanup_thread = Thread(
                 target=self._cleanup_worker,
-                args=(asyncio.get_running_loop(),),
                 name="sqlite-cache-cleanup",
                 daemon=True,
             )
@@ -88,21 +87,29 @@ class SqliteCache(BaseCache):
                 raise
 
 
-    def _cleanup_worker(self, loop: asyncio.AbstractEventLoop) -> None:
-        """线程负责计时；数据库操作仍在引擎所属事件循环执行。"""
+    def _cleanup_worker(self) -> None:
+        """在线程自己的事件循环中直接调用清理方法，使用专用连接。"""
         logger.info("cache clean thread start")
-        while not self._cleanup_stop.wait(self.config.sqlite.cleanup_interval):
-            coroutine = self.cleanup_expired()
-            try:
-                future = asyncio.run_coroutine_threadsafe(coroutine, loop)
-            except RuntimeError:
-                coroutine.close()
-                logger.exception("缓存清理无法调度，事件循环已关闭")
-                return
-            try:
-                future.result()
-            except Exception:
-                logger.exception("后台清理过期缓存失败")
+        try:
+            with asyncio.Runner() as runner:
+                engine = create_async_engine(
+                    URL.create("sqlite+aiosqlite", database=self.config.sqlite.database),
+                    connect_args={"timeout": self.config.sqlite.timeout},
+                    poolclass=NullPool,
+                )
+                sessions = async_sessionmaker(engine, expire_on_commit=False)
+                try:
+                    while not self._cleanup_stop.wait(self.config.sqlite.cleanup_interval):
+                        try:
+                            runner.run(self.cleanup_expired(sessions))
+                        except Exception:
+                            logger.exception("后台清理过期缓存失败")
+                finally:
+                    runner.run(engine.dispose())
+        except Exception:
+            logger.exception("缓存清理线程异常退出")
+        finally:
+            logger.info("cache clean thread stopped")
 
     async def close(self) -> None:
         async with self._lifecycle_lock:
@@ -141,7 +148,14 @@ class SqliteCache(BaseCache):
         return default if row is None else json.loads(row[0])
 
     async def exists(self, key: str) -> bool:
-        return self.get(key) is not None
+        statement = select(cache_entries.c.id).where(
+            cache_entries.c.namespace == self.config.prefix,
+            cache_entries.c.key == key,
+            or_(cache_entries.c.expires_at.is_(None), cache_entries.c.expires_at > time.time()),
+        ).limit(1)
+        async with self.session() as session:
+            row = (await session.execute(statement)).first()
+        return row is not None
 
     async def set(self, key: str, value: Any, ttl: float | None = None) -> None:
         if ttl is not None and (not math.isfinite(ttl) or ttl <= 0):
@@ -175,13 +189,19 @@ class SqliteCache(BaseCache):
             async with self.session() as session:
                 await session.execute(statement)
 
-    async def cleanup_expired(self) -> int:
+    async def cleanup_expired(
+        self, session_factory: async_sessionmaker[AsyncSession] | None = None,
+    ) -> int:
+        """线程传入专用会话工厂；普通调用使用当前实例的会话工厂。"""
+        sessions = session_factory if session_factory is not None else self._session_factory
+        if sessions is None:
+            raise RuntimeError("缓存尚未启动")
         statement = delete(cache_entries).where(
             cache_entries.c.namespace == self.config.prefix,
             cache_entries.c.expires_at <= time.time(),
         )
-        async with self._lock:
-            async with self.session() as session:
-                result = await session.execute(statement)
-                logger.info(f"remove cache key count {result.rowcount}")
-                return result.rowcount
+        async with sessions.begin() as session:
+            result = await session.execute(statement)
+            count = result.rowcount
+        logger.info("remove cache key count {}", count)
+        return count

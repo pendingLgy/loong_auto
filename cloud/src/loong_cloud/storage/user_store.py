@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from fastapi import HTTPException
 from sqlalchemy import MetaData, insert, select
 from sqlalchemy.exc import IntegrityError
+from starlette import status
 
 from loong_cloud.db.db_proxy import AsyncDatabaseProxy
 from loong_cloud.schema.user import user_table
@@ -55,10 +56,10 @@ class UserStore:
                 )
 
                 if existing is not None:
-                    raise HTTPException(409, "用户名已存在")
+                    raise HTTPException(status.HTTP_409_CONFLICT, "用户名已存在")
                 await session.execute(insert(self.table).values(**values))
         except IntegrityError as exc:
-            raise HTTPException(409, "用户名已存在") from exc
+            raise HTTPException(status.HTTP_409_CONFLICT, "用户名已存在") from exc
         return UserInfoResponse.model_validate(values)
 
     async def login(self, tenant_id: int, username: str, password: str) -> UserInfoResponse:
@@ -74,7 +75,7 @@ class UserStore:
         valid = await asyncio.to_thread(verify_password, password, password_hash)
 
         if not valid or row is None or row["status"] != 1 or row["is_deleted"]:
-            raise HTTPException(401, "用户名或密码错误")
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "用户名或密码错误")
         return UserInfoResponse.model_validate(dict(row))
 
     async def get_user_info(self, tenant_id: int, user_id: int) -> UserInfoResponse:
@@ -84,10 +85,10 @@ class UserStore:
                 where(
                     self.table.c.id == user_id,
                     self.table.c.tenant_id == tenant_id,
-                    self.table.c.status == tenant_id,
+                    self.table.c.status == 1,
                     self.table.c.is_deleted == 0)
             )).mappings().first()
 
         if row is None:
-            raise HTTPException(401, "用户不存在或已禁用")
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "用户不存在或已禁用")
         return UserInfoResponse.model_validate(dict(row))

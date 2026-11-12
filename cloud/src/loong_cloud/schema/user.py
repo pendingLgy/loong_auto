@@ -12,7 +12,7 @@ def user_table(table_metadata: MetaData, prefix: str = "") -> Any:
         # --- 基础与主键 ---
         Column("id", BigInteger, primary_key=True, comment="主键ID"),
         Column("tenant_id", BigInteger, nullable=False, comment="租户ID"),
-        Column("user_id", BigInteger, nullable=True, comment="业务层用户ID/外部系统ID"),
+        Column("user_id", String(62), nullable=True, comment="业务层用户ID/外部系统ID"),
 
         # --- 核心业务/身份信息 ---
         Column("role", String(32), nullable=True, default="user", comment="角色: admin/user/guest"),

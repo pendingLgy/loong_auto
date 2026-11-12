@@ -35,14 +35,14 @@ async def login(request: Request, body: LoginRequest,
                 user_store: UserStore = Depends(Provide["UserStore"]),
                 token_service: TokenService = Depends(Provide["TokenService"])):
     user = await user_store.login(request.state.tenant_id, body.username, body.password)
-    tokens = await token_service.issue(user, body.platform)
-    return Response.ok(request, tokens)
+    data = await token_service.issue(user, body.platform)
+    return Response.ok(request, data=data)
 
 
 @router.get("/me", response_model=BaseResponse[UserInfoResponse])
 @inject
 async def get_user_info(request: Request, user_store: UserStore = Depends(Provide["UserStore"])):
-    user = await user_store.get_user_info(request.state.tenant_id, request.state.identity["user_id"])
+    user = await user_store.get_user_info(request.state.tenant_id, request.state.identity.id)
     return Response.ok(request, user)
 
 

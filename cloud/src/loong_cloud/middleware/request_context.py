@@ -2,7 +2,8 @@ from loguru import logger
 from starlette.datastructures import MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from loong_contracts.common import identifier, utcnow
+from loong_contracts.utis.datetime_util import utcnow
+from loong_contracts.utis.uuid_util import identifier
 
 
 class RequestContextMiddleware:
@@ -12,6 +13,7 @@ class RequestContextMiddleware:
         self.app = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return

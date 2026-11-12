@@ -41,10 +41,12 @@ cloud/
 - 业务缓存 key 模板集中在 `constant/cache_key.py`，全局 prefix 由 `CacheProxy` 统一添加。
 
 - HTTP 业务通过 `cache/dependencies.py` 注入缓存，普通服务通过构造函数接收缓存；配置由 `GlobalConfig.cache_config` 统一加载。
-- 当前实现 SQLite，缓存独立于业务数据库，支持 JSON 值、命名空间及按秒设置的 TTL；过期数据读取为未命中，后台线程按 `cache_config.sqlite.cleanup_interval` 定时调度物理清理，也可调用 `cleanup_expired()`。线程随缓存启动和关闭，SQL 操作在原事件循环执行。
+- 当前实现 SQLite，缓存独立于业务数据库，支持 JSON 值、命名空间及按秒设置的 TTL；过期数据读取为未命中，后台线程按 `cache_config.sqlite.cleanup_interval` 定时调度物理清理，也可调用 `cleanup_expired()`。线程随缓存启动和关闭，定时清理 SQL 在独立线程的事件循环中执行，使用专用引擎和 Session，不共享主循环连接及 asyncio 锁。
 - 新后端继承 `BaseCache`，通过 `cache_registry` 注册并配置 `cache_type`；Redis 尚未实现。
 
 ## 用户认证
+
+- 认证白名单支持大小写敏感的 glob 匹配，`*` 可跨 `/` 匹配任意长度路径；例如 `/api/status/*` 匹配子路径，不匹配 `/api/status` 本身，根路径需单独配置。未使用通配符的路径仍为精确匹配。
 
 - `storage/user_store.py` 管理默认租户的注册、登录校验及用户查询，密码使用随机盐 PBKDF2-SHA256，响应不包含密码哈希。
 - `api/login_api.py` 提供 `/api/auth` 下的注册、登录、当前用户及退出接口。

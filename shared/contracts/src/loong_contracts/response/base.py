@@ -1,9 +1,7 @@
 from datetime import datetime
 from typing import Generic, TypeVar, Annotated
 
-from pydantic import PlainSerializer, BeforeValidator
-
-from ..common import Contract
+from pydantic import PlainSerializer, BeforeValidator, BaseModel, ConfigDict
 
 
 def _parse_to_int(v) -> int:
@@ -25,7 +23,9 @@ BigIntId = Annotated[
 T = TypeVar("T")
 
 
-class BaseResponse(Contract, Generic[T]):
+class BaseResponse(BaseModel, Generic[T]):
+    model_config = ConfigDict(extra="forbid")
+
     code: int = 0
     msg: str = "success"
     data: T | None = None

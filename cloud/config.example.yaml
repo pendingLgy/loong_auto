@@ -3,8 +3,9 @@
 log_level: INFO
 token_config:
   # 启用登录前设置至少 32 字符的随机 secret，或使用环境变量注入
+  secret: null
   issuer: loong-cloud
-  access_ttl: 900
+  access_ttl: 3600
   refresh_ttl: 604800
 cache_config:
   cache_type: sqlite
@@ -12,7 +13,7 @@ cache_config:
   sqlite:
     database: loong-cache.db
     timeout: 30
-    cleanup_interval: 60
+    cleanup_interval: 5
     pool:
       size: 5
       max_overflow: 10

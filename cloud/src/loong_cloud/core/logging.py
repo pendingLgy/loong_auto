@@ -8,8 +8,11 @@ from loguru import logger
 
 def custom_format(record):
     """动态生成日志格式字符串"""
-    # 基础部分：时间与日志级别
-    fmt = "{time:YYYY-MM-DD HH:mm:ss.SSS Z} | {level}"
+    # 基础部分：时间、线程、日志级别及调用位置
+    fmt = (
+        "{time:YYYY-MM-DD HH:mm:ss.SSS Z} | thread={thread.id}:{thread.name} | {level}"
+        " | {name} [{function}:{line}]"
+    )
 
     # 检查并动态拼接 request_id
     request_id = record["extra"].get("request_id")
