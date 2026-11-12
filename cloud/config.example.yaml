@@ -1,6 +1,24 @@
 # GlobalConfig 示例，使用 GlobalConfig.load("cloud/config.example.yaml") 加载。
 # LOONG_ 前缀的进程环境变量可覆盖对应字段，__ 表示嵌套层级。
 log_level: INFO
+token_config:
+  # 启用登录前设置至少 32 字符的随机 secret，或使用环境变量注入
+  issuer: loong-cloud
+  access_ttl: 900
+  refresh_ttl: 604800
+cache_config:
+  cache_type: sqlite
+  prefix: loong
+  sqlite:
+    database: loong-cache.db
+    timeout: 30
+    cleanup_interval: 60
+    pool:
+      size: 5
+      max_overflow: 10
+      timeout: 30
+      recycle: 1800
+      pre_ping: true
 white_list_urls:
   - /api/status
   - /api/status/health

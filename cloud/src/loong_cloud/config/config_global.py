@@ -7,6 +7,8 @@ from dotenv import dotenv_values
 from pydantic import BaseModel, ConfigDict, Field
 
 from .config_db import DatabaseConfig
+from .config_token import TokenConfig
+from .config_cache import CacheConfig
 
 ENV_PREFIX = "LOONG_"
 ENV_NESTED_DELIMITER = "__"
@@ -20,6 +22,8 @@ class GlobalConfig(BaseModel):
     white_list_urls: list[str] = Field(default_factory=list, description="URL 白名单")
 
     db_config: DatabaseConfig = Field(default_factory=DatabaseConfig, description="DB配置")
+    cache_config: CacheConfig = Field(default_factory=CacheConfig, description="缓存配置")
+    token_config: TokenConfig = Field(default_factory=TokenConfig, description="JWT 配置")
 
     @classmethod
     def load(cls, path: str | Path) -> "GlobalConfig":

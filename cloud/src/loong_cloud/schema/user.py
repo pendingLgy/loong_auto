@@ -32,6 +32,7 @@ def user_table(table_metadata: MetaData, prefix: str = "") -> Any:
 
         # --- 索引定义 ---
         Index(f"idx_{prefix}_tenant_user", "tenant_id", "user_id", unique=True),
+        Index(f"idx_{prefix}_tenant_username", "tenant_id", "username", unique=True),
         Index(f"idx_{prefix}_tenant_email", "tenant_id", "email"),
         Index(f"idx_{prefix}_tenant_phone", "tenant_id", "phone"),
         Index(f"idx_{prefix}_created_at", "created_at"),

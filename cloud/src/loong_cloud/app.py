@@ -7,13 +7,17 @@ from time import monotonic
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette import status
 from starlette.exceptions import HTTPException
 
+from loong_cloud.cache import CacheProxy
 from loong_cloud.config.config_global import GlobalConfig
 from loong_cloud.core.logging import log_exception, configure_logging
 from loong_cloud.api import router
 from loong_cloud.common.response import Response
+from loong_cloud.core.container import  ApplicationContainer
 from loong_cloud.db.db_proxy import AsyncDatabaseProxy
+from loong_cloud.install_setting import SERVICE_TARGETS, WIRE_TARGETS
 from loong_cloud.middleware.loading_middleware import loading_middleware
 
 
@@ -43,6 +47,7 @@ def create_app() -> FastAPI:
     configure_logging(global_config.log_level)
 
     db_proxy = AsyncDatabaseProxy(global_config.db_config)
+    cache_proxy = CacheProxy(global_config.cache_config)
 
     def mark_started(app: FastAPI) -> None:
         app.state.started_at = datetime.now(timezone.utc)
@@ -53,22 +58,38 @@ def create_app() -> FastAPI:
         try:
             mark_started(app)
             await db_proxy.start_proxy()
+            await cache_proxy.start_proxy()
             yield
         except Exception as exc:
             log_exception(exc, "云端服务生命周期异常")
             raise
         finally:
-            if db_proxy.status:
-                await db_proxy.close_db()
+            try:
+                await cache_proxy.close()
+            except Exception as exc:
+                log_exception(exc, "关闭缓存失败")
+
+            try:
+                if db_proxy.status:
+                    await db_proxy.close_db()
+            except Exception as exc:
+                log_exception(exc, "关闭数据库失败")
 
     app = FastAPI(title="Loong Cloud", version="0.1.0", lifespan=lifespan,
                   docs_url="/api/docs", redoc_url="/api/redoc", openapi_url="/api/openapi.json",
                   swagger_ui_oauth2_redirect_url="/api/docs/oauth2-redirect")
 
-    app.state.db_proxy = db_proxy
+    container = ApplicationContainer(
+        global_config=global_config,
+        cache_proxy=cache_proxy,
+        db_proxy=db_proxy,
+        service_targets=SERVICE_TARGETS,
+        wire_targets=WIRE_TARGETS)
+
+    app.state.container = container
     app.include_router(router)
 
-    loading_middleware(app, global_config)
+    loading_middleware(app)
 
     def error_response(request, code, message, headers=None):
         body = Response.fail(request, code=code, msg=message)
@@ -76,26 +97,24 @@ def create_app() -> FastAPI:
         response_headers = dict(headers or {})
         response_headers["X-Request-ID"] = body.request_id
         response_headers["X-Request-Date"] = body.request_date.isoformat()
-        response_headers["request_id"] = body.request_id
-        response_headers["request_date"] = body.request_date.isoformat()
         return JSONResponse(status_code=code, content=body.model_dump(mode="json"), headers=response_headers)
 
     @app.exception_handler(HTTPException)
     async def http_error(request, exc):
-        log_exception(exc, "HTTP 请求异常", request_id=request.state.request_id,
+        log_exception(exc, f"HTTP 请求异常, path:{request.url.path}", request_id=request.state.request_id,
                       request_date=request.state.request_date.isoformat(), status_code=exc.status_code)
         return error_response(request, exc.status_code, str(exc.detail), exc.headers)
 
     @app.exception_handler(RequestValidationError)
     async def invalid_request(request, exc):
         log_exception(exc, "请求参数校验失败", request_id=request.state.request_id,
-                      request_date=request.state.request_date.isoformat(), status_code=422)
-        return error_response(request, 422, "请求参数校验失败")
+                      request_date=request.state.request_date.isoformat(), status_code=status.HTTP_422_UNPROCESSABLE_CONTENT)
+        return error_response(request, status.HTTP_422_UNPROCESSABLE_CONTENT, "请求参数校验失败")
 
     @app.exception_handler(Exception)
     async def unexpected_error(request, exc):
         log_exception(exc, "服务内部异常", request_id=request.state.request_id,
-                      request_date=request.state.request_date.isoformat(), status_code=500)
-        return error_response(request, 500, "服务内部错误")
+                      request_date=request.state.request_date.isoformat(), status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return error_response(request, status.HTTP_500_INTERNAL_SERVER_ERROR, "服务内部错误")
 
     return app

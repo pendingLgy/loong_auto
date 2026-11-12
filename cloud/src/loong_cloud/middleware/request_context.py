@@ -1,13 +1,13 @@
-"""为每次 HTTP 请求生成服务端请求标识与 UTC 接收时间。"""
-
+from loguru import logger
 from starlette.datastructures import MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from loong_contracts.common import identifier, utcnow
-from loguru import logger
 
 
 class RequestContextMiddleware:
+    """为每次 HTTP 请求生成服务端请求标识与 UTC 接收时间。"""
+
     def __init__(self, app: ASGIApp):
         self.app = app
 

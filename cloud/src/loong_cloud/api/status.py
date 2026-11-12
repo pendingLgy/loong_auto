@@ -21,8 +21,6 @@ async def get_status(request: Request) -> BaseResponse[ServiceStatus]:
 
 
 
-
-
 @router.get("/health", response_model=BaseResponse[HealthStatus], include_in_schema=False)
 async def health(request: Request):
     return Response.ok(request, HealthStatus())

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from typing import Any, List
@@ -20,6 +21,7 @@ class AsyncSqliteDb(BaseDB):
         self.pool_config = pool_config
         self.engine: AsyncEngine | None = None
         self.session: async_sessionmaker[AsyncSession] | None = None
+        self._lock = asyncio.Lock()
 
     @classmethod
     def from_config(cls, db_config: Any, pool_config: Any):
@@ -33,55 +35,58 @@ class AsyncSqliteDb(BaseDB):
 
     async def start(self):
 
-        self._path_exsit(self.config.database)
+        async with self._lock:
+            if self.engine is not None:
+                return
 
-        url = URL.create("sqlite+aiosqlite", database=self.config.database)
-        connection_string = url.render_as_string(hide_password=False)
+            self._path_exsit(self.config.database)
 
-        try:
-            self.engine = create_async_engine(
-                connection_string,
-                echo=self.config.print_sql,
-                pool_size=self.pool_config.size,
-                max_overflow=self.pool_config.max_overflow,
-                pool_timeout=self.pool_config.timeout,
-                pool_recycle=self.pool_config.recycle,
-                pool_pre_ping=self.pool_config.pre_ping,
-                # 只有当 isolation_level 非空时才传入
-                **({"isolation_level": self.config.isolation_level} if self.config.isolation_level else {}),
-                connect_args={
-                    "timeout": self.config.timeout,
-                    "check_same_thread": self.config.check_same_thread,
-                }
-            )
+            url = URL.create("sqlite+aiosqlite", database=self.config.database)
+            connection_string = url.render_as_string(hide_password=False)
 
-            self.session = async_sessionmaker(
-                bind=self.engine,
-                class_=AsyncSession,
-                expire_on_commit=False,
-            )
+            try:
+                self.engine = create_async_engine(
+                    connection_string,
+                    echo=self.config.print_sql,
+                    pool_size=self.pool_config.size,
+                    max_overflow=self.pool_config.max_overflow,
+                    pool_timeout=self.pool_config.timeout,
+                    pool_recycle=self.pool_config.recycle,
+                    pool_pre_ping=self.pool_config.pre_ping,
+                    # 只有当 isolation_level 非空时才传入
+                    **({"isolation_level": self.config.isolation_level} if self.config.isolation_level else {}),
+                    connect_args={
+                        "timeout": self.config.timeout,
+                        "check_same_thread": self.config.check_same_thread,
+                    }
+                )
 
-            if self.config.print_sql:
-                # 开启 SQLAlchemy engine 和 pool 的调试日志
-                logging.basicConfig()
-                logging.getLogger("sqlalchemy.pool").setLevel(logging.INFO)
+                self.session = async_sessionmaker(
+                    bind=self.engine,
+                    class_=AsyncSession,
+                    expire_on_commit=False,
+                )
 
-        except Exception as exc:
-            raise StorageError("无法创建异步 SQLite 引擎：" + str(exc)) from exc
+                if self.config.print_sql:
+                    # 开启 SQLAlchemy engine 和 pool 的调试日志
+                    logging.basicConfig()
+                    logging.getLogger("sqlalchemy.pool").setLevel(logging.INFO)
 
-        try:
-            missing = await self.table_miss()
-            if not missing:
-                logger.info("tables exist")
-            else:
-                async with self.engine.begin() as conn:
-                    for miss_table in missing:
-                        table: Table = miss_table
-                        logger.info(f"create table {table.name}")
-                        await conn.run_sync(table.create, checkfirst=True)
+            except Exception as exc:
+                raise StorageError("无法创建异步 SQLite 引擎：" + str(exc)) from exc
 
-        except Exception as exc:
-            raise StorageError("建表失败" + ": " + str(exc)) from exc
+            try:
+                missing = await self.table_miss()
+                if not missing:
+                    logger.info("tables exist")
+                else:
+                    async with self.engine.begin() as conn:
+                        for miss_table in missing:
+                            table: Table = miss_table
+                            logger.info(f"create table {table.name}")
+                            await conn.run_sync(table.create, checkfirst=True)
+            except Exception as exc:
+                raise StorageError("建表失败" + ": " + str(exc)) from exc
 
         return self.engine, self.session
 

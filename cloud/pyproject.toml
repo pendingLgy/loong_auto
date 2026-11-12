@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "loong-cloud"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = ["loong-contracts", "pydantic", "fastapi", "uvicorn", "httpx", "sqlalchemy[asyncio]", "aiosqlite", "python-dotenv", "pyyaml", "loguru"]
+dependencies = ["loong-contracts", "pydantic", "fastapi", "uvicorn", "httpx", "sqlalchemy[asyncio]", "aiosqlite", "python-dotenv", "pyyaml", "loguru", "pyjwt", "dependency-injector"]
 
 [project.optional-dependencies]
 postgres = ["psycopg[binary]", "asyncpg"]

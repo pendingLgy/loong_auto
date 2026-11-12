@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from threading import RLock
-from typing import Iterator
+from typing import Iterator, AsyncIterator
 
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
@@ -45,7 +45,7 @@ class AsyncDatabaseProxy:
         await self._db.close()
 
     @asynccontextmanager
-    async def session(self) -> Iterator[AsyncSession]:
+    async def session(self) -> AsyncIterator[AsyncSession]:
         """使用标准 sessionmaker 管理会话生命周期"""
         async with self._async_session() as session:
             try:
@@ -58,7 +58,7 @@ class AsyncDatabaseProxy:
                 await session.close()
 
     @asynccontextmanager
-    async def session_manual_tx(self) -> Iterator[AsyncSession]:
+    async def session_manual_tx(self) -> AsyncIterator[AsyncSession]:
         """使用标准 sessionmaker 管理会话生命周期, 许哟啊手动提交事务"""
         async with self._async_session() as session:
             try:

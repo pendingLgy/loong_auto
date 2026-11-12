@@ -6,12 +6,36 @@ import traceback
 from loguru import logger
 
 
+def custom_format(record):
+    """动态生成日志格式字符串"""
+    # 基础部分：时间与日志级别
+    fmt = "{time:YYYY-MM-DD HH:mm:ss.SSS Z} | {level}"
+
+    # 检查并动态拼接 request_id
+    request_id = record["extra"].get("request_id")
+    if request_id and request_id != "-":
+        fmt += " | request_id={extra[request_id]}"
+
+    # 检查并动态拼接 request_date
+    request_date = record["extra"].get("request_date")
+    if request_date and request_date != "-":
+        fmt += " | request_date={extra[request_date]}"
+
+    # 结尾部分：消息与其余的 extra
+    fmt += " | {message}\n"
+
+    return fmt
+
 def configure_logging(level: str = "INFO") -> None:
+    DEFAULT_FORMAT = "{time:YYYY-MM-DD HH:mm:ss.SSS Z} | {level} | request_id={extra[request_id]} | request_date={extra[request_date]} | {message} "
+
     logger.configure(extra={"request_id": "-", "request_date": "-"})
     logger.remove()
-    logger.add(sys.stderr, level=level,
-               backtrace=False, diagnose=False,
-               format="{time:YYYY-MM-DD HH:mm:ss.SSS Z} | {level} | request_id={extra[request_id]} | request_date={extra[request_date]} | {message} | {extra}")
+    logger.add(sys.stderr,
+               level=level,
+               backtrace=False,
+               diagnose=False,
+               format=custom_format)
 
 
 def log_exception(exc: BaseException, message: str, **context) -> None:
@@ -21,5 +45,7 @@ def log_exception(exc: BaseException, message: str, **context) -> None:
         f'  File "{frame.filename}", line {frame.lineno}, in {frame.name}' for frame in frames
     )
     level = "WARNING" if context.get("status_code", 500) < 500 else "ERROR"
-    logger.bind(**context, exception_type=type(exc).__name__).log(
-        level, "{}\nTraceback (most recent call last):\n{}\n{}", message, stack, type(exc).__name__)
+    (
+        logger.bind(**context, exception_type=type(exc).__name__).
+        log(level, "{}\n{}\nTraceback (most recent call last):\n{}", message, str(exc), stack)
+    )
