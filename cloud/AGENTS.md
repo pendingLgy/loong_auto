@@ -20,6 +20,7 @@ cloud/
 │   ├── db/            # 数据库代理、实现及注册
 │   ├── schema/        # 云端内部数据模型
 │   ├── providers/     # 模型供应商适配
+│   ├── agent/         # 模型调用契约与供应商协议适配器
 │   ├── storage/       # 云端状态存储
 │   ├── cache/         # 异步缓存代理、后端契约与 SQLite 实现
 │   └── utils/         # 通用辅助能力
@@ -58,4 +59,21 @@ cloud/
 
 ## 测试执行
 
+- 模型适配器位于 `agent/adapters`，统一使用 `agent/models.py` 的数据模型；通过 `create_adapter` 创建，使用异步上下文或 `close()` 释放自有 HTTP 客户端。外部注入的客户端由调用方关闭。
+- `agent/executor.py` 的 `ModelExecutor` 通过 `execute(model_name, request)` 按 `GlobalConfig.models` 别名选择适配器并复用 HTTP 客户端。支持异步上下文和显式 `close()`，关闭前由调用方结束在途请求；仅路由模型调用，不执行工具。不应递归扫描整个 agent 包注册服务（包内含数据模型和适配器），需要注入时显式注册执行器类。
+- DeepSeek 使用 `provider: deepseek`，默认地址 `https://api.deepseek.com/v1`，复用 OpenAI 兼容协议及本地/远程工具分类，调用时必须提供 API 密钥。当前仅支持已有普通调用契约，不支持推理模型专用的 reasoning_content 回传。
+
 - 仅在用户明确要求时新增测试用例；修改代码后可以运行已有测试进行验证。
+
+- 模型执行器 `stream()` 返回 text_delta、tool_call、done 事件；`stream_sse()` 返回可用于 StreamingResponse 的 SSE 帧。done 携带完整响应；中断流抛出 ModelError，不伪造完成。调用方提前停止消费时应使用 contextlib.aclosing 关闭生成器；HTTP 路由负责流开始后的错误事件策略。
+
+
+
+- 同一供应商下所有模型共用供应商级 adapter，执行器按 provider 缓存适配器实例。model 和 temperature 每次调用独立传入，不修改共享实例配置，避免并发串扰；YAML 的 adapter 位于供应商层。
+
+- 供应商连接统一由 adapters/default_models.yaml 维护，不设 config_provider.py 或 GlobalConfig.providers。密钥由每次调用的 ModelConfig.api_key 传入；ModelExecutor() 自动加载目录，同一供应商复用适配器。
+
+- API 密钥使用 ModelConfig.api_key（SecretStr）按调用传入，适配器生成请求头时读取本次配置，不保存到供应商连接或共享客户端默认请求头。缓存适配器不保留用户密钥。
+
+
+- AgentLoop 是每次请求创建的简单消息循环：run 接收消息历史，local 调用注入函数，remote 返回 tool_calls 事件并结束本次调用；调用方保存返回的 messages，下次追加工具结果消息后调用新实例。

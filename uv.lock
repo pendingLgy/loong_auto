@@ -26,6 +26,8 @@ constraints = [
     { name = "pydantic", specifier = ">=2.10,<3" },
     { name = "pyjwt", specifier = ">=2.10,<3" },
     { name = "pymysql", specifier = ">=1.1,<2" },
+    { name = "pytest", specifier = ">=8,<10" },
+    { name = "pytest-asyncio", specifier = ">=0.24,<2" },
     { name = "python-dotenv", specifier = ">=1.0,<2" },
     { name = "pyyaml", specifier = ">=6,<7" },
     { name = "sqlalchemy", specifier = ">=2.0,<3" },
@@ -648,6 +650,10 @@ dev = [
     { name = "pytest-asyncio" },
     { name = "ruff" },
 ]
+test = [
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+]
 
 [package.metadata]
 
@@ -657,6 +663,10 @@ dev = [
     { name = "pytest", specifier = ">=8,<10" },
     { name = "pytest-asyncio", specifier = ">=0.24,<2" },
     { name = "ruff", specifier = ">=0.8,<1" },
+]
+test = [
+    { name = "pytest", specifier = ">=8,<10" },
+    { name = "pytest-asyncio", specifier = ">=0.24,<2" },
 ]
 
 [[package]]
@@ -687,6 +697,10 @@ postgres = [
     { name = "asyncpg" },
     { name = "psycopg", extra = ["binary"] },
 ]
+test = [
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -702,12 +716,14 @@ requires-dist = [
     { name = "pydantic" },
     { name = "pyjwt" },
     { name = "pymysql", extras = ["rsa"], marker = "extra == 'mysql'" },
+    { name = "pytest", marker = "extra == 'test'" },
+    { name = "pytest-asyncio", marker = "extra == 'test'" },
     { name = "python-dotenv" },
     { name = "pyyaml" },
     { name = "sqlalchemy", extras = ["asyncio"] },
     { name = "uvicorn" },
 ]
-provides-extras = ["postgres", "mysql"]
+provides-extras = ["test", "postgres", "mysql"]
 
 [[package]]
 name = "loong-contracts"

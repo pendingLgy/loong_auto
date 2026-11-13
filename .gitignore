@@ -164,6 +164,8 @@ web_modules/
 
 # dotenv environment variable files
 .env
+.env.api_key
+.env.api
 .env.development.local
 .env.test.local
 .env.production.local
