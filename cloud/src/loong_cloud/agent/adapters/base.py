@@ -10,7 +10,7 @@ from loguru import logger
 
 from loong_cloud.config.config_model import ModelConfig
 from loong_cloud.agent.adapters.connection import ProviderConnection
-from loong_cloud.agent.models import ModelRequest, ModelResponse, ToolCall, ModelStreamEvent
+from loong_cloud.agent.models import ModelRequest, ToolCall, Message
 
 
 class ModelError(RuntimeError):
@@ -64,11 +64,11 @@ class ModelAdapter(ABC):
             raise error from None
 
     @abstractmethod
-    async def complete(self, request: ModelRequest, config: ModelConfig | None = None) -> ModelResponse:
+    async def complete(self, request: ModelRequest, config: ModelConfig | None = None) -> Message:
         """返回文本和带执行位置的工具调用；适配器不执行工具。"""
 
     @abstractmethod
-    def stream(self, request: ModelRequest, config: ModelConfig | None = None) -> AsyncIterator[ModelStreamEvent]:
+    def stream(self, request: ModelRequest, config: ModelConfig | None = None) -> AsyncIterator[Message]:
         """增量返回文本；工具参数组装完整后才返回工具调用。"""
 
     async def _stream_post(self, path, body, headers):

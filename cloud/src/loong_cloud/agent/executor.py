@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from loong_cloud.agent.adapters.connection import ProviderConnection
 from loong_cloud.config.config_model import ModelConfig
 from .adapters import ModelAdapter, create_adapter
-from .models import ModelRequest, ModelResponse
+from .models import ModelRequest, Message
 
 
 class _CatalogModel(BaseModel):
@@ -73,7 +73,7 @@ class ModelExecutor:
             )
         return self._adapters[key]
 
-    async def complete(self, config: ModelConfig, request: ModelRequest) -> ModelResponse:
+    async def complete(self, config: ModelConfig, request: ModelRequest) -> Message:
         """选择模型配置，复用对应适配器并返回统一响应。"""
         return await self._get_adapter(config).complete(request, config)
 

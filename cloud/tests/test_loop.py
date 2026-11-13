@@ -28,6 +28,65 @@ def config(deepseek_api_key):
 
 
 class TestLoop:
+
+
+    async def test_live_sse_completed_message(self, config):
+        async def execute_local(call):
+            pytest.fail("没有注册工具，不应执行工具")
+
+        async with ModelExecutor() as executor:
+            async with asyncio.timeout(120):
+                events = []
+                async for frame in AgentLoop(executor, config, [], execute_local).run_sse([
+                    Message(role="user", content="请回复一句简短的问候语"),
+                ]):
+                    event_line, data_line, ending = frame.split("\n", 2)
+                    data = json.loads(data_line.removeprefix("data: "))
+                    print(f"\nSSE event:\n{json.dumps(data, indent=4, ensure_ascii=False)}", flush=True)
+                    events.append(data)
+
+
+    async def test_live_sse_remote_tool_next_request(self, config):
+        async def execute_local(call):
+            pytest.fail("远程工具不应进入本地执行函数")
+
+        async def execute_remote(call):
+            assert call.name == "get_client_info"
+            assert call.location == "remote"
+            await asyncio.sleep(0)
+            return json.dumps({"marker": "LOONG_SSE_REMOTE_OK"})
+
+        tools = [ToolDefinition(name="get_client_info", location="remote", description="获取客户端信息")]
+        async with ModelExecutor() as executor:
+            async with asyncio.timeout(180):
+                frames = []
+                async for frame in AgentLoop(executor, config, tools, execute_local).run_sse([
+                    Message(role="user", content="必须调用 get_client_info，收到结果后回复其中的标记，不要重复调用。"),
+                ]):
+                    data = json.loads(frame.split("\n")[1].removeprefix("data: "))
+                    print(f"\nSSE request 1:\n{json.dumps(data, indent=4, ensure_ascii=False)}", flush=True)
+                    frames.append(data)
+                event = frames[-1]
+                assert event["type"] == "tool_calls"
+                assert event["status"] == "tool_calls"
+                assert event["tool_calls"]
+                messages = [Message.model_validate(data) for data in event["messages"]]
+                for data in event["tool_calls"]:
+                    call = ToolCall.model_validate(data)
+                    messages.append(Message(role="tool", tool_call_id=call.id, content=await execute_remote(call)))
+
+                # 新请求重新创建 Loop，并以 SSE 接收工具结果后的模型回复。
+                final_frames = []
+                async for frame in AgentLoop(executor, config, tools, execute_local).run_sse(messages):
+                    data = json.loads(frame.split("\n")[1].removeprefix("data: "))
+                    print(f"\nSSE request 2:\n{json.dumps(data, indent=4, ensure_ascii=False)}", flush=True)
+                    final_frames.append(data)
+
+        final = final_frames[-1]
+        assert final["type"] == "completed"
+        assert "LOONG_SSE_REMOTE_OK" in final["content"]
+        assert "".join(event["text"] for event in final_frames if event["type"] == "text_delta") == final["content"]
+
     async def test_live_completed_message(self, config):
         async def execute_local(call):
             pytest.fail("没有注册工具，不应执行工具")
