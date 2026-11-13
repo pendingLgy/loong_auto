@@ -34,7 +34,11 @@ async def register(request: Request, body: RegisterRequest,
 async def login(request: Request, body: LoginRequest,
                 user_store: UserStore = Depends(Provide["UserStore"]),
                 token_service: TokenService = Depends(Provide["TokenService"])):
-    user = await user_store.login(request.state.tenant_id, body.username, body.password)
+    user = await user_store.login(
+        request.state.tenant_id, body.username, body.password,
+        ip=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
     data = await token_service.issue(user, body.platform)
     return Response.ok(request, data=data)
 
@@ -48,6 +52,13 @@ async def get_user_info(request: Request, user_store: UserStore = Depends(Provid
 
 @router.post("/logout", response_model=BaseResponse[None])
 @inject
-async def logout(request: Request, token_service: TokenService = Depends(Provide["TokenService"])):
+async def logout(request: Request,
+                 token_service: TokenService = Depends(Provide["TokenService"]),
+                 user_store: UserStore = Depends(Provide["UserStore"])):
     await token_service.logout(request.state.access_token)
+    await user_store.logout(
+        request.state.identity,
+        ip=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
     return Response.ok(request)

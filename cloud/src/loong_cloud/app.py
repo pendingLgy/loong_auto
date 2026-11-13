@@ -19,6 +19,7 @@ from loong_cloud.core.container import  ApplicationContainer
 from loong_cloud.db.db_proxy import AsyncDatabaseProxy
 from loong_cloud.install_setting import SERVICE_TARGETS, WIRE_TARGETS
 from loong_cloud.middleware.loading_middleware import loading_middleware
+from loong_cloud.schema import load_tables
 from loong_contracts.utis.datetime_util import utcnow
 
 
@@ -46,6 +47,7 @@ def create_app() -> FastAPI:
 
     global_config = GlobalConfig.load(config_path)
     configure_logging(global_config.log_level)
+    load_tables(global_config.db_config.table_prefix)
 
     db_proxy = AsyncDatabaseProxy(global_config.db_config)
     cache_proxy = CacheProxy(global_config.cache_config)

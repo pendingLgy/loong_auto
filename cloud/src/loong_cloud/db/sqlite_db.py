@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from loong_cloud.config import SqliteConfig, PoolConfig
 from loong_cloud.core.exceptions import StorageError
 from loong_cloud.db.db_base import BaseDB
-from loong_cloud.schema import load_tables
+from loong_cloud.schema import GLOBAL_TABLE_METADATA
 
 
 class AsyncSqliteDb(BaseDB):
@@ -92,7 +92,7 @@ class AsyncSqliteDb(BaseDB):
 
     async def table_miss(self) -> List[Any]:
 
-        table_metadata = load_tables(self.config.table_prefix)
+        table_metadata = GLOBAL_TABLE_METADATA
 
         all_tables = list(table_metadata.sorted_tables)
         table_names = [table.name for table in all_tables]

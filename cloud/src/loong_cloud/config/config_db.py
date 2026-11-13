@@ -15,12 +15,7 @@ class PoolConfig(BaseModel):
     pre_ping: bool = Field(default=True, description="获取连接前检查连接有效性")
 
 
-class BaseDBConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-    table_prefix: str = Field(default="loong")
-
-
-class SqliteConfig(BaseDBConfig):
+class SqliteConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     database: str = Field(default="loong-cloud.db", description="SQLite 文件路径或 :memory:")
     print_sql: bool = Field(default=False, description="print SQL")
@@ -43,6 +38,7 @@ class SqliteConfig(BaseDBConfig):
 class DatabaseConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     db_type: Literal["sqlite", "mysql", "pgsql"] = Field(default="sqlite", description="数据库类型")
+    table_prefix: str = Field(default="loong")
 
     sqlite: SqliteConfig = Field(default_factory=SqliteConfig, description="sqlite配置")
 

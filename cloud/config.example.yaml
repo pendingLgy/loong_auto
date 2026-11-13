@@ -26,8 +26,8 @@ white_list_urls:
 
 db_config:
   db_type: sqlite
+  table_prefix: loong_
   sqlite:
-    table_prefix: loong
     # 相对路径以服务进程工作目录为基准；:memory: 表示内存数据库
     database: loong-cloud.db
     print_sql: false
