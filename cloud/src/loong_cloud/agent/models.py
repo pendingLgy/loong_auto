@@ -54,6 +54,9 @@ class ModelRequest(BaseModel):
 class LoopEvent(BaseModel):
 
     messages: list[Message] = Field(default_factory=list)
+    tool_call_messages: list[Message] = Field(default_factory=list)
+    tool_calls: list[ToolCall] = Field(default_factory=list)
+    remote_tool_calls: list[ToolCall] = Field(default_factory=list)
 
     def to_sse(self) -> str:
         return f"event: {self.messages[-1].status}\ndata: {self.model_dump_json()}\n\n"

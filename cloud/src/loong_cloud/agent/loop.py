@@ -2,12 +2,10 @@
 
 from collections.abc import Awaitable, Callable
 from contextlib import aclosing
-from typing import Any, Literal
-
-from pydantic import BaseModel, Field
 
 from loong_cloud.config.config_model import ModelConfig
 from .executor import ModelExecutor
+from .message_handler import build_tool_call_message
 from .models import Message, ModelRequest, ToolCall, ToolDefinition, LoopEvent
 
 
@@ -15,10 +13,11 @@ class AgentLoop:
     """每次请求新建实例；消息历史由调用方保存并在下次调用时传入。"""
 
     def __init__(
-        self, executor: ModelExecutor,
+            self,
+            executor: ModelExecutor,
             config: ModelConfig,
-        tools: list[ToolDefinition],
-        local_executor: Callable[[ToolCall], Awaitable[str]],
+            tools: list[ToolDefinition],
+            local_executor: Callable[[ToolCall], Awaitable[str]],
     ):
         self.executor = executor
         self.config = config
@@ -31,7 +30,7 @@ class AgentLoop:
         while True:
             response = None
             async with aclosing(self.executor.stream(
-                self.config, ModelRequest(messages=messages, tools=self.tools),
+                    self.config, ModelRequest(messages=messages, tools=self.tools),
             )) as events:
                 async for event in events:
                     if isinstance(event, Message) and event.raw and "chunks" in event.raw:
@@ -65,21 +64,33 @@ class AgentLoop:
 
     async def run(self, messages: list[Message]) -> LoopEvent:
         messages = list(messages)
-        while True:
+
+        max_loop = 5
+        loop = 0
+        while True and (loop < max_loop):
+            loop += 1
+
             message = await self.executor.complete(
                 self.config, ModelRequest(messages=messages, tools=self.tools),
             )
-
             messages.append(message)
             if not message.tool_calls:
-                return LoopEvent(messages=messages)
+                return LoopEvent(messages=messages, tool_calls=[])
+
+            tool_call_messages: list[Message] = []
+            remote_calls: list[ToolCall] = []
+            tool_calls: list[ToolCall] = message.tool_calls
 
             for call in message.tool_calls:
-                if call.location == "remote":
-                    # 严格按模型返回顺序处理；遇到第一个远程工具立即挂起本轮。
-                    return LoopEvent(messages=messages, tool_calls=[call], type="tool_calls")
+                if call.location == "local":
+                    tool_response = await self.local_executor(call)
+                    tool_call_messages.append(Message(role="tool", status="tool_called", tool_call_id=call.id,
+                                                      content=tool_response))
+                else:
+                    remote_calls.append(call)
 
-                result = await self.local_executor(call)
-                messages.append(Message(
-                    role="tool", status="tool_called", tool_call_id=call.id, content=result,
-                ))
+            if remote_calls:
+                return LoopEvent(messages=messages, tool_call_messages=tool_call_messages,
+                                 tool_calls=tool_calls, remote_tool_calls=remote_calls)
+            else:
+                messages = build_tool_call_message(messages, tool_call_messages, tool_calls)
