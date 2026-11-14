@@ -1,29 +1,22 @@
 """简单模型循环：本地工具直接处理，远程工具返回客户端。"""
 
 from collections.abc import Awaitable, Callable
+from contextlib import aclosing
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
 from loong_cloud.config.config_model import ModelConfig
 from .executor import ModelExecutor
-from .models import Message, ModelRequest, ToolCall, ToolDefinition
-
-
-class LoopEvent(BaseModel):
-    type: Literal["tool_calls", "completed"]
-    status: str | None = Field(default=None, description="LLM 返回的结束原因 finish_reason")
-    raw: dict[str, Any] | None = Field(default=None, description="本轮最后一次 LLM 调用的原始响应")
-    content: str = Field(default="")
-    tool_calls: list[ToolCall] = Field(default_factory=list)
-    messages: list[Message] = Field(default_factory=list)
+from .models import Message, ModelRequest, ToolCall, ToolDefinition, LoopEvent
 
 
 class AgentLoop:
     """每次请求新建实例；消息历史由调用方保存并在下次调用时传入。"""
 
     def __init__(
-        self, executor: ModelExecutor, config: ModelConfig,
+        self, executor: ModelExecutor,
+            config: ModelConfig,
         tools: list[ToolDefinition],
         local_executor: Callable[[ToolCall], Awaitable[str]],
     ):
@@ -32,20 +25,23 @@ class AgentLoop:
         self.tools = tools
         self.local_executor = local_executor
 
-    async def run(self, messages: list[Message]) -> LoopEvent:
+    async def run_stream(self, messages: list[Message]):
+        """返回模型增量事件，最后返回 tool_calls 或 completed 的 LoopEvent。"""
         messages = list(messages)
         while True:
-            response = await self.executor.complete(
+            response = None
+            async with aclosing(self.executor.stream(
                 self.config, ModelRequest(messages=messages, tools=self.tools),
-            )
-            message = response.message
+            )) as events:
+                async for event in events:
+                    if isinstance(event, Message) and event.raw and "chunks" in event.raw:
+                        response = event
+                    else:
+                        yield event
+            if response is None:
+                raise RuntimeError("模型流未返回完整响应")
+            message = response
             messages.append(message)
-            if not message.tool_calls:
-                return LoopEvent(
-                    type="completed", status=message.status, raw=message.raw,
-                    content=message.content, messages=messages,
-                )
-
             remote_calls = []
             for call in message.tool_calls:
                 if call.location == "local":
@@ -53,9 +49,37 @@ class AgentLoop:
                     messages.append(Message(role="tool", status="tool_completed", tool_call_id=call.id, content=result))
                 else:
                     remote_calls.append(call)
-
-            if remote_calls:
-                return LoopEvent(
-                    type="tool_calls", status=message.status, raw=message.raw, content=message.content,
+            if remote_calls or not message.tool_calls:
+                yield LoopEvent(
+                    type="tool_calls" if remote_calls else "completed",
+                    status=message.status, raw=message.raw, content=message.content,
                     tool_calls=remote_calls, messages=messages,
                 )
+                return
+
+    async def run_sse(self, messages: list[Message]):
+        """供 StreamingResponse 使用；调用结束或取消时关闭上游生成器。"""
+        async with aclosing(self.run_stream(messages)) as events:
+            async for event in events:
+                yield event.to_sse()
+
+    async def run(self, messages: list[Message]) -> LoopEvent:
+        messages = list(messages)
+        while True:
+            message = await self.executor.complete(
+                self.config, ModelRequest(messages=messages, tools=self.tools),
+            )
+
+            messages.append(message)
+            if not message.tool_calls:
+                return LoopEvent(messages=messages)
+
+            for call in message.tool_calls:
+                if call.location == "remote":
+                    # 严格按模型返回顺序处理；遇到第一个远程工具立即挂起本轮。
+                    return LoopEvent(messages=messages, tool_calls=[call], type="tool_calls")
+
+                result = await self.local_executor(call)
+                messages.append(Message(
+                    role="tool", status="tool_called", tool_call_id=call.id, content=result,
+                ))

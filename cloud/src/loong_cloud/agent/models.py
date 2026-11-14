@@ -21,7 +21,7 @@ class Message(BaseModel):
     role: Literal["system", "user", "assistant", "tool"] = Field(default="assistant", description="创建时间")
     raw: dict[str, Any] | None = Field(default=None, description="LLM 原始响应")
     finish_reason: str | None = Field(default=None, description="LLM 结束原因")
-    status: Literal["start", "running","stop"] = Field(default="start", description="消息内容类型")
+    status: Literal["start", "running","tool_called","stop"] = Field(default="start", description="消息内容类型")
     input_tokens: int | None = Field(default=0, description="输入 Token 用量")
     output_tokens: int | None = Field(default=0, description="输出 Token 用量")
     total_tokens: int | None = Field(default=0, description="总 Token 用量")
@@ -52,12 +52,8 @@ class ModelRequest(BaseModel):
 
 
 class LoopEvent(BaseModel):
-    type: Literal["text", "text_delta", "tool_calls", "completed"]
-    status: str | None = Field(default=None, description="LLM 返回的结束原因 finish_reason")
-    raw: dict[str, Any] | None = Field(default=None, description="本轮最后一次 LLM 调用的原始响应")
-    content: str = Field(default="")
-    tool_calls: list[ToolCall] = Field(default_factory=list)
+
     messages: list[Message] = Field(default_factory=list)
 
     def to_sse(self) -> str:
-        return f"event: {self.type}\ndata: {self.model_dump_json()}\n\n"
+        return f"event: {self.messages[-1].status}\ndata: {self.model_dump_json()}\n\n"
