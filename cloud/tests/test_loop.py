@@ -41,7 +41,7 @@ class TestLoopSSE:
         async with ModelExecutor() as executor:
             async with asyncio.timeout(120):
                 events = []
-                async for frame in AgentLoop(executor, config, [], execute_local).run_sse([
+                async for frame in AgentLoop(executor, config, [], {"read_test_file": execute_local}).run_sse([
                     Message(role="user", content="请回复一句简短的问候语"),
                 ]):
                     event_line, data_line, ending = frame.split("\n", 2)
@@ -64,7 +64,7 @@ class TestLoopSSE:
         async with ModelExecutor() as executor:
             async with asyncio.timeout(180):
                 frames = []
-                async for frame in AgentLoop(executor, config, tools, execute_local).run_sse([
+                async for frame in AgentLoop(executor, config, tools, {"read_test_file": execute_local}).run_sse([
                     Message(role="user", content="必须调用 get_client_info，收到结果后回复其中的标记，不要重复调用。"),
                 ]):
                     data = json.loads(frame.split("\n")[1].removeprefix("data: "))
@@ -85,7 +85,7 @@ class TestLoopSSE:
 
                 # 新请求重新创建 Loop，并以 SSE 接收工具结果后的模型回复。
                 final_frames = []
-                async for frame in AgentLoop(executor, config, tools, execute_local).run_sse(next_messages):
+                async for frame in AgentLoop(executor, config, tools, {"read_test_file": execute_local}).run_sse(next_messages):
                     data = json.loads(frame.split("\n")[1].removeprefix("data: "))
                     print(f"\nSSE request 2:\n{json.dumps(data, indent=4, ensure_ascii=False)}", flush=True)
                     final_frames.append(data)
@@ -121,7 +121,7 @@ class TestLoopSSE:
         async with ModelExecutor() as executor:
             async with asyncio.timeout(180):
                 frames = []
-                async for frame in AgentLoop(executor, config, tools, execute_local).run_sse(messages):
+                async for frame in AgentLoop(executor, config, tools, {"read_test_file": execute_local}).run_sse(messages):
                     data = json.loads(frame.split("\n")[1].removeprefix("data: "))
                     print(f"\nSSE request 1:\n{json.dumps(data, indent=4, ensure_ascii=False)}", flush=True)
                     frames.append(data)
@@ -140,7 +140,7 @@ class TestLoopSSE:
 
                 # 新请求重新创建 Loop，并以 SSE 接收工具结果后的模型回复。
                 final_frames = []
-                async for frame in AgentLoop(executor, config, tools, execute_local).run_sse(next_messages):
+                async for frame in AgentLoop(executor, config, tools, {"read_test_file": execute_local}).run_sse(next_messages):
                     data = json.loads(frame.split("\n")[1].removeprefix("data: "))
                     print(f"\nSSE request 2:\n{json.dumps(data, indent=4, ensure_ascii=False)}", flush=True)
                     final_frames.append(data)
@@ -154,7 +154,7 @@ class TestLoopRun:
 
         async with ModelExecutor() as executor:
             async with asyncio.timeout(120):
-                event = await AgentLoop(executor, config, [], execute_local).run([
+                event = await AgentLoop(executor, config, [], {"read_test_file": execute_local}).run([
                     Message(role="user", content="请只回复 OK"),
                 ])
 
@@ -177,7 +177,7 @@ class TestLoopRun:
         tools = [ToolDefinition(name="read_test_file", location="local", description="读取测试文件")]
         async with ModelExecutor() as executor:
             async with asyncio.timeout(120):
-                event = await AgentLoop(executor, config, tools, execute_local).run([
+                event = await AgentLoop(executor, config, tools, {"read_test_file": execute_local}).run([
                     Message(role="user", content="必须调用 read_test_file，然后返回读到的内容；不要重复调用。"),
                 ])
 
@@ -205,7 +205,7 @@ class TestLoopRun:
         messages = [Message(role="user", content="必须调用 get_client_info，拿到结果后返回其中的标记，不要重复调用。")]
         async with ModelExecutor() as executor:
             async with asyncio.timeout(180):
-                event = await AgentLoop(executor, config, tools, execute_local).run(messages)
+                event = await AgentLoop(executor, config, tools, {"read_test_file": execute_local}).run(messages)
 
                 print("\n")
                 response_dict_1 = event.model_dump(mode='json', exclude_none=True)
@@ -221,7 +221,7 @@ class TestLoopRun:
                     ))
 
                 next_messages = build_tool_call_message(event.messages, event.tool_call_messages, event.tool_calls)
-                next_loop = AgentLoop(executor, config, tools, execute_local)
+                next_loop = AgentLoop(executor, config, tools, {"read_test_file": execute_local})
                 final = await next_loop.run(next_messages)
 
         print("\n")
@@ -258,7 +258,7 @@ class TestLoopRun:
         messages = [Message(role="user", content="请同时调用 read_test_file获取客户端信息，read_test_file读取测试文件。两项都必须调用，收到两项结果后简短总结，不要重复调用已完成的工具。")]
         async with ModelExecutor() as executor:
             async with asyncio.timeout(180):
-                event = await AgentLoop(executor, config, tools, execute_local).run(messages)
+                event = await AgentLoop(executor, config, tools, {"read_test_file": execute_local}).run(messages)
 
                 print("\n")
                 response_dict_1 = event.model_dump(mode='json', exclude_none=True)
@@ -277,7 +277,7 @@ class TestLoopRun:
 
                 next_messages = build_tool_call_message(event.messages, event.tool_call_messages, event.tool_calls)
 
-                next_loop = AgentLoop(executor, config, tools, execute_local)
+                next_loop = AgentLoop(executor, config, tools, {"read_test_file": execute_local})
                 final = await next_loop.run(next_messages)
 
         print("\n")

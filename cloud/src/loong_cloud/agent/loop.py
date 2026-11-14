@@ -18,12 +18,19 @@ class AgentLoop:
             executor: ModelExecutor,
             config: ModelConfig,
             tools: list[ToolDefinition],
-            local_executor: Callable[[ToolCall], Awaitable[str]],
+            local_executor: dict[str, Callable[[ToolCall], Awaitable[str]]],
     ):
         self.executor = executor
         self.config = config
         self.tools = tools
-        self.local_executor = local_executor
+        self.local_executors = local_executor
+
+    async def _execute_local(self, call: ToolCall) -> str:
+        """从本地执行器集合中选择支持该工具的执行器。"""
+        executor = self.local_executors.get(call.name)
+        if executor is None:
+            raise ValueError(f"未找到本地工具执行器: {call.name}")
+        return await executor(call)
 
     async def run_stream(self, messages: list[Message]):
         """返回模型增量事件，最后返回 tool_calls 或 completed 的 LoopEvent。"""
@@ -60,7 +67,7 @@ class AgentLoop:
 
             for call in message.tool_calls:
                 if call.location == "local":
-                    tool_response = await self.local_executor(call)
+                    tool_response = await self._execute_local(call)
                     tool_call_messages.append(Message(id=uuid_util.uuid_str(),
                                                       created=int(time.time()),
                                                       role="tool",
@@ -106,7 +113,7 @@ class AgentLoop:
 
             for call in message.tool_calls:
                 if call.location == "local":
-                    tool_response = await self.local_executor(call)
+                    tool_response = await self._execute_local(call)
                     tool_call_messages.append(Message(id=uuid_util.uuid_str(),
                                                       created=int(time.time()),
                                                       role="tool",
