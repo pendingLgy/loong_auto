@@ -47,6 +47,7 @@ class ModelAdapter(ABC):
         raise ModelError("模型返回了未注册的工具调用")
 
     async def _post(self, path: str, body: dict[str, Any], headers: dict[str, str]) -> dict[str, Any]:
+        response = None
         try:
             response = await self._client.post(
                 f"{self.connection.base_url}/{path}", json=body, headers=headers,
@@ -58,9 +59,11 @@ class ModelAdapter(ABC):
                 raise ValueError("模型响应必须为对象")
             return data
         except (httpx.HTTPError, ValueError) as exc:
+            if response:
+                logger.error(f"http status:{response.status_code}, msg:{response.text}")
             # 上游异常可能含敏感 URL/正文；使用经过清理的异常打印堆栈。
             error = ModelError(f"模型请求失败（{self.config.provider}，{type(exc).__name__}）")
-            logger.opt(exception=(ModelError, error, exc.__traceback__)).error("模型调用失败")
+            logger.opt(exception=(ModelError, error, exc.__traceback__)).error("模型调用失败" + response)
             raise error from None
 
     @abstractmethod

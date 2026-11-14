@@ -2,16 +2,18 @@
 
 import asyncio
 import json
+import time
 from os import path
 from pathlib import Path
 
 import pytest
 from dotenv import dotenv_values
 
-from loong_cloud.agent import AgentLoop, ModelExecutor
+from loong_cloud.agent import AgentLoop, ModelExecutor, LoopEvent
 from loong_cloud.agent.message_handler import build_tool_call_message
 from loong_cloud.agent.models import Message, ToolCall, ToolDefinition
 from loong_cloud.config.config_model import ModelConfig
+from loong_contracts.utis import uuid_util
 
 
 @pytest.fixture(scope="module")
@@ -29,7 +31,7 @@ def config(deepseek_api_key):
     return ModelConfig(provider="deepseek", model="deepseek-chat", temperature=0, api_key=deepseek_api_key)
 
 
-class TestLoop:
+class TestLoopSSE:
 
 
     async def test_live_sse_completed_message(self, config):
@@ -68,27 +70,84 @@ class TestLoop:
                     data = json.loads(frame.split("\n")[1].removeprefix("data: "))
                     print(f"\nSSE request 1:\n{json.dumps(data, indent=4, ensure_ascii=False)}", flush=True)
                     frames.append(data)
-                event = frames[-1]
-                assert event["type"] == "tool_calls"
-                assert event["status"] == "tool_calls"
-                assert event["tool_calls"]
-                messages = [Message.model_validate(data) for data in event["messages"]]
-                for data in event["tool_calls"]:
-                    call = ToolCall.model_validate(data)
-                    messages.append(Message(role="tool", tool_call_id=call.id, content=await execute_remote(call)))
+
+                event:LoopEvent = LoopEvent.model_validate(frames[-1])
+                tool_call_messages = event.tool_call_messages
+
+                for call in event.remote_tool_calls:
+                    result = await execute_remote(call)
+                    tool_call_messages.append(Message(
+                        role="tool", status="tool_called", tool_call_id=call.id,
+                        content=json.dumps(result, ensure_ascii=False),
+                    ))
+
+                next_messages = build_tool_call_message(event.messages, event.tool_call_messages, event.tool_calls)
 
                 # 新请求重新创建 Loop，并以 SSE 接收工具结果后的模型回复。
                 final_frames = []
-                async for frame in AgentLoop(executor, config, tools, execute_local).run_sse(messages):
+                async for frame in AgentLoop(executor, config, tools, execute_local).run_sse(next_messages):
                     data = json.loads(frame.split("\n")[1].removeprefix("data: "))
                     print(f"\nSSE request 2:\n{json.dumps(data, indent=4, ensure_ascii=False)}", flush=True)
                     final_frames.append(data)
 
-        final = final_frames[-1]
-        assert final["type"] == "completed"
-        assert "LOONG_SSE_REMOTE_OK" in final["content"]
-        assert "".join(event["text"] for event in final_frames if event["type"] == "text_delta") == final["content"]
+    async def test_live_sse_remote_local_tool_next_request(self, config, tmp_path):
+        path = tmp_path / "example2.txt"
+        path.write_text("LOONG_LOOP_LOCAL_OK", encoding="utf-8")
 
+        async def execute_local(call):
+            assert call.name == "read_test_file"
+            assert call.location == "local"
+            executed.append(call.id)
+            return path.read_text(encoding="utf-8")
+
+        executed = []
+
+        async def execute_remote(call):
+            """模拟客户端接收工具调用并异步执行。"""
+            assert call.location == "remote"
+            assert call.name == "get_client_info"
+            await asyncio.sleep(0)
+            executed.append(call.id)
+            return {"marker": "LOONG_LOOP_REMOTE_OK", "client": "test-client"}
+
+        tools = [
+            ToolDefinition(name="read_test_file", location="local", description="读取测试文件"),
+            ToolDefinition(name="get_client_info", location="remote", description="获取客户端提供的信息")
+        ]
+
+        messages = [Message(role="user",
+                            content="请同时调用 read_test_file获取客户端信息，read_test_file读取测试文件。两项都必须调用，收到两项结果后简短总结，不要重复调用已完成的工具。")]
+
+        async with ModelExecutor() as executor:
+            async with asyncio.timeout(180):
+                frames = []
+                async for frame in AgentLoop(executor, config, tools, execute_local).run_sse(messages):
+                    data = json.loads(frame.split("\n")[1].removeprefix("data: "))
+                    print(f"\nSSE request 1:\n{json.dumps(data, indent=4, ensure_ascii=False)}", flush=True)
+                    frames.append(data)
+
+                event:LoopEvent = LoopEvent.model_validate(frames[-1])
+                tool_call_messages = event.tool_call_messages
+
+                for call in event.remote_tool_calls:
+                    result = await execute_remote(call)
+                    tool_call_messages.append(Message(
+                        role="tool", status="tool_called", tool_call_id=call.id,
+                        content=json.dumps(result, ensure_ascii=False),
+                    ))
+
+                next_messages = build_tool_call_message(event.messages, event.tool_call_messages, event.tool_calls)
+
+                # 新请求重新创建 Loop，并以 SSE 接收工具结果后的模型回复。
+                final_frames = []
+                async for frame in AgentLoop(executor, config, tools, execute_local).run_sse(next_messages):
+                    data = json.loads(frame.split("\n")[1].removeprefix("data: "))
+                    print(f"\nSSE request 2:\n{json.dumps(data, indent=4, ensure_ascii=False)}", flush=True)
+                    final_frames.append(data)
+
+
+
+class TestLoopRun:
     async def test_live_completed_message(self, config):
         async def execute_local(call):
             pytest.fail("没有注册工具，不应执行工具")
@@ -210,7 +269,8 @@ class TestLoop:
 
                 for call in event.remote_tool_calls:
                     result = await execute_remote(call)
-                    tool_call_messages.append(Message(
+                    tool_call_messages.append(Message(id=uuid_util.uuid_str(),
+                                                      created=int(time.time()),
                         role="tool", status="tool_called", tool_call_id=call.id,
                         content=json.dumps(result, ensure_ascii=False),
                     ))

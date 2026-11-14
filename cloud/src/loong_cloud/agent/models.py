@@ -21,7 +21,7 @@ class Message(BaseModel):
     role: Literal["system", "user", "assistant", "tool"] = Field(default="assistant", description="创建时间")
     raw: dict[str, Any] | None = Field(default=None, description="LLM 原始响应")
     finish_reason: str | None = Field(default=None, description="LLM 结束原因")
-    status: Literal["start", "running","tool_called","stop"] = Field(default="start", description="消息内容类型")
+    status: Literal["start", "running","tool_calling","tool_called","stop"] = Field(default="start", description="消息内容类型")
     input_tokens: int | None = Field(default=0, description="输入 Token 用量")
     output_tokens: int | None = Field(default=0, description="输出 Token 用量")
     total_tokens: int | None = Field(default=0, description="总 Token 用量")
@@ -53,6 +53,7 @@ class ModelRequest(BaseModel):
 
 class LoopEvent(BaseModel):
 
+    summary: bool = Field(default=False,description="汇总消息标识")
     messages: list[Message] = Field(default_factory=list)
     tool_call_messages: list[Message] = Field(default_factory=list)
     tool_calls: list[ToolCall] = Field(default_factory=list)

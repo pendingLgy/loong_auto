@@ -37,10 +37,9 @@ class OpenAIAdapter(ModelAdapter):
 
                         text.append(content)
 
-                        if finish is None:
-                            yield Message(id=response_id, created=created, model=model,
-                                          role="assistant", status="running", finish_reason=finish,
-                                          content=content, raw=data)
+                        yield Message(id=response_id, created=created, model=model,
+                                      role="assistant", status="running", finish_reason=finish,
+                                      content=content, raw=data)
 
                         for part in delta.get("tool_calls", []):
                             index = part.get("index", 0)
@@ -61,7 +60,7 @@ class OpenAIAdapter(ModelAdapter):
                         }
                         emitted = True
                         yield Message(id=response_id, created=created, model=model,
-                                      role="assistant", status="stop",
+                                      role="assistant", status="stop" if not calls else "tool_calling",
                                       raw=data,
                                       finish_reason=finish, content="".join(text), tool_calls=calls,
                                       **token_usage)
