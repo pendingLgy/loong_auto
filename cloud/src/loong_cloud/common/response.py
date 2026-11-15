@@ -1,6 +1,9 @@
-from typing import TypeVar
+from typing import TypeVar, Any
+
 from fastapi import Request
+
 from loong_contracts.response import BaseResponse
+from loong_contracts.response.base import BasePageResponse
 
 T = TypeVar("T")
 
@@ -22,3 +25,16 @@ class Response:
         return BaseResponse(data=data, code=code, msg=msg,
                             request_id=request.state.request_id,
                             request_date=request.state.request_date)
+
+
+class PageResponse:
+    """公共响应工厂；请求上下文由 RequestContextMiddleware 提供。"""
+
+    def ok(request: Request, page: BasePageResponse | None = None, *, msg: str = "success") -> BasePageResponse[
+                                                                                                   Any] | None:
+        page.request_id = request.state.request_id
+        page.request_date = request.state.request_date
+        page.code = 200
+        page.msg = msg
+        return page
+

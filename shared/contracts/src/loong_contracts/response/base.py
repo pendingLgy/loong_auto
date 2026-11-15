@@ -31,3 +31,18 @@ class BaseResponse(BaseModel, Generic[T]):
     data: T | None = None
     request_date: datetime
     request_id: str
+
+
+class BasePageResponse(BaseModel, Generic[T]):
+    model_config = ConfigDict(extra="forbid")
+
+    total: int | None = None
+    page: int | None = None
+    page_size: int | None = None
+    rows: T | None = None
+
+    code: int | None = 0
+    msg: str | None = "success"
+
+    request_date: datetime | None = None
+    request_id: str | None = None

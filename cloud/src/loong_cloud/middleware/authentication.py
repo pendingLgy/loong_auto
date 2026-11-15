@@ -11,6 +11,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from loong_cloud.common.response import Response
 from loong_cloud.storage.token_service import TokenService
 from loong_cloud.storage.user_store import UserStore
+from loong_contracts.response.login import UserInfoResponse
 
 
 class AuthenticationMiddleware:
@@ -35,7 +36,7 @@ class AuthenticationMiddleware:
         try:
             if scheme.lower() != "bearer" or not token or " " in token:
                 raise HTTPException(status.HTTP_401_UNAUTHORIZED, "缺少有效的 Bearer 令牌")
-            identity = await self.token_service.authenticate(token)
+            identity:UserInfoResponse = await self.token_service.authenticate(token)
         except HTTPException as exc:
             body = Response.fail(request, code=exc.status_code, msg=exc.detail)
             response = JSONResponse(status_code=exc.status_code, content=body.model_dump(mode="json"),

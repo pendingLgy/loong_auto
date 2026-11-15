@@ -3,11 +3,14 @@ from dataclasses import dataclass
 from sqlalchemy import MetaData, Table
 
 from loong_cloud.schema.user import user_table, login_log_table
+from loong_cloud.schema.message import message_table, session_message_table
 
 @dataclass(frozen=True)
 class Tables:
     user: Table
     login_log: Table
+    message: Table
+    session_message: Table
 
 
 GLOBAL_TABLE_METADATA: MetaData = MetaData()
@@ -22,6 +25,8 @@ def load_tables(prefix: str):
         GLOBAL_TABLES = Tables(
             user=user_table(GLOBAL_TABLE_METADATA, prefix),
             login_log=login_log_table(GLOBAL_TABLE_METADATA, prefix),
+            message=message_table(GLOBAL_TABLE_METADATA, prefix),
+            session_message=session_message_table(GLOBAL_TABLE_METADATA, prefix),
         )
 
 

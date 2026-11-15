@@ -6,5 +6,5 @@ SERVICE_TARGETS = [
 
 # 依赖注入路径
 WIRE_TARGETS = [
-    'loong_cloud.api'
+    'loong_cloud.api',
 ]

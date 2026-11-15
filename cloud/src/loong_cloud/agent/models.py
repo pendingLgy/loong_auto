@@ -45,14 +45,18 @@ class ModelRequest(BaseModel):
 
     @model_validator(mode="after")
     def unique_tool_names(self):
-        names = [tool.name for tool in self.tools]
+        tools = self.tools or []
+        names = [tool.name for tool in tools]
         if len(names) != len(set(names)):
             raise ValueError("本地与远程工具名称必须全局唯一")
         return self
 
 
+SSE_DONE = "data: [DONE]\n\n"
+
 class LoopEvent(BaseModel):
 
+    error: bool = Field(default=False,description="错误标识")
     summary: bool = Field(default=False,description="汇总消息标识")
     messages: list[Message] = Field(default_factory=list)
     tool_call_messages: list[Message] = Field(default_factory=list)
