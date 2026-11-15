@@ -1,7 +1,7 @@
 # 工程模块结构
 
-版本：v0.1 草案  
-日期：2026-11-10  
+版本：v0.2  
+日期：2026-11-15  
 关联文档：[整体架构](architecture-design.md)、[技术栈](technology-stack.md)
 
 ## 1. 范围
@@ -12,7 +12,7 @@
 
 ## 2. 工程目录
 
-以下为逻辑模块结构，部分模块已添加实现。顶层为工程模块，下一层为子模块；子模块内部结构由各模块设计文档补充。Python 实际源码使用 src 包布局，local 的子模块位于 local/src/loong_local，cloud 的子模块位于 cloud/src/loong_cloud，公共 Python 契约位于 shared/contracts/src/loong_contracts。
+以下为逻辑模块结构，结合当前实现更新；目录存在不表示功能已经完成。顶层为工程模块，下一层为子模块；子模块内部结构由各模块设计文档补充。Python 实际源码使用 src 包布局，local 的子模块位于 local/src/loong_local，cloud 的子模块位于 cloud/src/loong_cloud，公共 Python 契约位于 shared/contracts/src/loong_contracts。
 
 ```text
 loong_auto/
@@ -37,11 +37,20 @@ loong_auto/
 │   ├── logger/                 # 本地业务日志
 │   └── platform/               # 系统进程、凭证与路径适配
 ├── cloud/                      # Python 云端服务模块
-│   ├── server/                 # API、事件与连接服务
-│   ├── agent/                  # Agent 与任务编排
-│   ├── providers/              # 模型供应商适配
-│   ├── identity/               # 用户与设备身份
-│   └── storage/                # 云端状态与迁移
+│   ├── api/                    # 业务路由、聊天接口与 SSE 连接
+│   ├── middleware/             # 请求上下文、用户认证与租户解析
+│   ├── config/                 # 配置模型与统一加载
+│   ├── core/                   # 容器、日志与基础能力
+│   ├── common/                 # 公共响应与分页封装
+│   ├── constant/               # 缓存 key 等公共常量
+│   ├── db/                     # 数据库代理、Session 与连接管理
+│   ├── cache/                  # 缓存代理及 SQLite 实现
+│   ├── schema/                 # 数据表定义与注册
+│   ├── storage/                # 用户、令牌、消息及会话存储
+│   ├── agent/                  # 模型执行、供应商适配与工具循环
+│   ├── exception/              # 异常定义
+│   ├── utils/                  # 通用辅助能力
+│   └── tests/                  # 云端单元测试及真实服务集成测试
 ├── shared/                     # 共享能力模块
 │   ├── contracts/              # 协议定义、Schema 与生成类型
 │   ├── client/                 # TypeScript 本地服务 SDK
@@ -52,10 +61,13 @@ loong_auto/
 │   ├── tests/                  # 跨模块集成与端到端测试
 │   ├── packaging/              # 本地程序与桌面打包
 │   └── deployment/             # 云端部署配置
+├── http_test/                  # 手工 HTTP 接口调试
 └── docs/                       # 设计文档模块
     ├── modules/                # 后续模块设计文档
     └── decisions/              # 架构决策记录
 ```
+
+上图为模块视图，不是物理路径：cloud 的业务子模块位于 `cloud/src/loong_cloud`，测试位于 `cloud/tests`；应用装配和启动入口在 Python 包根目录，不单独展开。`providers` 和 `server` 暂未承担实际接入职责，不作为新增重复实现的依据。
 
 现有架构、技术栈和本文保留在 docs 根目录。根级 workspace、锁文件等不在模块目录树中展开；Python 依赖版本在根 pyproject.toml 统一约束，子包声明实际依赖与构建配置，详见 [工程管理说明](../engineering/workspace/README.md)。TypeScript 工程由 Bun 管理。
 
@@ -88,19 +100,22 @@ shared/client ------------------+----> local/gateway
                                           +----> local/executor ----> local/tools
                                           +----> local/storage
                                           +----> local/logger
-                                          +----> cloud/server
+                                          +----> cloud/api
                                                      |
                                                      v
                                                 cloud/agent
-                                                  |      |
-                                                  v      v
-                                          cloud/providers  cloud/storage
+                                                     |
+                                                     v
+                                                cloud/storage
+                                                     |
+                                                     v
+                                           cloud/db + cloud/schema
 
 local 与 cloud 的网络边界使用 shared/contracts
 local 的系统能力通过 local/platform 适配
 ```
 
-身份、权限和日志等横切依赖未在图中穷举。所有模块遵循以下约束：
+模型供应商适配由 cloud/agent 内部承担，不通过历史 providers 占位模块调用。cloud/api 和 storage 按需使用 cache；容器、配置、中间件和日志等横切依赖未在图中穷举。所有模块遵循以下约束：
 
 - TUI、Web 和 Electron 不直接调用云端业务接口。
 - 本地工具不依赖界面，不执行 LLM 推理。
@@ -113,4 +128,14 @@ local 的系统能力通过 local/platform 适配
 
 后续设计按 tui、web、desktop、local、cloud、shared 和 engineering 等大模块分别补充；需要时再拆分子模块设计。本文不预设子模块内部目录、接口和实现方式。
 
-当前已按本结构生成目录骨架，后续按模块设计逐步添加实现；目录中的 .gitkeep 可在添加实际文件后移除。
+当前云端已包含用户认证、数据库及缓存代理、消息存储、模型适配与 Agent 循环，以及 HTTP/SSE 接口。用户端与本地模块仍需依据各自实际代码确认完成度，不因目录存在而视为可运行。
+
+云端连接与存储的职责衔接如下：
+
+- api 将 SSE 订阅和消息提交分开，连接标识与业务会话标识独立；提交后由后台任务调用 agent，将输出经连接队列推送。
+- agent 负责推理及工具编排；远程工具请求返回客户端，结果经后续请求提交，支持多轮对话及同轮多个工具调用。
+- storage 负责原始消息和会话上下文持久化；结束事件通过异步后台任务保存。连接状态只保留必要轻量元数据，不缓存完整提交请求。
+- 当前 SSE 连接队列为进程内实现，仅支持单 worker；跨进程分发、消息补发及断线恢复尚未实现。心跳、退避和清理细节在云端模块设计中维护。
+- tests 中真实 API 测试需单独启动服务；与本地数据库测试、真实模型调用测试区分执行。测试规范见 [云端协作规范](../cloud/AGENTS.md)，启动及测试命令见 [云端构建说明](../cloud/BUILD.md)。
+
+后续按模块设计逐步实现，避免为规划内容批量创建无用途目录；已有占位文件在添加实现后按需移除。
