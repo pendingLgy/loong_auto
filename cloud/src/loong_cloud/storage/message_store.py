@@ -112,7 +112,7 @@ class MessageStore:
                     "output_tokens": message_request.output_tokens,
                     "total_tokens": message_request.total_tokens,
                     "content": message_request.content,
-                    "tool_calls": [call.model_dump(mode="json") for call in (message_request.tool_calls or [])],
+                    "tool_calls": message_request.tool_calls or [],
                     "tool_call_id": message_request.tool_call_id,
                 }
 

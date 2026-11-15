@@ -16,7 +16,7 @@ from urllib.parse import urlsplit
 
 import pytest
 
-from loong_contracts.request.message import AddMessageRequest, LLMParamRequest, MessageRequest
+from loong_contracts.request.message import AddMessageRequest, LLMParamRequest, MessageRequest, ToolDefinitionRequest
 from test_message_api import client, settings  # noqa: F401：导入共享的 pytest fixture
 
 
@@ -126,3 +126,220 @@ async def test_submit_message_pushes_dialogue_to_sse(client, settings):
             event, heartbeat = await read_event(lines)
             assert event == "heartbeat"
             assert heartbeat["client_id"] == client_id
+
+
+async def test_multiple_remote_tools_across_dialogue_rounds(client, settings):
+    """三个远程工具按结果依赖逐轮调用，通过同一 SSE 连接回传。"""
+    key = settings("DEEPSEEK_API_KEY")
+    if not key:
+        pytest.skip("真实多轮工具测试需要配置 DEEPSEEK_API_KEY")
+    session_id = "events-tools-" + uuid4().hex
+    client_id = "client-tools-" + uuid4().hex
+    body = AddMessageRequest(
+        tenant_id=0, user_id=0, session_id=session_id,
+        session_title="events-multiple-tools-test-" + uuid4().hex,
+        llm=LLMParamRequest(provider="deepseek", model="deepseek-chat", temperature=0, api_key=key),
+        tools=[
+            ToolDefinitionRequest(
+                name="get_project", location="remote", description="查询客户端项目，返回项目 ID。",
+                parameters={"type": "object", "properties": {}},
+            ),
+            ToolDefinitionRequest(
+                name="read_project_file", location="remote", description="根据项目 ID 读取文件。",
+                parameters={"type": "object", "properties": {"project_id": {"type": "string"}},
+                            "required": ["project_id"]},
+            ),
+            ToolDefinitionRequest(
+                name="check_file_content", location="remote", description="检查上一步读取的文件内容。",
+                parameters={"type": "object", "properties": {"content": {"type": "string"}},
+                            "required": ["content"]},
+            ),
+        ],
+        messages=[MessageRequest(
+            id=time.time_ns() // 1000, role="user",
+            content=("严格依次完成三个步骤，每次只调用一个工具，收到工具结果后再调用下一个："
+                     "1. 调用 get_project；2. 使用返回的 project_id 调用 read_project_file；"
+                     "3. 使用返回的 content 调用 check_file_content。"
+                     "参数必须来自真实工具结果，不得猜测。每个工具只调用一次，最后总结检查结果。"),
+        )],
+    )
+    expected = ["get_project", "read_project_file", "check_file_content"]
+    executed = []
+    project_id = "project-" + uuid4().hex
+    file_content = "REMOTE_FILE_CONTENT_" + uuid4().hex
+
+    async with asyncio.timeout(300):
+        async with client.stream("GET", f"/api/events/chat/{client_id}/sse") as response:
+            assert response.status_code == 200
+            lines = response.aiter_lines()
+            event, connected = await read_event(lines)
+            assert event == "connected"
+            assert connected["client_id"] == client_id
+
+            # 初始提交 + 三轮远程工具结果提交；每次仅追加本轮产生的消息。
+            for round_index in range(4):
+                payload = body.model_dump(mode="json")
+                payload["llm"]["api_key"] = body.llm.api_key.get_secret_value()
+                submitted = await client.post(f"/api/events/chat/{client_id}/messages", json=payload)
+                assert submitted.status_code == 200
+                assert submitted.json()["code"] == 200, submitted.json()["msg"]
+
+                while True:
+                    event, result = await read_event(lines)
+                    if event == "heartbeat":
+                        continue
+                    assert result["session_id"] == session_id
+                    assert not result["error"], "多轮工具执行失败，请检查服务端日志"
+                    if result["remote_tool_calls"] or result["summary"]:
+                        break
+
+                if round_index == 3:
+                    assert result["summary"]
+                    assert not result["remote_tool_calls"]
+                    assert result["messages"][-1]["content"].strip()
+                    break
+
+                calls = result["remote_tool_calls"]
+                assert len(calls) == 1, "依赖工具必须在不同轮次逐个执行"
+                call = calls[0]
+                assert call["name"] == expected[round_index]
+                assert call["location"] == "remote"
+                executed.append(call["name"])
+                if call["name"] == "get_project":
+                    tool_result = {"project_id": project_id}
+                elif call["name"] == "read_project_file":
+                    assert call["arguments"]["project_id"] == project_id
+                    tool_result = {"content": file_content}
+                else:
+                    assert call["arguments"]["content"] == file_content
+                    tool_result = {"passed": True, "summary": "REMOTE_CHECK_OK"}
+
+                print(f"远程工具第 {round_index + 1} 轮：{call['name']} -> {tool_result}")
+                # 服务端已持久化此前提交的上下文，此处追加本轮 assistant 和 tool 消息。
+                assistant = dict(result["messages"][-1])
+                assistant["id"] = time.time_ns() // 1000
+                body.messages = [
+                    MessageRequest.model_validate(assistant),
+                    MessageRequest(
+                        id=time.time_ns() // 1000 + 1, role="tool", status="tool_called",
+                        tool_call_id=call["id"], content=json.dumps(tool_result, ensure_ascii=False),
+                    ),
+                ]
+
+    assert executed == expected
+
+
+async def test_dialogue_parallel_and_sequential_remote_tools(client, settings):
+    """同一会话交替完成普通对话、同批双工具和跨轮单工具调用。"""
+    key = settings("DEEPSEEK_API_KEY")
+    if not key:
+        pytest.skip("真实多阶段对话测试需要配置 DEEPSEEK_API_KEY")
+    session_id = "events-mixed-" + uuid4().hex
+    client_id = "client-mixed-" + uuid4().hex
+    body = AddMessageRequest(
+        tenant_id=0, user_id=0, session_id=session_id,
+        session_title="events-mixed-dialogue-test-" + uuid4().hex,
+        llm=LLMParamRequest(provider="deepseek", model="deepseek-chat", temperature=0, api_key=key),
+        tools=[
+            ToolDefinitionRequest(name="get_project_info", location="remote",
+                                  description="获取项目名称。"),
+            ToolDefinitionRequest(name="get_runtime_info", location="remote",
+                                  description="获取运行环境。"),
+            ToolDefinitionRequest(name="get_file_path", location="remote",
+                                  description="查询需要读取的文件路径。"),
+            ToolDefinitionRequest(
+                name="read_file", location="remote", description="读取指定路径的文件内容。",
+                parameters={"type": "object", "properties": {"path": {"type": "string"}},
+                            "required": ["path"]},
+            ),
+        ],
+        messages=[],
+    )
+    file_path = "test/" + uuid4().hex + ".txt"
+    tool_results = {
+        "get_project_info": {"project": "loong-test"},
+        "get_runtime_info": {"runtime": "Python"},
+        "get_file_path": {"path": file_path},
+        "read_file": {"content": "REMOTE_FILE_OK"},
+    }
+    # None 表示提交上轮工具结果；每个阶段明确要求本轮返回的工具集合。
+    stages = [
+        ("先进行普通对话，不调用任何工具，只回复：你好。", []),
+        ("现在在同一个 assistant 消息的 tool_calls 数组中同时调用 get_project_info 和 "
+         "get_runtime_info。两项互不依赖，不要分轮调用。收到两项结果后简短总结，不再调用工具。",
+         ["get_project_info", "get_runtime_info"]),
+        (None, []),
+        ("现在进行普通对话，不调用工具：请用一句话说明刚才获取到了什么信息。", []),
+        ("接下来分两轮调用工具：先只调用 get_file_path，收到结果后，"
+         "再用返回的真实 path 调用 read_file。不能猜测路径，不能同时调用这两个工具。"
+         "读取成功后总结，不要再次调用工具。", ["get_file_path"]),
+        (None, ["read_file"]),
+        (None, []),
+        ("最后进行普通对话，不调用工具，请总结本次对话完成的所有工作。", []),
+    ]
+    pending_results = []
+    batches = []
+
+    async with asyncio.timeout(600):
+        async with client.stream("GET", f"/api/events/chat/{client_id}/sse") as response:
+            assert response.status_code == 200
+            lines = response.aiter_lines()
+            event, connected = await read_event(lines)
+            assert event == "connected"
+            assert connected["client_id"] == client_id
+
+            for stage, (prompt, expected_tools) in enumerate(stages, start=1):
+                if prompt is not None:
+                    body.messages = [MessageRequest(
+                        id=time.time_ns() // 1000, role="user", content=prompt,
+                    )]
+                else:
+                    assert pending_results, "工具继续执行阶段必须提交上一轮工具结果"
+                    body.messages = pending_results
+                    pending_results = []
+
+                payload = body.model_dump(mode="json")
+                payload["llm"]["api_key"] = body.llm.api_key.get_secret_value()
+                submitted = await client.post(f"/api/events/chat/{client_id}/messages", json=payload)
+                assert submitted.status_code == 200
+                assert submitted.json()["code"] == 200, submitted.json()["msg"]
+
+                while True:
+                    event, result = await read_event(lines)
+                    if event == "heartbeat":
+                        continue
+                    assert result["session_id"] == session_id
+                    assert not result["error"], f"阶段 {stage} 执行失败，请查看服务端日志"
+                    if result["remote_tool_calls"] or result["summary"]:
+                        break
+
+                calls = result["remote_tool_calls"]
+                names = [call["name"] for call in calls]
+                print(f"阶段 {stage}：期望工具={expected_tools}，实际工具={names}")
+                assert sorted(names) == sorted(expected_tools)
+                if not expected_tools:
+                    assert result["summary"]
+                    assert result["messages"][-1]["role"] == "assistant"
+                    assert result["messages"][-1]["content"].strip()
+                    continue
+
+                assert not result["summary"]
+                batches.append(names)
+                assistant = dict(result["messages"][-1])
+                assistant["id"] = time.time_ns() // 1000
+                assert {call["id"] for call in assistant["tool_calls"]} == {call["id"] for call in calls}
+                pending_results = [MessageRequest.model_validate(assistant)]
+                # 按模型 tool_calls 的原始顺序追加结果，双工具在同次请求中回传。
+                for index, call in enumerate(result["tool_calls"], start=1):
+                    assert call["location"] == "remote"
+                    if call["name"] == "read_file":
+                        assert call["arguments"]["path"] == file_path
+                    pending_results.append(MessageRequest(
+                        id=time.time_ns() // 1000 + index,
+                        role="tool", status="tool_called", tool_call_id=call["id"],
+                        content=json.dumps(tool_results[call["name"]], ensure_ascii=False),
+                    ))
+
+    assert len(batches) == 3
+    assert set(batches[0]) == {"get_project_info", "get_runtime_info"}
+    assert batches[1:] == [["get_file_path"], ["read_file"]]

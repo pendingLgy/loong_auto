@@ -19,7 +19,8 @@ from loong_cloud.agent.tools import DEFAULT_LOCAL_TOOLS
 from loong_cloud.common.response import Response
 from loong_cloud.config.config_model import ModelConfig
 from loong_cloud.storage.message_store import MessageStore
-from loong_contracts.request.message import AddMessageRequest
+from loong_contracts.request.message import AddMessageRequest, LLMParamRequest, MessageRequest
+from loong_cloud.utils.snowflake import next_id
 from loong_contracts.utis.datetime_util import utcnow
 
 router = APIRouter(prefix="/events", tags=["对话事件"])
@@ -29,16 +30,45 @@ HEARTBEAT_MAX_FAILURES = 5
 HEARTBEAT_BACKOFF_SECONDS = 1
 
 
+@dataclass
+class MessageSaveContext:
+    """保存结束消息的轻量元数据，不缓存消息、工具或 API 密钥。"""
+
+    session_title: str
+    provider: str
+    model: str
+
+
+@dataclass
+class EventSession:
+    """一个客户端连接的队列及当前执行任务；队列满时等待消费。"""
+
+    queue: asyncio.Queue[str] = field(default_factory=lambda: asyncio.Queue(maxsize=128))
+    task: asyncio.Task[None] | None = None
+    busy: bool = False
+    connected: bool = True
+    save_contexts: dict[str, MessageSaveContext] = field(default_factory=dict)
+
 class HeartbeatStreamingResponse(StreamingResponse):
     """在实际 ASGI 发送阶段检查心跳失败，并确保连接资源释放。"""
 
-    def __init__(self, *args, client_id:str, on_close: Callable[[], Awaitable[None]], **kwargs):
+    def __init__(self, *args, client_id:str,
+                 on_stop: Callable[[LoopEvent], Awaitable[None]],
+                 on_close: Callable[[], Awaitable[None]], **kwargs):
         super().__init__(*args, **kwargs)
         self.on_close = on_close
         self.client_id = client_id
+        self.on_stop = on_stop
+        self.stop_tasks: set[asyncio.Task[None]] = set()
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         disconnected = asyncio.Event()
+
+        async def handle_stop(event: LoopEvent) -> None:
+            try:
+                await self.on_stop(event)
+            except Exception:
+                logger.exception("SSE on_stop 后台任务失败，client_id={}", self.client_id)
 
         async def watch_disconnect() -> None:
             while True:
@@ -52,6 +82,17 @@ class HeartbeatStreamingResponse(StreamingResponse):
             if message["type"] != "http.response.body" or not message.get("more_body", False):
                 await send(message)
                 return
+
+            # 每个队列元素是一帧 SSE；保存操作在发送重试循环外只执行一次。
+            body = message.get("body", b"").decode(self.charset)
+            lines = body.splitlines()
+            if "event: stop" in lines:
+                data = "\n".join(line[5:].lstrip() for line in lines if line.startswith("data:"))
+                event = LoopEvent.model_validate_json(data)
+                if not event.error:
+                    task = asyncio.create_task(handle_stop(event), name=f"sse-stop:{self.client_id}")
+                    self.stop_tasks.add(task)
+                    task.add_done_callback(self.stop_tasks.discard)
 
             for attempt in range(1, HEARTBEAT_MAX_FAILURES + 1):
                 try:
@@ -94,21 +135,16 @@ class HeartbeatStreamingResponse(StreamingResponse):
                     await asyncio.gather(watcher, stream_task, return_exceptions=True)
                 finally:
                     try:
-                        await self.on_close()
+                        # 保存任务不随 SSE 断连取消，完成后再释放其依赖的会话数据。
+                        if self.stop_tasks:
+                            await asyncio.gather(*self.stop_tasks, return_exceptions=True)
                     finally:
-                        await self.body_iterator.aclose()
+                        try:
+                            await self.on_close()
+                        finally:
+                            await self.body_iterator.aclose()
         if self.background is not None:
             await self.background()
-
-
-@dataclass
-class EventSession:
-    """一个客户端连接的队列及当前执行任务；队列满时等待消费。"""
-
-    queue: asyncio.Queue[str] = field(default_factory=lambda: asyncio.Queue(maxsize=128))
-    task: asyncio.Task[None] | None = None
-    busy: bool = False
-    connected: bool = True
 
 
 def _sessions(request: Request) -> dict[tuple[str, str, str], EventSession]:
@@ -124,7 +160,9 @@ def _session_key(request: Request, session_id: str) -> tuple[str, str, str]:
 
 
 @router.get("/chat/{client_id}/sse")
-async def chat_sse(request: Request, client_id: str) -> StreamingResponse:
+@inject
+async def chat_sse(request: Request, client_id: str,
+                   message_store: MessageStore = Depends(Provide["MessageStore"])) -> StreamingResponse:
     """先建立订阅；对话完成后保持连接，空闲时每 15 秒发送心跳。"""
     sessions = _sessions(request)
     key = _session_key(request, client_id)
@@ -146,35 +184,61 @@ async def chat_sse(request: Request, client_id: str) -> StreamingResponse:
         finally:
             channel.task = None
             channel.busy = False
+            channel.save_contexts.clear()
             while not channel.queue.empty():
                 channel.queue.get_nowait()
 
-    async def events() -> AsyncIterator[str]:
+    async def save_stop_message(event: LoopEvent) -> None:
+        context = channel.save_contexts.pop(event.session_id, None)
+        if context is None or not event.messages:
+            return
+        final_message = event.messages[-1]
+        if final_message.role != "assistant":
+            return
+        values = final_message.model_dump(mode="json")
+        # 模型响应 ID 通常是字符串，存储契约要求数值消息 ID；原始响应保留在 raw。
+        values["id"] = next_id()
+        saved = AddMessageRequest(
+            tenant_id=request.state.identity.tenant_id,
+            user_id=request.state.identity.id,
+            session_id=event.session_id,
+            session_title=context.session_title,
+            llm=LLMParamRequest(provider=context.provider, model=context.model),
+            tools=[],
+            messages=[MessageRequest.model_validate(values)],
+        )
+
         try:
-            # 立即发出首帧，客户端收到后即可提交消息。
+            await message_store.add_message(saved)
+        except Exception:
+            logger.exception("保存 SSE 结束消息失败，session_id={}", event.session_id)
+            raise
 
-            LoopEvent()
-            data = json.dumps({"client_id": client_id, "time": utcnow().isoformat()})
-            yield f"event: connected\ndata: {data}\n\n"
+    async def events() -> AsyncIterator[str]:
+        # 立即发出首帧，客户端收到后即可提交消息。
 
-            # receive 由响应层独占监听；断连由发送重试流程统一结束。
-            while True:
-                try:
-                    frame = await asyncio.wait_for(
-                        channel.queue.get(), timeout=HEARTBEAT_INTERVAL_SECONDS,
-                    )
-                except asyncio.TimeoutError:
-                    data = json.dumps({"client_id": client_id, "time": utcnow().isoformat()})
-                    yield f"event: heartbeat\ndata: {data}\n\n"
-                else:
-                    yield frame
-        finally:
-            with anyio.CancelScope(shield=True):
-                await close_session()
+        LoopEvent()
+        data = json.dumps({"client_id": client_id, "time": utcnow().isoformat()})
+        yield f"event: connected\ndata: {data}\n\n"
+
+        # receive 由响应层独占监听；断连由发送重试流程统一结束。
+        while True:
+            try:
+                frame = await asyncio.wait_for(
+                    channel.queue.get(), timeout=HEARTBEAT_INTERVAL_SECONDS,
+                )
+
+
+            except asyncio.TimeoutError:
+                data = json.dumps({"client_id": client_id, "time": utcnow().isoformat()})
+                yield f"event: heartbeat\ndata: {data}\n\n"
+            else:
+                yield frame
 
     return HeartbeatStreamingResponse(
         events(),
         client_id=client_id,
+        on_stop=save_stop_message,
         on_close=close_session,
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
@@ -240,6 +304,11 @@ async def submit_message(
             return Response.fail(request, code=409, msg="not new message")
         if not channel.connected:
             raise HTTPException(status_code=409, detail="SSE 连接已断开，消息已保存但未开始执行")
+        channel.save_contexts[session_id] = MessageSaveContext(
+            session_title=body.session_title,
+            provider=body.llm.provider,
+            model=body.llm.model,
+        )
         channel.task = asyncio.create_task(
             _run_dialogue(channel, session_id, messages, config, tools),
             name=f"dialogue:{session_id}",
