@@ -19,8 +19,10 @@ class AgentLoop:
             config: ModelConfig,
             tools: list[ToolDefinition],
             local_executor: dict[str, Callable[[ToolCall], Awaitable[str]]],
+            session_id: str | None = None,
     ):
         self.executor = executor
+        self.session_id = session_id
         self.config = config
         self.tools = tools
         self.local_executors = local_executor
@@ -49,7 +51,7 @@ class AgentLoop:
                     if isinstance(event, Message) and event.status in ["stop","tool_calling"]:
                         response = event
                     else:
-                        loop_event = LoopEvent(messages=[event], tool_calls=[], remote_tool_calls=[])
+                        loop_event = LoopEvent(session_id=self.session_id, messages=[event], tool_calls=[], remote_tool_calls=[])
                         yield loop_event
 
             if response is None:
@@ -58,7 +60,7 @@ class AgentLoop:
             messages.append(message)
 
             if not message.tool_calls:
-                yield LoopEvent(summary=True,messages=messages, tool_calls=[])
+                yield LoopEvent(session_id=self.session_id, summary=True,messages=messages, tool_calls=[])
                 return
 
             tool_call_messages: list[Message] = []
@@ -78,7 +80,7 @@ class AgentLoop:
                     remote_calls.append(call)
 
             if remote_calls:
-                yield LoopEvent(messages=messages, tool_call_messages=tool_call_messages,
+                yield LoopEvent(session_id=self.session_id, messages=messages, tool_call_messages=tool_call_messages,
                                  tool_calls=tool_calls, remote_tool_calls=remote_calls)
                 return
             else:
@@ -105,7 +107,7 @@ class AgentLoop:
             )
             messages.append(message)
             if not message.tool_calls:
-                return LoopEvent(summary=True,messages=messages, tool_calls=[])
+                return LoopEvent(session_id=self.session_id,summary=True,messages=messages, tool_calls=[])
 
             tool_call_messages: list[Message] = []
             remote_calls: list[ToolCall] = []
@@ -124,10 +126,10 @@ class AgentLoop:
                     remote_calls.append(call)
 
             if remote_calls:
-                return LoopEvent(messages=messages, tool_call_messages=tool_call_messages,
+                return LoopEvent(session_id=self.session_id,messages=messages, tool_call_messages=tool_call_messages,
                                  tool_calls=tool_calls, remote_tool_calls=remote_calls)
             else:
                 messages = build_tool_call_message(messages, tool_call_messages, tool_calls)
 
         Message(id=uuid_util.uuid_str(),role="assistant",status="stop",created=int(time.time()), content="请求执行异常")
-        return LoopEvent(messages=messages, tool_calls=[])
+        return LoopEvent(session_id=self.session_id, messages=messages, tool_calls=[])

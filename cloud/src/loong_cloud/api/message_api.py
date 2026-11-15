@@ -47,7 +47,7 @@ async def chat_complete(request: Request, session_id: str, body: AddMessageReque
     ]
 
     async with ModelExecutor() as executor:
-        event: LoopEvent = await AgentLoop(executor, config, tools, DEFAULT_LOCAL_TOOLS).run(llm_messages)
+        event: LoopEvent = await AgentLoop(executor, config, tools, DEFAULT_LOCAL_TOOLS, session_id=session_id).run(llm_messages)
 
     return Response.ok(request, event)
 
@@ -81,6 +81,7 @@ async def chat_sse(request: Request, session_id: str, body: AddMessageRequest,
         if llm_messages is None:
             # 以标准的 SSE 事件格式向前端推送错误信息
             error_event: LoopEvent = LoopEvent(error=True,
+                                               session_id=session_id,
                                                messages=[
                                                    Message(
                                                        id=uuid_util.uuid_str(),
@@ -95,7 +96,7 @@ async def chat_sse(request: Request, session_id: str, body: AddMessageRequest,
             return
 
         async with ModelExecutor() as executor:
-            async for frame in AgentLoop(executor, config, tools, DEFAULT_LOCAL_TOOLS).run_sse(llm_messages):
+            async for frame in AgentLoop(executor, config, tools, DEFAULT_LOCAL_TOOLS, session_id=session_id).run_sse(llm_messages):
                 print(f"{frame}")
                 yield f"{frame}"
 

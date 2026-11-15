@@ -52,12 +52,11 @@ class ModelRequest(BaseModel):
         return self
 
 
-SSE_DONE = "data: [DONE]\n\n"
-
 class LoopEvent(BaseModel):
 
     error: bool = Field(default=False,description="错误标识")
     summary: bool = Field(default=False,description="汇总消息标识")
+    session_id: str | None = Field(default=None,description="session_id")
     messages: list[Message] = Field(default_factory=list)
     tool_call_messages: list[Message] = Field(default_factory=list)
     tool_calls: list[ToolCall] = Field(default_factory=list)
