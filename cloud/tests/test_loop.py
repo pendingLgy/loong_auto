@@ -11,8 +11,8 @@ from dotenv import dotenv_values
 
 from loong_cloud.agent import AgentLoop, ModelExecutor, LoopEvent
 from loong_cloud.agent.message_handler import build_tool_call_message
-from loong_cloud.agent.models import Message, ToolCall, ToolDefinition
 from loong_cloud.config.config_model import ModelConfig
+from loong_contracts.agent.models import Message, ToolDefinition
 from loong_contracts.utis import uuid_util
 
 

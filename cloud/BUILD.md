@@ -21,25 +21,25 @@ pytest 在顶层 `pyproject.toml` 配置 `asyncio_mode = "auto"`，自动运行�
 
 ```powershell
 # 同步云端及其测试依赖
-uv sync --package loong-cloud --extra test
+uv sync --package loong-cloud 
 
 # executor 模拟测试（排除真实模型调用）
-uv run --package loong-cloud --extra test python -m pytest cloud/tests/test_executor.py -k "not live" -v
+uv run --package loong-cloud python -m pytest cloud/tests/test_executor.py -k "not live" -v -s
 
 # cloud 全部单元测试
-uv run --package loong-cloud --extra test python -m pytest cloud/tests -v
+uv run --package loong-cloud python -m pytest cloud/tests -v -s
 
 # 指定文件
-uv run --package loong-cloud --extra test python -m pytest cloud/tests/test_executor.py -v
+uv run --package loong-cloud python -m pytest cloud/tests/test_executor.py -v -s
 
 # 指定文件中的独立测试函数
-uv run --package loong-cloud --extra test python -m pytest cloud/tests/test_events_api.py::test_submit_message_pushes_dialogue_to_sse -v
+uv run --package loong-cloud python -m pytest cloud/tests/test_events_api.py::test_submit_message_pushes_dialogue_to_sse -v -s
 
 # 指定文件中的类
-uv run --package loong-cloud --extra test python -m pytest cloud/tests/test_executor.py::TestModelExecutor -v
+uv run --package loong-cloud python -m pytest cloud/tests/test_executor.py::TestModelExecutor -v -s
 
 # 指定类中的方法
-uv run --package loong-cloud --extra test python -m pytest cloud/tests/test_executor.py::TestModelExecutor::test_complete -v
+uv run --package loong-cloud python -m pytest cloud/tests/test_executor.py::TestModelExecutor::test_complete -v -s
 
 
 ```
@@ -69,19 +69,19 @@ uv sync --package loong-cloud
 
 ```powershell
 # 安装指定可选依赖
-uv sync --package loong-cloud --extra test
+uv sync --package loong-cloud 
 uv sync --package loong-cloud --extra mysql
 uv sync --package loong-cloud --extra postgres
 
 # 组合使用，例如 MySQL 与测试依赖
-uv sync --package loong-cloud --extra mysql --extra test
+uv sync --package loong-cloud --extra mysql 
 
 # 安装云端全部可选依赖
 uv sync --package loong-cloud --all-extras
 
 # 运行时也指定所需可选依赖
 uv run --package loong-cloud --extra mysql python -m loong_cloud --path cloud/.env
-uv run --package loong-cloud --extra test python -m pytest cloud/tests/test_executor.py -k "not live" -v
+uv run --package loong-cloud  python -m pytest cloud/tests/test_executor.py -k "not live" -v
 ```
 
 `uv sync` 会同步依赖环境，后续同步或运行时应继续指定需要的 `--extra`，避免已安装的可选依赖被移除。安装数据库驱动后，还需在服务配置中选择对应数据库并配置连接信息；`--extra` 本身不会切换数据库。

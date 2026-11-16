@@ -1,7 +1,6 @@
 """提交对话消息，通过独立的 SSE 长连接推送执行结果。"""
 
 import asyncio
-import json
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import aclosing, suppress
 from dataclasses import dataclass, field
@@ -16,13 +15,12 @@ from starlette.types import Message as ASGIMessage, Receive, Scope, Send
 from core.logging import log_exception
 from loong_cloud.agent import AgentLoop, ModelExecutor
 from loong_cloud.agent.tools import DEFAULT_LOCAL_TOOLS
-from loong_cloud.common.response import Response
+from loong_contracts.utis import Response
 from loong_cloud.config.config_model import ModelConfig
 from loong_cloud.storage.message_store import MessageStore
 from loong_contracts.agent.models import LoopEvent, Message, ToolDefinition
 from loong_contracts.common.llm_message_constant import GlobalMessageStatus, GlobalMessageRole
 from loong_contracts.request.message import AddMessageRequest, LLMParamRequest
-from loong_cloud.utils.snowflake import next_id
 from loong_contracts.utis.datetime_util import utcnow
 
 router = APIRouter(prefix="/events", tags=["对话事件"])

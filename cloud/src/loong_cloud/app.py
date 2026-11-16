@@ -14,7 +14,7 @@ from loong_cloud.cache import CacheProxy
 from loong_cloud.config.config_global import GlobalConfig
 from loong_cloud.core.logging import log_exception, configure_logging
 from loong_cloud.api import router
-from loong_cloud.common.response import Response
+from loong_contracts.utis import Response
 from loong_cloud.core.container import  ApplicationContainer
 from loong_cloud.db.db_proxy import AsyncDatabaseProxy
 from loong_cloud.install_setting import SERVICE_TARGETS, WIRE_TARGETS

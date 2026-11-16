@@ -636,15 +636,11 @@ dependencies = [
     { name = "loong-cloud-client" },
     { name = "loong-contracts" },
     { name = "pydantic" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
     { name = "python-dotenv" },
     { name = "pyyaml" },
     { name = "uvicorn" },
-]
-
-[package.optional-dependencies]
-test = [
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
 ]
 
 [package.metadata]
@@ -655,13 +651,12 @@ requires-dist = [
     { name = "loong-cloud-client", editable = "shared/cloud_client" },
     { name = "loong-contracts", editable = "shared/contracts" },
     { name = "pydantic" },
-    { name = "pytest", marker = "extra == 'test'" },
-    { name = "pytest-asyncio", marker = "extra == 'test'" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
     { name = "python-dotenv" },
     { name = "pyyaml" },
     { name = "uvicorn" },
 ]
-provides-extras = ["test"]
 
 [[package]]
 name = "opentelemetry-api"

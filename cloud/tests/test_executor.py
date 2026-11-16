@@ -7,8 +7,8 @@ import pytest
 from dotenv import dotenv_values
 
 from loong_cloud.agent import ModelExecutor
-from loong_cloud.agent.models import Message, ModelRequest, ToolDefinition
 from loong_cloud.config.config_model import ModelConfig
+from loong_contracts.agent.models import ToolDefinition, Message, ModelRequest
 
 
 @pytest.fixture(scope='module')

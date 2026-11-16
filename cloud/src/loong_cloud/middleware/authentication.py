@@ -8,10 +8,10 @@ from starlette import status
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from loong_cloud.common.response import Response
 from loong_cloud.storage.token_service import TokenService
 from loong_cloud.storage.user_store import UserStore
 from loong_contracts.response.login import UserInfoResponse
+from loong_contracts.utis import Response
 
 
 class AuthenticationMiddleware:

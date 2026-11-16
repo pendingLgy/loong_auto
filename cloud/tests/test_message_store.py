@@ -6,11 +6,11 @@ import pytest
 from sqlalchemy import select, update
 
 from loong_cloud import schema
-from loong_cloud.agent.models import Message
 from loong_cloud.config.config_db import DatabaseConfig, SqliteConfig
 from loong_cloud.db.db_proxy import AsyncDatabaseProxy
 from loong_cloud.storage.message_store import MessageStore
-from loong_contracts.request.message import AddMessageRequest, LLMParamRequest, MessageRequest
+from loong_contracts.agent.models import Message
+from loong_contracts.request.message import AddMessageRequest, LLMParamRequest
 
 
 @pytest.fixture
@@ -27,18 +27,18 @@ async def store():
                 await proxy.close_db()
 
 
-def make_request(message_id: int, *, tenant_id: int = 1, user_id: int = 10,
+def make_request(message_id: str, *, tenant_id: int = 1, user_id: int = 10,
                  session_id: str = "session-1") -> AddMessageRequest:
     return AddMessageRequest(
         tenant_id=tenant_id, user_id=user_id, session_id=session_id,
         session_title="测试会话", llm=LLMParamRequest(model="deepseek-chat"), tools=[],
-        messages=[MessageRequest(id=message_id, role="user", content=f"消息 {message_id}")],
+        messages=[Message(id=message_id, role="user", content=f"消息 {message_id}")],
     )
 
 
 async def test_add_message_and_append_history(store):
-    first = await store.add_message(make_request(101))
-    second = await store.add_message(make_request(102))
+    first = await store.add_message(make_request(str(101)))
+    second = await store.add_message(make_request(str(102)))
     assert all(isinstance(message, Message) for message in second)
     assert [message.content for message in first] == ["消息 101"]
     assert [message.content for message in second] == ["消息 101", "消息 102"]
@@ -51,7 +51,7 @@ async def test_add_message_and_append_history(store):
 
 
 async def test_duplicate_message_is_not_appended(store):
-    request = make_request(101)
+    request = make_request(str(101))
     await store.add_message(request)
     assert await store.add_message(request) is None
     page = await store.list_messages(1, 10, "session-1")
@@ -59,11 +59,11 @@ async def test_duplicate_message_is_not_appended(store):
 
 
 async def test_message_pagination_and_identity_isolation(store):
-    for message_id in (101, 102, 103):
+    for message_id in (str(101), str(102), str(103)):
         await store.add_message(make_request(message_id))
-    await store.add_message(make_request(104, tenant_id=2))
-    await store.add_message(make_request(105, user_id=20))
-    await store.add_message(make_request(106, session_id="other"))
+    await store.add_message(make_request(str(104), tenant_id=2))
+    await store.add_message(make_request(str(105), user_id=20))
+    await store.add_message(make_request(str(106), session_id="other"))
     first = await store.list_messages(1, 10, "session-1", page=1, page_size=2)
     second = await store.list_messages(1, 10, "session-1", page=2, page_size=2)
     assert first.total == second.total == 3
@@ -73,9 +73,9 @@ async def test_message_pagination_and_identity_isolation(store):
 
 async def test_session_pagination_excludes_deleted_and_other_users(store):
     for message_id, session_id in enumerate(("first", "second", "deleted"), start=101):
-        await store.add_message(make_request(message_id, session_id=session_id))
-    await store.add_message(make_request(201, user_id=20))
-    await store.add_message(make_request(202, tenant_id=2))
+        await store.add_message(make_request(str(message_id), session_id=session_id))
+    await store.add_message(make_request(str(201), user_id=20))
+    await store.add_message(make_request(str(202), tenant_id=2))
     async with store.db.session() as session:
         await session.execute(update(store.session_message_table).where(
             store.session_message_table.c.session_id == "deleted"

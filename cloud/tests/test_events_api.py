@@ -289,7 +289,7 @@ async def test_dialogue_parallel_and_sequential_remote_tools(client, settings):
             for stage, (prompt, expected_tools) in enumerate(stages, start=1):
                 if prompt is not None:
                     body.messages = [Message(
-                        id=time.time_ns() // 1000, role="user", content=prompt,
+                        id=str(time.time_ns() // 1000), role="user", content=prompt,
                     )]
                 else:
                     assert pending_results, "工具继续执行阶段必须提交上一轮工具结果"
@@ -308,10 +308,10 @@ async def test_dialogue_parallel_and_sequential_remote_tools(client, settings):
                         continue
                     assert result["session_id"] == session_id
                     assert not result["error"], f"阶段 {stage} 执行失败，请查看服务端日志"
-                    if result["remote_tool_calls"] or result["summary"]:
+                    if result["summary"] or result["remote_tool_calls"]:
                         break
 
-                calls = result["remote_tool_calls"]
+                calls = result.get("remote_tool_calls",[])
                 names = [call["name"] for call in calls]
                 print(f"阶段 {stage}：期望工具={expected_tools}，实际工具={names}")
                 assert sorted(names) == sorted(expected_tools)
@@ -324,7 +324,7 @@ async def test_dialogue_parallel_and_sequential_remote_tools(client, settings):
                 assert not result["summary"]
                 batches.append(names)
                 assistant = dict(result["messages"][-1])
-                assistant["id"] = time.time_ns() // 1000
+                assistant["id"] = str(time.time_ns() // 1000)
                 assert {call["id"] for call in assistant["tool_calls"]} == {call["id"] for call in calls}
                 pending_results = [Message.model_validate(assistant)]
                 # 按模型 tool_calls 的原始顺序追加结果，双工具在同次请求中回传。
@@ -333,7 +333,7 @@ async def test_dialogue_parallel_and_sequential_remote_tools(client, settings):
                     if call["name"] == "read_file":
                         assert call["arguments"]["path"] == file_path
                     pending_results.append(Message(
-                        id=time.time_ns() // 1000 + index,
+                        id=str(time.time_ns() // 1000 + index),
                         role="tool", status="tool_called", tool_call_id=call["id"],
                         content=json.dumps(tool_results[call["name"]], ensure_ascii=False),
                     ))
@@ -374,7 +374,7 @@ async def test_remote_file_edit_failure_then_retry(client, settings):
                 },
             )],
             messages=[Message(
-                id=time.time_ns() // 1000, role="user",
+                id=str(time.time_ns() // 1000), role="user",
                 content=(f"请调用 edit_file 将文件 {target.as_posix()} 的内容写为 {expected_content}。"
                          "第一次必须设置 create_parent=false。若工具失败，请根据工具错误修改参数并再次"
                          "调用 edit_file，路径和内容保持不变。编辑成功后不要再调用工具，"
@@ -405,11 +405,11 @@ async def test_remote_file_edit_failure_then_retry(client, settings):
                             continue
                         assert result["session_id"] == session_id
                         assert not result["error"], "文件编辑对话失败，请检查服务端日志"
-                        if result["remote_tool_calls"] or result["summary"]:
+                        if result["summary"] or result["remote_tool_calls"]:
                             break
 
                     if result["summary"]:
-                        assert not result["remote_tool_calls"]
+                        assert result.get("remote_tool_calls",None) is None
                         final = result["messages"][-1]
                         assert final["role"] == "assistant"
                         assert "FILE_EDIT_SUCCESS" in final["content"]
@@ -449,11 +449,11 @@ async def test_remote_file_edit_failure_then_retry(client, settings):
                     print(f"编辑第 {len(results)} 次结果：{json.dumps(tool_result, ensure_ascii=False)}")
 
                     assistant = dict(result["messages"][-1])
-                    assistant["id"] = time.time_ns() // 1000
+                    assistant["id"] = str(time.time_ns() // 1000)
                     body.messages = [
                         Message.model_validate(assistant),
                         Message(
-                            id=time.time_ns() // 1000 + 1, role="tool", status="tool_called",
+                            id=str(time.time_ns() // 1000 + 1), role="tool", status="tool_called",
                             tool_call_id=call["id"], content=json.dumps(tool_result, ensure_ascii=False),
                         ),
                     ]

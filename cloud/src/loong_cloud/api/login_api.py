@@ -1,7 +1,7 @@
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, Request
 
-from loong_cloud.common.response import Response
+from loong_contracts.utis import Response
 from loong_cloud.storage.token_service import TokenService
 from loong_cloud.storage.user_store import UserStore
 from loong_contracts.request.login import RegisterRequest, RefreshTokenRequest, LoginRequest

@@ -1,5 +1,4 @@
 """聊天与消息查询接口。"""
-import json
 import time
 
 from dependency_injector.wiring import Provide, inject
@@ -8,13 +7,14 @@ from fastapi.responses import StreamingResponse
 
 from loong_cloud.agent import ModelExecutor, AgentLoop
 from loong_cloud.agent.tools import DEFAULT_LOCAL_TOOLS
-from loong_cloud.common.response import Response, PageResponse
+from loong_contracts.utis import Response
 from loong_cloud.config.config_model import ModelConfig
 from loong_cloud.storage.message_store import MessageStore
 from loong_contracts.agent.models import Message, ToolDefinition, LoopEvent
 from loong_contracts.common.llm_message_constant import GlobalMessageRole, GlobalMessageStatus
 from loong_contracts.request.message import AddMessageRequest
 from loong_contracts.utis import uuid_util
+from loong_contracts.utis.response import PageResponse
 
 router = APIRouter(prefix="/messages", tags=["消息与聊天"])
 
