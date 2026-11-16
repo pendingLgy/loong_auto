@@ -1,0 +1,15 @@
+[build-system]
+requires = ["hatchling>=1.26,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "loong-cloud-client"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = ["loong-contracts", "httpx", "pydantic"]
+
+[tool.uv.sources]
+loong-contracts = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/loong_cloud_client"]

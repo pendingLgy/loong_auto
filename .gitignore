@@ -387,3 +387,6 @@ cython_debug/
 
 *.db
 
+
+# 本地测试账号及访问令牌
+/local/.env.test

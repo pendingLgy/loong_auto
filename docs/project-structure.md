@@ -29,7 +29,9 @@ loong_auto/
 │   ├── preload/                # 受限宿主接口
 │   └── renderer/               # 共享 Web 界面的桌面入口
 ├── local/                      # Python 本地服务模块
-│   ├── gateway/                # 本地接口、云端转发与事件分发
+│   ├── gateway/                # 网关配置与协调能力
+│   ├── api/                    # 本地状态接口、云端 HTTP/SSE 转发路由
+│   ├── middleware/             # 本机访问校验与跨域装配
 │   ├── executor/               # 工具调度与执行生命周期
 │   ├── tools/                  # Shell、文件、搜索与 Git
 │   ├── access/                 # 本地认证、权限与审批
@@ -53,6 +55,7 @@ loong_auto/
 │   └── tests/                  # 云端单元测试及真实服务集成测试
 ├── shared/                     # 共享能力模块
 │   ├── contracts/              # 协议定义、Schema 与生成类型
+│   ├── cloud_client/           # Python HTTPX 云端 SDK，复用 contracts
 │   ├── client/                 # TypeScript 本地服务 SDK
 │   └── ui/                     # Web 与桌面共享 DOM 组件
 ├── engineering/                # 工程与交付模块
@@ -67,7 +70,7 @@ loong_auto/
     └── decisions/              # 架构决策记录
 ```
 
-上图为模块视图，不是物理路径：cloud 的业务子模块位于 `cloud/src/loong_cloud`，测试位于 `cloud/tests`；应用装配和启动入口在 Python 包根目录，不单独展开。`providers` 和 `server` 暂未承担实际接入职责，不作为新增重复实现的依据。
+上图为模块视图，不是物理路径：local 的应用装配位于 `local/src/loong_local/app.py`，路由与中间件分别位于 api、middleware 子模块。cloud 的业务子模块位于 `cloud/src/loong_cloud`，测试位于 `cloud/tests`；应用装配和启动入口在 Python 包根目录，不单独展开。`providers` 和 `server` 暂未承担实际接入职责，不作为新增重复实现的依据。
 
 现有架构、技术栈和本文保留在 docs 根目录。根级 workspace、锁文件等不在模块目录树中展开；Python 依赖版本在根 pyproject.toml 统一约束，子包声明实际依赖与构建配置，详见 [工程管理说明](../engineering/workspace/README.md)。TypeScript 工程由 Bun 管理。
 
@@ -94,7 +97,7 @@ web --------------------> shared/client + shared/ui
 desktop/renderer -------> Web 共享界面
 desktop/main -----------> 本地服务生命周期
                                 |
-shared/client ------------------+----> local/gateway
+shared/client ------------------+----> local/api
                                           |
                                           +----> local/access
                                           +----> local/executor ----> local/tools
@@ -128,7 +131,7 @@ local 的系统能力通过 local/platform 适配
 
 后续设计按 tui、web、desktop、local、cloud、shared 和 engineering 等大模块分别补充；需要时再拆分子模块设计。本文不预设子模块内部目录、接口和实现方式。
 
-当前云端已包含用户认证、数据库及缓存代理、消息存储、模型适配与 Agent 循环，以及 HTTP/SSE 接口。用户端与本地模块仍需依据各自实际代码确认完成度，不因目录存在而视为可运行。
+当前云端已包含用户认证、数据库及缓存代理、消息存储、模型适配与 Agent 循环，以及 HTTP/SSE 接口。本地 gateway 已实现固定云端的 HTTP/SSE 转发、来源校验及请求日志；工具执行、审批和恢复状态尚未接入。用户端仍需依据实际代码确认完成度，不因目录存在而视为可运行。
 
 云端连接与存储的职责衔接如下：
 

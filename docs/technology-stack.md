@@ -14,8 +14,8 @@
 
 | 大模块 | 职责范围 | 主要技术                                                 |
 | --- | --- |----------------------------------------------------------|
-| 本地服务 | CLI 网关、云端转发、本地执行、权限、日志与状态 | Python、uv、FastAPI、asyncio、SQLite                     |
-| 终端交互 | CLI 命令与 TUI 界面 | TypeScript、Bun、SolidJS、@opentui/solid                 |
+| 本地服务 | 本地网关、云端转发、本地执行、权限、日志与状态 | Python、uv、FastAPI、asyncio、SQLite                     |
+| 终端交互 | TUI 界面 | TypeScript、Bun、SolidJS、@opentui/solid                 |
 | Web 界面 | 浏览器交互及桌面共享界面 | TypeScript、SolidJS、Effect、Vite、Bun                   |
 | 桌面应用 | 桌面宿主、系统集成与本地服务启动 | Electron、TypeScript、electron-vite、electron-builder    |
 | 云端服务 | API、Agent、LLM 接入与任务持久化 | Python、uv、FastAPI、PostgreSQL                          |
@@ -36,13 +36,13 @@
 | SQLite + SQLAlchemy + Alembic | 本地状态存储与迁移 |
 | Python logging | 本地结构化日志 |
 
-本地服务由 CLI 启动或管理，也可由 Electron 启动或复用。所有业务请求、云端事件及工具结果均经过本地服务并记录日志。本地服务不使用 WebSocket。
+本地服务独立运行，可由 TUI 或 Electron 启动或复用。所有业务请求、云端事件及工具结果均经过本地服务并记录日志。本地服务不使用 WebSocket。
 
 具体工具、权限、日志、存储与进程管理方案由本地服务设计文档补充。
 
 ## 4. 终端交互
 
-**职责范围**：提供命令行操作与终端交互界面，通过本地服务完成业务操作。
+**职责范围**：提供终端交互界面，通过本地服务完成业务操作。
 
 | 技术 | 用途 |
 | --- | --- |
@@ -134,6 +134,6 @@ uv 负责 Python 工程与依赖，PyInstaller 负责独立程序打包；Bun �
 - 所有界面业务操作统一经过 Python 本地网关访问云端。
 - 云端负责推理与编排，本地负责权限与实际执行。
 - Effect 用于 TypeScript 客户端，Python 异步逻辑使用 asyncio。
-- Web 与 Electron 共享前端界面，CLI 与 TUI 共用本地服务能力。
+- Web 与 Electron 共享前端界面，TUI 通过本地服务访问业务能力。
 - 日志记录与可靠业务状态分别管理。
 - 子模块拆分及具体依赖在后续设计中确定，避免提前引入无明确需求的框架。

@@ -10,6 +10,7 @@ resolution-markers = [
 members = [
     "loong-auto",
     "loong-cloud",
+    "loong-cloud-client",
     "loong-contracts",
     "loong-local",
 ]
@@ -726,6 +727,23 @@ requires-dist = [
 provides-extras = ["test", "postgres", "mysql"]
 
 [[package]]
+name = "loong-cloud-client"
+version = "0.1.0"
+source = { editable = "shared/cloud_client" }
+dependencies = [
+    { name = "httpx" },
+    { name = "loong-contracts" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "httpx" },
+    { name = "loong-contracts", editable = "shared/contracts" },
+    { name = "pydantic" },
+]
+
+[[package]]
 name = "loong-contracts"
 version = "0.1.0"
 source = { editable = "shared/contracts" }
@@ -742,16 +760,37 @@ version = "0.1.0"
 source = { editable = "local" }
 dependencies = [
     { name = "fastapi" },
+    { name = "httpx" },
+    { name = "loguru" },
+    { name = "loong-cloud-client" },
     { name = "loong-contracts" },
+    { name = "pydantic" },
+    { name = "python-dotenv" },
+    { name = "pyyaml" },
     { name = "uvicorn" },
+]
+
+[package.optional-dependencies]
+test = [
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "fastapi" },
+    { name = "httpx" },
+    { name = "loguru" },
+    { name = "loong-cloud-client", editable = "shared/cloud_client" },
     { name = "loong-contracts", editable = "shared/contracts" },
+    { name = "pydantic" },
+    { name = "pytest", marker = "extra == 'test'" },
+    { name = "pytest-asyncio", marker = "extra == 'test'" },
+    { name = "python-dotenv" },
+    { name = "pyyaml" },
     { name = "uvicorn" },
 ]
+provides-extras = ["test"]
 
 [[package]]
 name = "mypy"

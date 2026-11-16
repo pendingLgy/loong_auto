@@ -6,13 +6,17 @@ build-backend = "hatchling.build"
 name = "loong-local"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = ["loong-contracts", "fastapi", "uvicorn"]
+dependencies = ["loong-cloud-client", "loong-contracts", "fastapi", "uvicorn", "httpx", "pydantic", "python-dotenv", "pyyaml", "loguru"]
+
+[project.optional-dependencies]
+test = ["pytest", "pytest-asyncio"]
 
 [project.scripts]
 loong-local = "loong_local.startup:main"
 
 [tool.uv.sources]
 loong-contracts = { workspace = true }
+loong-cloud-client = { workspace = true }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/loong_local"]
