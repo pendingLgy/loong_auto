@@ -1,3 +1,5 @@
+from time import monotonic
+
 from loguru import logger
 from starlette.datastructures import MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -21,6 +23,7 @@ class RequestContextMiddleware:
         state = scope.setdefault("state", {})
         state["request_id"] = identifier()
         state["request_date"] = utcnow()
+        started_at = monotonic()
 
         async def send_with_context(message: Message) -> None:
             if message["type"] == "http.response.start":
@@ -32,4 +35,11 @@ class RequestContextMiddleware:
         # 直接透传响应体，避免缓冲 SSE 流。
         with logger.contextualize(request_id=state["request_id"],
                                   request_date=state["request_date"].isoformat()):
-            await self.app(scope, receive, send_with_context)
+            try:
+                await self.app(scope, receive, send_with_context)
+            finally:
+                logger.info(
+                    "请求结束 method={} path={} elapsed_ms={:.3f}",
+                    scope["method"], scope["path"],
+                    (monotonic() - started_at) * 1000,
+                )

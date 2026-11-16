@@ -9,7 +9,7 @@ from loong_cloud.core.logging import log_exception
 @dataclass(frozen=True)
 class CloudApplication:
     host: str = "127.0.0.1"
-    port: int = 8000
+    port: int = 9527
 
     def run(self) -> None:
         from loong_cloud.app import create_app
