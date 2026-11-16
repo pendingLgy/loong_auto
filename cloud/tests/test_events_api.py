@@ -11,6 +11,8 @@ import json
 import time
 from contextlib import suppress
 from datetime import datetime
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from uuid import uuid4
 from urllib.parse import urlsplit
 
@@ -343,3 +345,125 @@ async def test_dialogue_parallel_and_sequential_remote_tools(client, settings):
     assert len(batches) == 3
     assert set(batches[0]) == {"get_project_info", "get_runtime_info"}
     assert batches[1:] == [["get_file_path"], ["read_file"]]
+
+
+async def test_remote_file_edit_failure_then_retry(client, settings):
+    """真实文件编辑首次因父目录不存在失败，LLM 根据错误修正参数后重试。"""
+    key = settings("DEEPSEEK_API_KEY")
+    if not key:
+        pytest.skip("真实文件编辑重试测试需要配置 DEEPSEEK_API_KEY")
+    session_id = "events-edit-retry-" + uuid4().hex
+    client_id = "client-edit-retry-" + uuid4().hex
+    expected_content = "EDIT_RETRY_OK_" + uuid4().hex
+
+    # 临时目录位于工作区，退出上下文时清理成功和失败路径产生的文件。
+    with TemporaryDirectory(prefix="events-edit-", dir=Path(__file__).parent) as directory:
+        root = Path(directory).resolve()
+        target = root / "missing-parent" / "example.txt"
+        body = AddMessageRequest(
+            tenant_id=0, user_id=0, session_id=session_id,
+            session_title="events-file-edit-retry-test-" + uuid4().hex,
+            llm=LLMParamRequest(provider="deepseek", model="deepseek-chat", temperature=0, api_key=key),
+            tools=[ToolDefinitionRequest(
+                name="edit_file", location="remote",
+                description="写入文件；create_parent=false 时父目录必须存在，true 时先创建父目录。",
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string"},
+                        "content": {"type": "string"},
+                        "create_parent": {"type": "boolean"},
+                    },
+                    "required": ["path", "content", "create_parent"],
+                },
+            )],
+            messages=[MessageRequest(
+                id=time.time_ns() // 1000, role="user",
+                content=(f"请调用 edit_file 将文件 {target.as_posix()} 的内容写为 {expected_content}。"
+                         "第一次必须设置 create_parent=false。若工具失败，请根据工具错误修改参数并再次"
+                         "调用 edit_file，路径和内容保持不变。编辑成功后不要再调用工具，"
+                         "最终回复必须包含工具返回的 marker 和写入内容，说明编辑结果。"),
+            )],
+        )
+        results = []
+        call_ids = []
+        async with asyncio.timeout(300):
+            async with client.stream("GET", f"/api/events/chat/{client_id}/sse") as response:
+                assert response.status_code == 200
+                lines = response.aiter_lines()
+                event, connected = await read_event(lines)
+                assert event == "connected"
+                assert connected["client_id"] == client_id
+
+                # 由 LLM 返回的最终汇总判断完成，不预设对话轮数。
+                while True:
+                    payload = body.model_dump(mode="json")
+                    payload["llm"]["api_key"] = body.llm.api_key.get_secret_value()
+                    submitted = await client.post(f"/api/events/chat/{client_id}/messages", json=payload)
+                    assert submitted.status_code == 200
+                    assert submitted.json()["code"] == 200, submitted.json()["msg"]
+
+                    while True:
+                        event, result = await read_event(lines)
+                        if event == "heartbeat":
+                            continue
+                        assert result["session_id"] == session_id
+                        assert not result["error"], "文件编辑对话失败，请检查服务端日志"
+                        if result["remote_tool_calls"] or result["summary"]:
+                            break
+
+                    if result["summary"]:
+                        assert not result["remote_tool_calls"]
+                        final = result["messages"][-1]
+                        assert final["role"] == "assistant"
+                        assert "FILE_EDIT_SUCCESS" in final["content"]
+                        assert expected_content in final["content"]
+                        print("最终编辑结果：", final["content"])
+                        break
+
+                    calls = result["remote_tool_calls"]
+                    assert len(calls) == 1
+                    call = calls[0]
+                    assert call["name"] == "edit_file"
+                    assert call["location"] == "remote"
+                    assert call["id"] not in call_ids
+                    call_ids.append(call["id"])
+                    args = call["arguments"]
+                    # 只允许修改此测试的唯一文件，不执行模型返回的任意路径。
+                    assert Path(args["path"]).resolve() == target
+                    assert args["content"] == expected_content
+                    if not results:
+                        assert args["create_parent"] is False
+
+                    try:
+                        if args["create_parent"]:
+                            target.parent.mkdir(parents=True, exist_ok=True)
+                        written = target.write_text(args["content"], encoding="utf-8")
+                        tool_result = {"success": True, "marker": "FILE_EDIT_SUCCESS",
+                                       "path": target.as_posix(), "written_chars": written,
+                                       "content": target.read_text(encoding="utf-8")}
+                    except FileNotFoundError as exc:
+                        tool_result = {"success": False, "error_type": type(exc).__name__,
+                                       "error": str(exc),
+                                       "hint": "父目录不存在，请保持路径和内容不变，设置 create_parent=true 后重试。"}
+                    results.append(tool_result)
+                    if len(results) == 1:
+                        assert not tool_result["success"]
+                        assert not target.exists()
+                    print(f"编辑第 {len(results)} 次结果：{json.dumps(tool_result, ensure_ascii=False)}")
+
+                    assistant = dict(result["messages"][-1])
+                    assistant["id"] = time.time_ns() // 1000
+                    body.messages = [
+                        MessageRequest.model_validate(assistant),
+                        MessageRequest(
+                            id=time.time_ns() // 1000 + 1, role="tool", status="tool_called",
+                            tool_call_id=call["id"], content=json.dumps(tool_result, ensure_ascii=False),
+                        ),
+                    ]
+
+        assert len(results) >= 2, "应经历首次失败和后续重试"
+        assert results[0]["success"] is False
+        assert results[-1]["success"] is True
+        assert target.read_text(encoding="utf-8") == expected_content
+    assert not root.exists(), "临时文件应在用例完成后清理"
