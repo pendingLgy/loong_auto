@@ -7,11 +7,12 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 
 from loong_cloud.agent import ModelExecutor, AgentLoop
-from loong_cloud.agent.models import ToolDefinition, LoopEvent, Message
 from loong_cloud.agent.tools import DEFAULT_LOCAL_TOOLS
 from loong_cloud.common.response import Response, PageResponse
 from loong_cloud.config.config_model import ModelConfig
 from loong_cloud.storage.message_store import MessageStore
+from loong_contracts.agent.models import Message, ToolDefinition, LoopEvent
+from loong_contracts.common.llm_message_constant import GlobalMessageRole, GlobalMessageStatus
 from loong_contracts.request.message import AddMessageRequest
 from loong_contracts.utis import uuid_util
 
@@ -65,16 +66,7 @@ async def chat_sse(request: Request, session_id: str, body: AddMessageRequest,
 
     config = ModelConfig(provider=llm.provider, model=llm.model, temperature=llm.temperature, api_key=llm.api_key)
 
-    param_tools = body.tools
-    tools: list[ToolDefinition] = [
-        ToolDefinition(
-            name=tool.name,
-            description=tool.description,
-            parameters=tool.parameters,
-            location=tool.location,
-        )
-        for tool in param_tools
-    ]
+    tools = body.tools
 
     async def events():
 
@@ -85,14 +77,14 @@ async def chat_sse(request: Request, session_id: str, body: AddMessageRequest,
                                                messages=[
                                                    Message(
                                                        id=uuid_util.uuid_str(),
-                                                       status="stop",
+                                                       status=GlobalMessageStatus.STOP,
                                                        created=int(time.time()),
-                                                       role="assistant",
+                                                       role=GlobalMessageRole.ASSISTANT,
                                                        content="not new message"
                                                    )
                                                ])
 
-            yield f"{error_event.to_sse()}"
+            yield error_event.to_sse()
             return
 
         async with ModelExecutor() as executor:

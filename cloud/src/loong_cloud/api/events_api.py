@@ -13,13 +13,15 @@ from fastapi.responses import StreamingResponse
 from loguru import logger
 from starlette.types import Message as ASGIMessage, Receive, Scope, Send
 
+from core.logging import log_exception
 from loong_cloud.agent import AgentLoop, ModelExecutor
-from loong_cloud.agent.models import LoopEvent, Message, ToolDefinition
 from loong_cloud.agent.tools import DEFAULT_LOCAL_TOOLS
 from loong_cloud.common.response import Response
 from loong_cloud.config.config_model import ModelConfig
 from loong_cloud.storage.message_store import MessageStore
-from loong_contracts.request.message import AddMessageRequest, LLMParamRequest, MessageRequest
+from loong_contracts.agent.models import LoopEvent, Message, ToolDefinition
+from loong_contracts.common.llm_message_constant import GlobalMessageStatus, GlobalMessageRole
+from loong_contracts.request.message import AddMessageRequest, LLMParamRequest
 from loong_cloud.utils.snowflake import next_id
 from loong_contracts.utis.datetime_util import utcnow
 
@@ -67,8 +69,8 @@ class HeartbeatStreamingResponse(StreamingResponse):
         async def handle_stop(event: LoopEvent) -> None:
             try:
                 await self.on_stop(event)
-            except Exception:
-                logger.exception("SSE on_stop 后台任务失败，client_id={}", self.client_id)
+            except Exception as e:
+                log_exception(e,f"SSE on_stop 后台任务失败，client_id={self.client_id}")
 
         async def watch_disconnect() -> None:
             while True:
@@ -193,11 +195,9 @@ async def chat_sse(request: Request, client_id: str,
         if context is None or not event.messages:
             return
         final_message = event.messages[-1]
-        if final_message.role != "assistant":
+        if final_message.role != GlobalMessageRole.ASSISTANT:
             return
-        values = final_message.model_dump(mode="json")
         # 模型响应 ID 通常是字符串，存储契约要求数值消息 ID；原始响应保留在 raw。
-        values["id"] = next_id()
         saved = AddMessageRequest(
             tenant_id=request.state.identity.tenant_id,
             user_id=request.state.identity.id,
@@ -205,7 +205,7 @@ async def chat_sse(request: Request, client_id: str,
             session_title=context.session_title,
             llm=LLMParamRequest(provider=context.provider, model=context.model),
             tools=[],
-            messages=[MessageRequest.model_validate(values)],
+            messages=[final_message],
         )
 
         try:
@@ -217,9 +217,8 @@ async def chat_sse(request: Request, client_id: str,
     async def events() -> AsyncIterator[str]:
         # 立即发出首帧，客户端收到后即可提交消息。
 
-        LoopEvent()
-        data = json.dumps({"client_id": client_id, "time": utcnow().isoformat()})
-        yield f"event: connected\ndata: {data}\n\n"
+        loop_event = LoopEvent(last_message_event=GlobalMessageStatus.CONNECTED,client_id=client_id,time=utcnow().isoformat())
+        yield loop_event.to_sse()
 
         # receive 由响应层独占监听；断连由发送重试流程统一结束。
         while True:
@@ -228,10 +227,12 @@ async def chat_sse(request: Request, client_id: str,
                     channel.queue.get(), timeout=HEARTBEAT_INTERVAL_SECONDS,
                 )
 
-
             except asyncio.TimeoutError:
-                data = json.dumps({"client_id": client_id, "time": utcnow().isoformat()})
-                yield f"event: heartbeat\ndata: {data}\n\n"
+
+                loop_event = LoopEvent(last_message_event=GlobalMessageStatus.HEARTBEAT, client_id=client_id,
+                                       time=utcnow().isoformat())
+
+                yield loop_event.to_sse()
             else:
                 yield frame
 
@@ -263,7 +264,7 @@ async def _run_dialogue(
         await channel.queue.put(LoopEvent(
             session_id=session_id,
             error=True,
-            messages=[Message(status="stop", content="对话执行失败")],
+            messages=[Message(status=GlobalMessageStatus.STOP, content="对话执行失败")],
         ).to_sse())
     finally:
         channel.busy = False
@@ -297,7 +298,7 @@ async def submit_message(
             temperature=body.llm.temperature,
             api_key=body.llm.api_key,
         )
-        tools = [ToolDefinition(**tool.model_dump()) for tool in body.tools]
+        tools = body.tools
         messages = await message_store.add_message(body)
         if messages is None:
             channel.busy = False

@@ -27,10 +27,21 @@ uv sync --package loong-cloud --extra test
 uv run --package loong-cloud --extra test python -m pytest cloud/tests/test_executor.py -k "not live" -v
 
 # cloud 全部单元测试
-uv run --package loong-cloud python -m unittest discover -s cloud/tests -v
+uv run --package loong-cloud --extra test python -m pytest cloud/tests -v
 
-# 配置加载测试
-uv run --package loong-cloud python -m unittest discover -s cloud/tests -p "test_loading_config.py" -v
+# 指定文件
+uv run --package loong-cloud --extra test python -m pytest cloud/tests/test_executor.py -v
+
+# 指定文件中的独立测试函数
+uv run --package loong-cloud --extra test python -m pytest cloud/tests/test_events_api.py::test_submit_message_pushes_dialogue_to_sse -v
+
+# 指定文件中的类
+uv run --package loong-cloud --extra test python -m pytest cloud/tests/test_executor.py::TestModelExecutor -v
+
+# 指定类中的方法
+uv run --package loong-cloud --extra test python -m pytest cloud/tests/test_executor.py::TestModelExecutor::test_complete -v
+
+
 ```
 
 ## 更新依赖

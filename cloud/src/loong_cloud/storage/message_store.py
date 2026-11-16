@@ -7,9 +7,9 @@ from sqlalchemy import insert, select, update, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from loong_cloud import schema
-from loong_cloud.agent.models import Message
 from loong_cloud.db.db_proxy import AsyncDatabaseProxy
 from loong_cloud.utils.snowflake import next_id
+from loong_contracts.agent.models import Message
 from loong_contracts.request.message import AddMessageRequest
 from loong_contracts.response.base import BasePageResponse
 
@@ -87,13 +87,14 @@ class MessageStore:
                          self.message_table.c.message_id == message_request.id,
                          )
 
-                total = await session.scalar(select(func.count()).select_from(self.session_message_table).where(*where))
+                total = await session.scalar(select(func.count()).select_from(self.message_table).where(*where))
 
                 if total and total > 0:
                     continue
 
                 message_request.created = int(time.time())
-                message = Message.model_validate(message_request.model_dump(mode="json"))
+                message = message_request
+                serialized_message = message.model_dump(mode="json")
                 add_session_message.append(message)
 
                 value = {
@@ -104,15 +105,15 @@ class MessageStore:
                     "model": llm.model,
                     "message_id": message_request.id,
                     "created": message_request.created,
-                    "role": message_request.role,
-                    "raw": message_request.raw,
+                    "role": serialized_message["role"],
+                    "raw": serialized_message["raw"],
                     "finish_reason": message_request.finish_reason,
-                    "status": message_request.status,
+                    "status": serialized_message["status"],
                     "input_tokens": message_request.input_tokens,
                     "output_tokens": message_request.output_tokens,
                     "total_tokens": message_request.total_tokens,
                     "content": message_request.content,
-                    "tool_calls": message_request.tool_calls or [],
+                    "tool_calls": serialized_message["tool_calls"] or [],
                     "tool_call_id": message_request.tool_call_id,
                 }
 

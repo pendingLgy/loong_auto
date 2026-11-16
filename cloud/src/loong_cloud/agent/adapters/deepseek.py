@@ -1,7 +1,7 @@
 """DeepSeek 的 OpenAI 兼容 Chat Completions 接口。"""
 
 from loong_cloud.config.config_model import ModelConfig
-from ..models import ModelRequest, Message
+from loong_contracts.agent.models import ModelRequest, Message
 from .openai import OpenAIAdapter
 
 

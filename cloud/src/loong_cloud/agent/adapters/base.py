@@ -10,7 +10,7 @@ from loguru import logger
 
 from loong_cloud.config.config_model import ModelConfig
 from loong_cloud.agent.adapters.connection import ProviderConnection
-from loong_cloud.agent.models import ModelRequest, ToolCall, Message
+from loong_contracts.agent.models import ModelRequest, ToolCall, Message
 
 
 class ModelError(RuntimeError):

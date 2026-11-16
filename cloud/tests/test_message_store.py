@@ -6,10 +6,10 @@ import pytest
 from sqlalchemy import select, update
 
 from loong_cloud import schema
+from loong_cloud.agent.models import Message
 from loong_cloud.config.config_db import DatabaseConfig, SqliteConfig
 from loong_cloud.db.db_proxy import AsyncDatabaseProxy
 from loong_cloud.storage.message_store import MessageStore
-from loong_contracts.common import Message
 from loong_contracts.request.message import AddMessageRequest, LLMParamRequest, MessageRequest
 
 

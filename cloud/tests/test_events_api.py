@@ -9,18 +9,15 @@
 import asyncio
 import json
 import time
-from contextlib import suppress
 from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from uuid import uuid4
-from urllib.parse import urlsplit
 
 import pytest
 
-from loong_contracts.request.message import AddMessageRequest, LLMParamRequest, MessageRequest, ToolDefinitionRequest
-from test_message_api import client, settings  # noqa: F401：导入共享的 pytest fixture
-
+from loong_contracts.agent.models import Message, ToolDefinition
+from loong_contracts.request.message import AddMessageRequest, LLMParamRequest
 
 async def read_event(lines):
     """消费一个完整 SSE 帧；复用同一个行迭代器，避免丢失缓冲数据。"""
@@ -41,8 +38,8 @@ async def read_event(lines):
 
 
 async def test_sse_heartbeat_and_duplicate_connection(client):
-    session_id = "events-heartbeat-" + uuid4().hex
-    path = f"/api/events/chat/{session_id}/sse"
+    client_id = "events-heartbeat-" + uuid4().hex
+    path = f"/api/events/chat/{client_id}/sse"
     async with asyncio.timeout(45):
         async with client.stream("GET", path) as response:
             assert response.status_code == 200
@@ -51,7 +48,7 @@ async def test_sse_heartbeat_and_duplicate_connection(client):
             lines = response.aiter_lines()
             event, payload = await read_event(lines)
             assert event == "connected"
-            assert payload["session_id"] == session_id
+            assert payload["client_id"] == client_id
             datetime.fromisoformat(payload["time"])
 
             duplicate = await client.get(path)
@@ -59,9 +56,8 @@ async def test_sse_heartbeat_and_duplicate_connection(client):
 
             event, payload = await read_event(lines)
             assert event == "heartbeat"
-            assert payload["session_id"] == session_id
+            assert payload["client_id"] == client_id
             datetime.fromisoformat(payload["time"])
-
 
 
 async def test_submit_requires_sse_connection(client):
@@ -72,7 +68,7 @@ async def test_submit_requires_sse_connection(client):
         llm=LLMParamRequest(provider="deepseek", model="deepseek-chat", temperature=0,
                             api_key="not-used-without-connection"),
         tools=[],
-        messages=[MessageRequest(id=time.time_ns() // 1000, role="user", content="请只回复 OK")],
+        messages=[Message(id=str(time.time_ns() // 1000), role="user", content="请只回复 OK")],
     )
     payload = body.model_dump(mode="json")
     payload["llm"]["api_key"] = body.llm.api_key.get_secret_value()
@@ -91,7 +87,7 @@ async def test_submit_message_pushes_dialogue_to_sse(client, settings):
         session_title="events-api-test-" + uuid4().hex,
         llm=LLMParamRequest(provider="deepseek", model="deepseek-chat", temperature=0, api_key=key),
         tools=[],
-        messages=[MessageRequest(id=time.time_ns() // 1000, role="user", content="请只回复 OK")],
+        messages=[Message(id=str(time.time_ns() // 1000), role="user", content="请只回复 OK")],
     )
     payload = body.model_dump(mode="json")
     payload["llm"]["api_key"] = body.llm.api_key.get_secret_value()
@@ -142,23 +138,23 @@ async def test_multiple_remote_tools_across_dialogue_rounds(client, settings):
         session_title="events-multiple-tools-test-" + uuid4().hex,
         llm=LLMParamRequest(provider="deepseek", model="deepseek-chat", temperature=0, api_key=key),
         tools=[
-            ToolDefinitionRequest(
+            ToolDefinition(
                 name="get_project", location="remote", description="查询客户端项目，返回项目 ID。",
                 parameters={"type": "object", "properties": {}},
             ),
-            ToolDefinitionRequest(
+            ToolDefinition(
                 name="read_project_file", location="remote", description="根据项目 ID 读取文件。",
                 parameters={"type": "object", "properties": {"project_id": {"type": "string"}},
                             "required": ["project_id"]},
             ),
-            ToolDefinitionRequest(
+            ToolDefinition(
                 name="check_file_content", location="remote", description="检查上一步读取的文件内容。",
                 parameters={"type": "object", "properties": {"content": {"type": "string"}},
                             "required": ["content"]},
             ),
         ],
-        messages=[MessageRequest(
-            id=time.time_ns() // 1000, role="user",
+        messages=[Message(
+            id=str(time.time_ns() // 1000), role="user",
             content=("严格依次完成三个步骤，每次只调用一个工具，收到工具结果后再调用下一个："
                      "1. 调用 get_project；2. 使用返回的 project_id 调用 read_project_file；"
                      "3. 使用返回的 content 调用 check_file_content。"
@@ -192,12 +188,12 @@ async def test_multiple_remote_tools_across_dialogue_rounds(client, settings):
                         continue
                     assert result["session_id"] == session_id
                     assert not result["error"], "多轮工具执行失败，请检查服务端日志"
-                    if result["remote_tool_calls"] or result["summary"]:
+                    if result["summary"] or result["remote_tool_calls"]:
                         break
 
                 if round_index == 3:
                     assert result["summary"]
-                    assert not result["remote_tool_calls"]
+                    assert result.get("remote_tool_calls",None) is None
                     assert result["messages"][-1]["content"].strip()
                     break
 
@@ -219,11 +215,11 @@ async def test_multiple_remote_tools_across_dialogue_rounds(client, settings):
                 print(f"远程工具第 {round_index + 1} 轮：{call['name']} -> {tool_result}")
                 # 服务端已持久化此前提交的上下文，此处追加本轮 assistant 和 tool 消息。
                 assistant = dict(result["messages"][-1])
-                assistant["id"] = time.time_ns() // 1000
+                assistant["id"] = str(time.time_ns() // 1000)
                 body.messages = [
-                    MessageRequest.model_validate(assistant),
-                    MessageRequest(
-                        id=time.time_ns() // 1000 + 1, role="tool", status="tool_called",
+                    Message.model_validate(assistant),
+                    Message(
+                        id=str(time.time_ns() // 1000 + 1), role="tool", status="tool_called",
                         tool_call_id=call["id"], content=json.dumps(tool_result, ensure_ascii=False),
                     ),
                 ]
@@ -243,13 +239,13 @@ async def test_dialogue_parallel_and_sequential_remote_tools(client, settings):
         session_title="events-mixed-dialogue-test-" + uuid4().hex,
         llm=LLMParamRequest(provider="deepseek", model="deepseek-chat", temperature=0, api_key=key),
         tools=[
-            ToolDefinitionRequest(name="get_project_info", location="remote",
+            ToolDefinition(name="get_project_info", location="remote",
                                   description="获取项目名称。"),
-            ToolDefinitionRequest(name="get_runtime_info", location="remote",
+            ToolDefinition(name="get_runtime_info", location="remote",
                                   description="获取运行环境。"),
-            ToolDefinitionRequest(name="get_file_path", location="remote",
+            ToolDefinition(name="get_file_path", location="remote",
                                   description="查询需要读取的文件路径。"),
-            ToolDefinitionRequest(
+            ToolDefinition(
                 name="read_file", location="remote", description="读取指定路径的文件内容。",
                 parameters={"type": "object", "properties": {"path": {"type": "string"}},
                             "required": ["path"]},
@@ -292,7 +288,7 @@ async def test_dialogue_parallel_and_sequential_remote_tools(client, settings):
 
             for stage, (prompt, expected_tools) in enumerate(stages, start=1):
                 if prompt is not None:
-                    body.messages = [MessageRequest(
+                    body.messages = [Message(
                         id=time.time_ns() // 1000, role="user", content=prompt,
                     )]
                 else:
@@ -330,13 +326,13 @@ async def test_dialogue_parallel_and_sequential_remote_tools(client, settings):
                 assistant = dict(result["messages"][-1])
                 assistant["id"] = time.time_ns() // 1000
                 assert {call["id"] for call in assistant["tool_calls"]} == {call["id"] for call in calls}
-                pending_results = [MessageRequest.model_validate(assistant)]
+                pending_results = [Message.model_validate(assistant)]
                 # 按模型 tool_calls 的原始顺序追加结果，双工具在同次请求中回传。
                 for index, call in enumerate(result["tool_calls"], start=1):
                     assert call["location"] == "remote"
                     if call["name"] == "read_file":
                         assert call["arguments"]["path"] == file_path
-                    pending_results.append(MessageRequest(
+                    pending_results.append(Message(
                         id=time.time_ns() // 1000 + index,
                         role="tool", status="tool_called", tool_call_id=call["id"],
                         content=json.dumps(tool_results[call["name"]], ensure_ascii=False),
@@ -364,7 +360,7 @@ async def test_remote_file_edit_failure_then_retry(client, settings):
             tenant_id=0, user_id=0, session_id=session_id,
             session_title="events-file-edit-retry-test-" + uuid4().hex,
             llm=LLMParamRequest(provider="deepseek", model="deepseek-chat", temperature=0, api_key=key),
-            tools=[ToolDefinitionRequest(
+            tools=[ToolDefinition(
                 name="edit_file", location="remote",
                 description="写入文件；create_parent=false 时父目录必须存在，true 时先创建父目录。",
                 parameters={
@@ -377,7 +373,7 @@ async def test_remote_file_edit_failure_then_retry(client, settings):
                     "required": ["path", "content", "create_parent"],
                 },
             )],
-            messages=[MessageRequest(
+            messages=[Message(
                 id=time.time_ns() // 1000, role="user",
                 content=(f"请调用 edit_file 将文件 {target.as_posix()} 的内容写为 {expected_content}。"
                          "第一次必须设置 create_parent=false。若工具失败，请根据工具错误修改参数并再次"
@@ -455,8 +451,8 @@ async def test_remote_file_edit_failure_then_retry(client, settings):
                     assistant = dict(result["messages"][-1])
                     assistant["id"] = time.time_ns() // 1000
                     body.messages = [
-                        MessageRequest.model_validate(assistant),
-                        MessageRequest(
+                        Message.model_validate(assistant),
+                        Message(
                             id=time.time_ns() // 1000 + 1, role="tool", status="tool_called",
                             tool_call_id=call["id"], content=json.dumps(tool_result, ensure_ascii=False),
                         ),

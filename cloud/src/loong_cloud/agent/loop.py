@@ -4,10 +4,11 @@ from collections.abc import Awaitable, Callable
 from contextlib import aclosing
 
 from loong_cloud.config.config_model import ModelConfig
+from loong_contracts.common.llm_message_constant import GlobalMessageRole, GlobalMessageStatus
 from loong_contracts.utis import uuid_util
 from .executor import ModelExecutor
 from .message_handler import build_tool_call_message
-from .models import Message, ModelRequest, ToolCall, ToolDefinition, LoopEvent
+from loong_contracts.agent.models import Message, ModelRequest, ToolCall, ToolDefinition, LoopEvent
 
 
 class AgentLoop:
@@ -59,8 +60,10 @@ class AgentLoop:
             message = response
             messages.append(message)
 
+            last_message_event = messages[-1].status
+
             if not message.tool_calls:
-                yield LoopEvent(session_id=self.session_id, summary=True,messages=messages, tool_calls=[])
+                yield LoopEvent(session_id=self.session_id, summary=True,messages=messages, tool_calls=[], last_message_event=last_message_event)
                 return
 
             tool_call_messages: list[Message] = []
@@ -72,8 +75,8 @@ class AgentLoop:
                     tool_response = await self._execute_local(call)
                     tool_call_messages.append(Message(id=uuid_util.uuid_str(),
                                                       created=int(time.time()),
-                                                      role="tool",
-                                                      status="tool_called",
+                                                      role=GlobalMessageRole.TOOL,
+                                                      status=GlobalMessageStatus.TOOL_CALLED,
                                                       tool_call_id=call.id,
                                                       content=tool_response))
                 else:
@@ -81,7 +84,7 @@ class AgentLoop:
 
             if remote_calls:
                 yield LoopEvent(session_id=self.session_id, messages=messages, tool_call_messages=tool_call_messages,
-                                 tool_calls=tool_calls, remote_tool_calls=remote_calls)
+                                 tool_calls=tool_calls, remote_tool_calls=remote_calls, last_message_event=last_message_event)
                 return
             else:
                 messages = build_tool_call_message(messages, tool_call_messages, tool_calls)
@@ -106,8 +109,11 @@ class AgentLoop:
                 self.config, ModelRequest(messages=messages, tools=self.tools),
             )
             messages.append(message)
+
+            last_message_event = messages[-1].status
+
             if not message.tool_calls:
-                return LoopEvent(session_id=self.session_id,summary=True,messages=messages, tool_calls=[])
+                return LoopEvent(session_id=self.session_id,summary=True,messages=messages, tool_calls=[],last_message_event=last_message_event)
 
             tool_call_messages: list[Message] = []
             remote_calls: list[ToolCall] = []
@@ -118,8 +124,8 @@ class AgentLoop:
                     tool_response = await self._execute_local(call)
                     tool_call_messages.append(Message(id=uuid_util.uuid_str(),
                                                       created=int(time.time()),
-                                                      role="tool",
-                                                      status="tool_called",
+                                                      role=GlobalMessageRole.TOOL,
+                                                      status=GlobalMessageStatus.TOOL_CALLED,
                                                       tool_call_id=call.id,
                                                       content=tool_response))
                 else:
@@ -127,9 +133,11 @@ class AgentLoop:
 
             if remote_calls:
                 return LoopEvent(session_id=self.session_id,messages=messages, tool_call_messages=tool_call_messages,
-                                 tool_calls=tool_calls, remote_tool_calls=remote_calls)
+                                 tool_calls=tool_calls, remote_tool_calls=remote_calls, last_message_event=last_message_event)
             else:
                 messages = build_tool_call_message(messages, tool_call_messages, tool_calls)
 
-        Message(id=uuid_util.uuid_str(),role="assistant",status="stop",created=int(time.time()), content="请求执行异常")
-        return LoopEvent(session_id=self.session_id, messages=messages, tool_calls=[])
+        error_msg = Message(id=uuid_util.uuid_str(),role=GlobalMessageRole.ASSISTANT,status=GlobalMessageStatus.STOP,created=int(time.time()), content="请求执行异常")
+        messages.append(error_msg)
+
+        return LoopEvent(session_id=self.session_id, error=True, summary=False, messages=messages, tool_calls=[],last_message_event=error_msg.status)

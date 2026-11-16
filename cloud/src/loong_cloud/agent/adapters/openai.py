@@ -4,8 +4,9 @@ import json
 from contextlib import aclosing
 
 from loong_cloud.config.config_model import ModelConfig
+from loong_contracts.common.llm_message_constant import GlobalMessageRole, GlobalMessageStatus
 from .base import ModelAdapter, ModelError
-from ..models import Message, ModelRequest
+from loong_contracts.agent.models import Message, ModelRequest
 
 
 class OpenAIAdapter(ModelAdapter):
@@ -38,7 +39,7 @@ class OpenAIAdapter(ModelAdapter):
                         text.append(content)
 
                         yield Message(id=response_id, created=created, model=model,
-                                      role="assistant", status="running", finish_reason=finish,
+                                      role=GlobalMessageRole.ASSISTANT, status=GlobalMessageStatus.RUNNING, finish_reason=finish,
                                       content=content, raw=data)
 
                         for part in delta.get("tool_calls", []):
@@ -60,7 +61,7 @@ class OpenAIAdapter(ModelAdapter):
                         }
                         emitted = True
                         yield Message(id=response_id, created=created, model=model,
-                                      role="assistant", status="stop" if not calls else "tool_calling",
+                                      role=GlobalMessageRole.ASSISTANT, status=GlobalMessageStatus.STOP if not calls else GlobalMessageStatus.TOOL_CALLING,
                                       raw=data,
                                       finish_reason=finish, content="".join(text), tool_calls=calls,
                                       **token_usage)
@@ -127,12 +128,12 @@ class OpenAIAdapter(ModelAdapter):
             return Message(model=data.get("model", config.model),
                            id=data.get("id"),
                            created=data.get("created"),
-                           role="assistant",
+                           role=GlobalMessageRole.ASSISTANT,
                            content=message.get("content") or "",
                            tool_calls=calls,
                            raw=data,
                            finish_reason=choice.get("finish_reason"),
-                           status="stop", **token_usage)
+                           status=GlobalMessageStatus.STOP, **token_usage)
 
         except (KeyError, IndexError, TypeError, ValueError):
             raise ModelError("OpenAI 兼容接口返回了无效响应") from None

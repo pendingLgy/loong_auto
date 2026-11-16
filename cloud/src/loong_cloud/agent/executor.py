@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from loong_cloud.agent.adapters.connection import ProviderConnection
 from loong_cloud.config.config_model import ModelConfig
 from .adapters import ModelAdapter, create_adapter
-from .models import ModelRequest, Message
+from loong_contracts.agent.models import ModelRequest, Message
 
 
 class _CatalogModel(BaseModel):

@@ -41,11 +41,24 @@ class ConnectionEventResponse(BaseModel):
     time: str
 
 
+class ToolApprovalEventResponse(BaseModel):
+    session_id: str
+    client_id: str
+    approval_id: str
+    tool_call_id: str
+    command: str
+    workspace: str
+    dangerous: bool
+    risk_reason: str
+
+
 class SSEEvent(BaseModel):
     event: str
     data: str
     id: str | None = None
 
-    def payload(self) -> ChatEventResponse | ConnectionEventResponse:
+    def payload(self) -> ChatEventResponse | ConnectionEventResponse | ToolApprovalEventResponse:
+        if self.event == "tool_approval_required":
+            return ToolApprovalEventResponse.model_validate_json(self.data)
         model = ConnectionEventResponse if self.event in {"connected", "heartbeat"} else ChatEventResponse
         return model.model_validate_json(self.data)
