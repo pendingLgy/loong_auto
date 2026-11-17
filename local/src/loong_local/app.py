@@ -19,7 +19,7 @@ from .api import router
 from .config.config_global import GlobalConfig
 from .core.container import ApplicationContainer
 from .db.sqlite_db import AsyncSqliteDB
-from .install_setting import SERVICE_TARGETS, WIRE_TARGETS
+from .install_setting import SERVICE_TARGETS, WIRE_TARGETS, init_tools
 from .middleware.loading_middleware import loading_middleware
 from .schema import load_tables
 
@@ -96,6 +96,8 @@ def create_app() -> FastAPI:
     loading_middleware(app)
 
     app.include_router(router)
+
+    init_tools()
 
     def error_response(request, code, message, headers=None):
         body = Response.fail(request, code=code, msg=message)
