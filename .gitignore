@@ -4,6 +4,7 @@
 
 .cache/
 http_test/
+logs/
 
 # User-specific stuff
 .idea/**/workspace.xml
@@ -391,3 +392,4 @@ cython_debug/
 
 # 本地测试账号及访问令牌
 /local/.env.test
+/local/data/

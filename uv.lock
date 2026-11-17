@@ -630,6 +630,7 @@ name = "loong-local"
 version = "0.1.0"
 source = { editable = "local" }
 dependencies = [
+    { name = "dependency-injector" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "loguru" },
@@ -645,6 +646,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "dependency-injector" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "loguru" },

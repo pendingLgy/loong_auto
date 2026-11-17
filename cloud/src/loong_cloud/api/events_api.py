@@ -12,7 +12,7 @@ from fastapi.responses import StreamingResponse
 from loguru import logger
 from starlette.types import Message as ASGIMessage, Receive, Scope, Send
 
-from core.logging import log_exception
+from loong_cloud.core.logging import log_exception
 from loong_cloud.agent import AgentLoop, ModelExecutor
 from loong_cloud.agent.tools import DEFAULT_LOCAL_TOOLS
 from loong_contracts.utis import Response

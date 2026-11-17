@@ -5,6 +5,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, model_validator, ConfigDict
 
 from loong_contracts.common.llm_message_constant import GlobalMessageStatus, GlobalMessageRole
+from loong_contracts.utis.datetime_util import utcnow
 
 ToolLocation = Literal["local", "remote"]
 
@@ -74,7 +75,26 @@ class LoopEvent(BaseModel):
     tool_calls: list[ToolCall] | None = Field(default=None)
     remote_tool_calls: list[ToolCall] | None = Field(default=None)
     last_message_event: GlobalMessageStatus = Field(default=GlobalMessageStatus.START, description="消息内容类型")
+    time: str | None = Field(default=utcnow().isoformat(), description="isoformat 时间")
+
+    def to_sse(self) -> str:
+        return f"event: {self.last_message_event.value}\ndata: {self.model_dump_json(exclude_none=True,ensure_ascii=False)}\n\n"
+
+
+class LoopApprovedEvent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    client_id: str | None = Field(default=None, description="client id")
+    session_id: str | None = Field(default=None, description="session_id")
+    approval_id: str | None = Field(default=None, description="approval_id")
+    tool_call_id: str | None = Field(default=None, description="tool_call_id")
+    workspace: str | None = Field(default=None, description="workspace")
+    command: str | None = Field(default=None, description="command")
+    dangerous: bool | None = Field(default=True, description="dangerous")
+    risk_reason: str | None = Field(default="命令无法确定为纯读取操作", description="risk_reason")
+
+    last_message_event: GlobalMessageStatus = Field(default=GlobalMessageStatus.TOOL_APPROVAL_REQUIRED, description="消息内容类型")
     time: str | None = Field(default=None, description="isoformat 时间")
 
     def to_sse(self) -> str:
-        return f"event: {self.last_message_event.value}\ndata: {self.model_dump_json(exclude_none=True)}\n\n"
+        return f"event: {self.last_message_event.value}\ndata: {self.model_dump_json(exclude_none=True,ensure_ascii=False)}\n\n"

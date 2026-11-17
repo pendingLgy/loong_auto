@@ -1,6 +1,7 @@
 """独立于云端实现的对话响应与 SSE 契约。"""
 from typing import Any, Literal
 from pydantic import BaseModel, Field
+from loong_contracts.agent.models import LoopEvent
 
 
 class ToolCallResponse(BaseModel):
@@ -26,14 +27,6 @@ class MessageResponse(BaseModel):
     tool_call_id: str | None = None
 
 
-class ChatEventResponse(BaseModel):
-    error: bool = False
-    summary: bool = False
-    session_id: str | None = None
-    messages: list[MessageResponse] = Field(default_factory=list)
-    tool_call_messages: list[MessageResponse] = Field(default_factory=list)
-    tool_calls: list[ToolCallResponse] = Field(default_factory=list)
-    remote_tool_calls: list[ToolCallResponse] = Field(default_factory=list)
 
 
 class ConnectionEventResponse(BaseModel):
@@ -57,8 +50,8 @@ class SSEEvent(BaseModel):
     data: str
     id: str | None = None
 
-    def payload(self) -> ChatEventResponse | ConnectionEventResponse | ToolApprovalEventResponse:
+    def payload(self) -> LoopEvent | ConnectionEventResponse | ToolApprovalEventResponse:
         if self.event == "tool_approval_required":
             return ToolApprovalEventResponse.model_validate_json(self.data)
-        model = ConnectionEventResponse if self.event in {"connected", "heartbeat"} else ChatEventResponse
+        model = ConnectionEventResponse if self.event in {"connected", "heartbeat"} else LoopEvent
         return model.model_validate_json(self.data)
