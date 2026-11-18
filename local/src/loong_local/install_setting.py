@@ -10,7 +10,8 @@ SERVICE_TARGETS = [
 
 # 依赖注入路径
 WIRE_TARGETS = [
-    'loong_local.api',
+    'loong_local.api.proxy_sse_api',
+    'loong_local.api.tool_handler_api',
 ]
 
 

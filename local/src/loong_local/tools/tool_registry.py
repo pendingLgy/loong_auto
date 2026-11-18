@@ -40,12 +40,12 @@ class ToolRegistry:
             raise KeyError(f"未找到注册的工具类: {tool_name}")
         return tool_cls
 
-    def create_tool_instance(self, tool_name: str, workspace: Path) -> ABSTool:
+    def create_tool_instance(self, tool_name: str, workspaces: List[Path]) -> ABSTool:
         if tool_name in self._instances:
             return self._instances[tool_name]
 
         tool_cls = self.get_tool_class(tool_name)
-        return tool_cls(workspace=workspace)
+        return tool_cls(workspaces=workspaces)
 
     def list_tool_names(self) -> List[str]:
         return list(self._registry.keys())

@@ -17,16 +17,18 @@ class ToolExecutionConfig(BaseModel):
     backoff_factor: float = 2.0  # 退避倍数
     global_timeout: Optional[float] = None  # 全局执行硬超时（秒）
 
+
 class ToolExecutor:
     def __init__(self, config: Optional[ToolExecutionConfig] = None):
         self.config = config or ToolExecutionConfig()
 
     async def run(
-        self,
-        tool: ABSTool[InputT, OutputT],
-        request: InputT,
-        *,
-        approved: bool = False
+            self,
+            tool_id: str,
+            tool: ABSTool[InputT, OutputT],
+            request: InputT,
+            *,
+            approved: bool = False
     ) -> OutputT:
         retries = 0
         delay = self.config.initial_delay
@@ -35,11 +37,11 @@ class ToolExecutor:
             try:
                 if self.config.global_timeout:
                     return await asyncio.wait_for(
-                        tool(request, approved=approved),
+                        tool(tool_id, request, approved=approved),
                         timeout=self.config.global_timeout
                     )
                 else:
-                    return await tool(request, approved=approved)
+                    return await tool(tool_id, request, approved=approved)
 
             except ToolSuspendedError as e:
                 # 【核心】人工审核挂起：这是预期内的业务中断，绝对不重试，直接向上抛出给网关托管

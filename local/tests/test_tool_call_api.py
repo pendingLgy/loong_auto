@@ -15,6 +15,7 @@
 import asyncio
 import json
 import os
+from pathlib import Path
 from uuid import uuid4
 
 import httpx
@@ -25,7 +26,6 @@ from loong_contracts.agent.models import Message
 from loong_contracts.common.llm_message_constant import GlobalMessageRole, GlobalMessageStatus
 from loong_contracts.request.message import AddMessageRequest, LLMParamRequest
 from loong_local.install_setting import init_tools
-from loong_local.schema.tools import ToolInvokeRequest
 from loong_local.tools.base_tool import ToolSuspendedError
 from loong_local.tools.tool_excutor import ToolExecutor
 from loong_local.tools.tool_registry import GLOBAL_TOOL_REGISTRY
@@ -34,11 +34,6 @@ SUBSCRIBE_PATH = "/sse/subscribe"
 MESSAGE_PATH = "/message/api/events/chat/{client_id}/messages"
 EVENT_TIMEOUT_SECONDS = 120
 
-
-
-def _read_only_command() -> str:
-    """只读命令：列出当前目录内容。"""
-    return "Get-ChildItem" if os.name == "nt" else "ls"
 
 
 class SSEStream:
@@ -80,8 +75,7 @@ async def test_subscribe_execute_tool_and_resubmit(client, settings, tmp_path):
     sample = tmp_path / "tool_call_sample.txt"
     sample.write_text("tool call sample", encoding="utf-8")
 
-    command = _read_only_command()
-    session_id = f"tool_call_{uuid4().hex}"
+    session_id = f"session_{uuid4().hex}"
     provider = settings("SSE_TEST_PROVIDER", "deepseek")
     model = settings("SSE_TEST_MODEL", "deepseek-chat")
     tool_definition = GLOBAL_TOOL_REGISTRY.get_group_definition(TOOL_NAME)
@@ -102,7 +96,7 @@ async def test_subscribe_execute_tool_and_resubmit(client, settings, tmp_path):
     # 循环状态：待提交消息、连接标识、工具执行标记与最终事件。
     pending_messages = [
         Message(id=uuid4().hex, role=GlobalMessageRole.USER,
-                content=f"请调用 {TOOL_NAME} 工具执行命令 `{command}` 列出当前目录内容，"
+                content=f"请调用 {TOOL_NAME} 工具执行命令列出当前目录 workspaces={Path(r"F:\workspace\code\python\loong_auto")}内容，"
                         f"dangerous 标记为 false，不要执行其他命令。")
     ]
     client_id = None
@@ -155,17 +149,19 @@ async def test_subscribe_execute_tool_and_resubmit(client, settings, tmp_path):
                 assert call["id"]
 
                 # 用注册中心解析工具并真实执行。
-                invoke = ToolInvokeRequest(session_id=session_id, tool_id=call["id"],
-                                           tool_name=call["name"], arguments=call["arguments"])
-                definition = GLOBAL_TOOL_REGISTRY.get_group_definition(invoke.tool_name)
+
+                tool_name = call["name"]
+                tool_id = call["id"]
+                arguments = call["arguments"]
+
+                definition = GLOBAL_TOOL_REGISTRY.get_group_definition(tool_name)
                 assert definition.name == TOOL_NAME
 
-                tool = GLOBAL_TOOL_REGISTRY.create_tool_instance(definition.name, tmp_path)
-                arguments = dict(invoke.arguments)
-                arguments["tool_id"] = invoke.tool_id
+                tool = GLOBAL_TOOL_REGISTRY.create_tool_instance(definition.name, [Path(r"F:\workspace\code\python\loong_auto")])
+                arguments = dict(arguments)
                 request_obj = tool.request_model(**arguments)
                 try:
-                    result = await ToolExecutor().run(tool, request_obj, approved=False)
+                    result = await ToolExecutor().run(tool_id, tool, request_obj, approved=False)
                 except ToolSuspendedError as exc:
                     pytest.fail(f"模型选择了需要人工审批的命令，用例只执行只读命令：{exc.summary}")
 

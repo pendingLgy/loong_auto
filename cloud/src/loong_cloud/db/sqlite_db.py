@@ -4,7 +4,7 @@ import os
 from typing import Any, List
 
 from loguru import logger
-from sqlalchemy import Table
+from sqlalchemy import Table, event
 from sqlalchemy import URL, text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker, AsyncEngine
 
@@ -60,6 +60,14 @@ class AsyncSqliteDb(BaseDB):
                         "check_same_thread": self.config.check_same_thread,
                     }
                 )
+
+                # SQLite 开启 WAL 并发模式
+                @event.listens_for(self.engine.sync_engine, "connect")
+                def set_sqlite_pragma(dbapi_connection, connection_record):
+                    cursor = dbapi_connection.cursor()
+                    cursor.execute("PRAGMA journal_mode=WAL")
+                    cursor.execute("PRAGMA synchronous=NORMAL")
+                    cursor.close()
 
                 self.session = async_sessionmaker(
                     bind=self.engine,

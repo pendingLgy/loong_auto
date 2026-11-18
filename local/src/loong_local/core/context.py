@@ -1,5 +1,8 @@
 """上下文只绑定到单次 Request；凭证不持久化。"""
 from dataclasses import dataclass, field
+from pathlib import Path
+from typing import List
+
 from httpx import Headers
 
 from loong_cloud_client import CloudClient
@@ -14,6 +17,9 @@ class SSEContext:
     user_id: str | None = None
     platform: str | None = None
 
+    # 多个工作空间
+    workspaces: List[Path] = field(default_factory=lambda: [Path(r"F:\workspace\code\python\loong_auto")])
+
     cloud_client: CloudClient | None = None
 
     def headers(self) -> Headers:
@@ -23,4 +29,3 @@ class SSEContext:
             if value:
                 headers[name] = value
         return headers
-

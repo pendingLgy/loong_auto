@@ -32,3 +32,7 @@ class ApprovalConflictError(Exception):
 
 class ApprovalNotFoundError(Exception):
     """审批不存在或无权访问"""
+
+
+class ToolExecuteError(Exception):
+    """工具执行异常"""

@@ -5,6 +5,7 @@
 .cache/
 http_test/
 logs/
+*.db*
 
 # User-specific stuff
 .idea/**/workspace.xml

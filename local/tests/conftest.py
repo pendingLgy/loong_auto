@@ -10,6 +10,7 @@ from dotenv import dotenv_values, set_key
 
 from loong_cloud_client import CloudClient
 from loong_contracts.request.login import LoginRequest
+from loong_contracts.utis.uuid_util import uuid_str
 
 CONFIG_PATH = Path(__file__).resolve().parents[1] / ".env.test"
 
@@ -39,6 +40,8 @@ async def client(http_client, settings):
     """返回带默认认证头的 HTTP 客户端，令牌失效时重新登录。"""
     auth = CloudClient(http_client,prefix="common").auth
     token = settings("LOCAL_API_ACCESS_TOKEN").strip()
+    http_client.headers["x-client-id"] = uuid_str()
+
     if token:
         http_client.headers["Authorization"] = f"Bearer {token}"
         try:
@@ -46,6 +49,7 @@ async def client(http_client, settings):
             yield http_client
             return
         except httpx.HTTPStatusError as exc:
+            print(f"{exc.response.text}")
             if exc.response.status_code != 401:
                 raise
         http_client.headers.pop("Authorization", None)

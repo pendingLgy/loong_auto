@@ -18,6 +18,7 @@ from loong_local.core.logging import configure_logging, log_exception
 from .api import router
 from .config.config_global import GlobalConfig
 from .core.container import ApplicationContainer
+from .core.exceptions import ToolExecuteError
 from .db.sqlite_db import AsyncSqliteDB
 from .install_setting import SERVICE_TARGETS, WIRE_TARGETS, init_tools
 from .middleware.loading_middleware import loading_middleware
@@ -81,7 +82,6 @@ def create_app() -> FastAPI:
 
     app = FastAPI(title="Loong Local Gateway", version="0.2.0", lifespan=lifespan)
 
-    app.state.client_id = uuid_str()
     app.state.container = container
     app.state.global_config = global_config
 
@@ -119,6 +119,13 @@ def create_app() -> FastAPI:
                       request_date=request.state.request_date.isoformat(),
                       status_code=status.HTTP_422_UNPROCESSABLE_CONTENT)
         return error_response(request, status.HTTP_422_UNPROCESSABLE_CONTENT, "请求参数校验失败")
+
+    @app.exception_handler(ToolExecuteError)
+    async def invalid_request(request, exc):
+        log_exception(exc, f"Toll执行异常, path:{request.url.path}", request_id=request.state.request_id,
+                      request_date=request.state.request_date.isoformat(),
+                      status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return error_response(request, status.HTTP_500_INTERNAL_SERVER_ERROR, str(exc.detail))
 
     @app.exception_handler(Exception)
     async def unexpected_error(request, exc):

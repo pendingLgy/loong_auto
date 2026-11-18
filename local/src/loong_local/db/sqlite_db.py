@@ -5,24 +5,27 @@ from contextlib import asynccontextmanager
 from typing import Any, List, AsyncIterator
 
 from loguru import logger
-from sqlalchemy import Table
+from sqlalchemy import Table, event
 from sqlalchemy import URL, text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker, AsyncEngine
 
-from loong_local.config.config_db import DatabaseConfig
+from loong_local.config.config_db import DatabaseConfig, SqliteConfig
 from loong_local.core.exceptions import StorageError
+from loong_local.core.locks import TimedLock
 from loong_local.schema import GLOBAL_TABLE_METADATA
 
 
 class AsyncSqliteDB:
 
     def __init__(self, sqlite_config: DatabaseConfig) -> None:
-        self.sqlite_config = sqlite_config
-        self.sqlite_config = sqlite_config.sqlite
+        self.db_confit = sqlite_config
+        self.sqlite_config:SqliteConfig = sqlite_config.sqlite
         self.pool_config = sqlite_config.pool
         self.engine: AsyncEngine | None = None
-        self.session: async_sessionmaker[AsyncSession] | None = None
+        self.async_session: async_sessionmaker[AsyncSession] | None = None
         self._lock = asyncio.Lock()
+        # 写操作串行化：获取超时抛 StorageError，不让请求无限排队。
+        self.write_lock = TimedLock(sqlite_config.sqlite.timeout, name="写锁")
 
     @classmethod
     def from_config(cls, db_config: Any, pool_config: Any):
@@ -66,7 +69,15 @@ class AsyncSqliteDB:
                     }
                 )
 
-                self.session = async_sessionmaker(
+                # SQLite 开启 WAL 并发模式
+                @event.listens_for(self.engine.sync_engine, "connect")
+                def set_sqlite_pragma(dbapi_connection, connection_record):
+                    cursor = dbapi_connection.cursor()
+                    cursor.execute("PRAGMA journal_mode=WAL")
+                    cursor.execute("PRAGMA synchronous=NORMAL")
+                    cursor.close()
+
+                self.async_session = async_sessionmaker(
                     bind=self.engine,
                     class_=AsyncSession,
                     expire_on_commit=False,
@@ -90,10 +101,10 @@ class AsyncSqliteDB:
                             table: Table = miss_table
                             logger.info(f"create table {table.name}")
                             await conn.run_sync(table.create, checkfirst=True)
+
+
             except Exception as exc:
                 raise StorageError("建表失败" + ": " + str(exc)) from exc
-
-        return self.engine, self.session
 
     async def table_miss(self) -> List[Any]:
 
@@ -117,26 +128,52 @@ class AsyncSqliteDB:
         await self.engine.dispose()
 
     @asynccontextmanager
-    async def session(self) -> AsyncIterator[AsyncSession]:
+    async def session(self, write:bool = False) -> AsyncIterator[AsyncSession]:
         """使用标准 sessionmaker 管理会话生命周期"""
-        async with self.session() as session:
-            try:
-                yield session
-                await session.commit()
-            except Exception:
-                await session.rollback()
-                raise
-            finally:
-                await session.close()
+
+        if write:
+            async with self.write_lock:
+                async with self.async_session() as session:
+                    try:
+                        yield session
+                        await session.commit()
+                    except Exception:
+                        await session.rollback()
+                        raise
+                    finally:
+                        await session.close()
+        else:
+            async with self.async_session() as session:
+                try:
+                    yield session
+                    await session.commit()
+                except Exception:
+                    await session.rollback()
+                    raise
+                finally:
+                    await session.close()
 
     @asynccontextmanager
-    async def session_manual_tx(self) -> AsyncIterator[AsyncSession]:
+    async def session_manual_tx(self, write:bool = False) -> AsyncIterator[AsyncSession]:
         """使用标准 sessionmaker 管理会话生命周期, 许哟啊手动提交事务"""
-        async with self.session() as session:
-            try:
-                yield session
-            except Exception:
-                await session.rollback()
-                raise
-            finally:
-                await session.close()
+
+        if write:
+            async with self.write_lock:
+                async with self.async_session() as session:
+                    try:
+                        yield session
+                    except Exception:
+                        await session.rollback()
+                        raise
+                    finally:
+                        await session.close()
+
+        else:
+            async with self.async_session() as session:
+                try:
+                    yield session
+                except Exception:
+                    await session.rollback()
+                    raise
+                finally:
+                    await session.close()
