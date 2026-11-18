@@ -1,6 +1,5 @@
 """SSE 订阅入口，持久化事件支持 Last-Event-ID；不在回放时执行工具。"""
 import asyncio
-import json
 
 import httpx
 from dependency_injector.wiring import Provide, inject
@@ -12,8 +11,8 @@ from loong_contracts.agent.models import LoopEvent
 from loong_contracts.common.llm_message_constant import GlobalMessageStatus
 from ..core.context import SSEContext
 from ..core.logging import log_exception
+from ..tools.tool_executor import ToolExecutor
 from ..service.pending_tool_task_service import PendingToolTaskService
-from ..tools.tool_registry import GLOBAL_TOOL_REGISTRY
 
 router = APIRouter(prefix="/sse", tags=["sse订阅转发"])
 
@@ -26,7 +25,6 @@ async def subscribe(
 ):
     context: SSEContext = request.state.sse_context
     cloud_client = context.cloud_client
-    workspaces = context.workspaces
     client_id = context.client_id
 
     # 保留客户端原始请求头（含 Last-Event-ID），再补充网关身份头。
@@ -100,35 +98,24 @@ async def subscribe(
                             loop_event: LoopEvent = LoopEvent.model_validate_json(lines[1][len("data:"):].strip())
 
                             if loop_event.remote_tool_calls:
+                                # 统一走工具执行入口做准入与审批判定，调度层不再自己查注册表。
+                                executor = ToolExecutor(context.workspaces, policy=context.policy)
                                 for tool_call in loop_event.remote_tool_calls:
-                                    # 1) 获取工具类并实例化
-                                    tool_cls = GLOBAL_TOOL_REGISTRY.get_tool_class(tool_call.name)
-                                    tool = tool_cls(workspaces=workspaces)
-
-                                    # 校验参数合法性
-                                    args_dict = (
-                                        json.loads(tool_call.arguments)
-                                        if isinstance(tool_call.arguments, str)
-                                        else tool_call.arguments
-                                    )
-                                    request_obj = tool.request_model(**args_dict)
-
-                                    # 预提取风险摘要与审批信息
-                                    is_danger = tool.is_dangerous(request_obj)
-                                    summary, risk_reason = (
-                                        tool.approval_details(request_obj)
-                                        if is_danger
-                                        else (f"调用工具 {tool.tool_name}", "")
-                                    )
+                                    try:
+                                        inspection = executor.inspect(tool_call.name, tool_call.arguments)
+                                    except Exception as guard_error:
+                                        logger.warning("工具准入失败，已跳过调度 tool={} error={}",
+                                                       tool_call.name, guard_error)
+                                        continue
 
                                     # 💡 极速非阻塞：将持久化参数打包推入队列，毫秒级返回，绝不卡住 SSE 流
                                     await task_queue.put((
                                         tool_call.id,
                                         loop_event.session_id,
                                         tool_call.name,
-                                        request_obj.model_dump(mode="json"),
-                                        summary,
-                                        risk_reason if is_danger else None
+                                        inspection.request.model_dump(mode="json"),
+                                        inspection.summary,
+                                        inspection.risk_reason if inspection.needs_approval else None
                                     ))
 
                     except Exception as parse_err:

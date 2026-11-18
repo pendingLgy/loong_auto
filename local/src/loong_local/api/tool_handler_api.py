@@ -1,8 +1,9 @@
+"""工具审批恢复接口：确认后通过统一执行入口真正执行工具。"""
 import json
 
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Request, Depends, HTTPException
-from pydantic import Field, BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
 
 from loong_contracts.agent.models import Message
 from loong_contracts.common.llm_message_constant import GlobalMessageRole, GlobalMessageStatus
@@ -10,17 +11,22 @@ from loong_contracts.common.tool_constant import ToolTaskStatus
 from loong_contracts.response import BaseResponse
 from loong_contracts.utis import Response
 from loong_contracts.utis.uuid_util import uuid_str
+from loong_local.core.context import SSEContext
 from loong_local.core.logging import log_exception
+from loong_local.tools.tool_executor import ToolCallRequest, ToolExecutor
 from loong_local.service.pending_tool_task_service import PendingToolTaskService
-from loong_local.tools.tool_excutor import ToolExecutor
-from loong_local.tools.tool_registry import GLOBAL_TOOL_REGISTRY
 
-router = APIRouter(prefix="/tools", tags=["公共接口转发"])
+router = APIRouter(prefix="/tools", tags=["工具审批"])
 
 
 class ApprovalDecisionRequest(BaseModel):
     """前端提交审批决定的请求体"""
     approved: bool = Field(description="true 表示同意执行，false 表示拒绝执行")
+
+
+def _tool_message(tool_id: str, content: str) -> Message:
+    return Message(id=uuid_str(), role=GlobalMessageRole.TOOL,
+                   status=GlobalMessageStatus.TOOL_CALLED, tool_call_id=tool_id, content=content)
 
 
 @router.post("/{session_id}/approved/{tool_id}", response_model=BaseResponse[Message])
@@ -36,60 +42,27 @@ async def resume_tool_endpoint(
     if not pending_task:
         raise HTTPException(status_code=404, detail="未找到对应的挂起任务")
 
-    #  如果用户选择拒绝：更新状态并清理任务，直接返回拒绝响应，不执行工具
+    # 用户拒绝：更新状态、清理任务，不执行工具。
     if not decision.approved:
         await pending_tool_task_service.update_status(session_id, tool_id, status=ToolTaskStatus.REJECTED)
         await pending_tool_task_service.remove_task(session_id, tool_id)
+        return Response.ok(request, _tool_message(tool_id, "User rejected the tool"))
 
-        tool_message = Message(
-            id=uuid_str(),
-            role=GlobalMessageRole.TOOL,
-            status=GlobalMessageStatus.TOOL_CALLED,
-            tool_call_id=tool_id,
-            content="User rejected the tool",
-        )
-
-        return Response.ok(request, tool_message)
-
-    # 3. 如果用户选择同意：获取工具类并真正执行
-    tool_cls = GLOBAL_TOOL_REGISTRY.get_tool_class(pending_task.tool_name)
-    tool = tool_cls(workspace=pending_task.workspace) if hasattr(pending_task, "workspace") else tool_cls(
-        workspace=None)
-
-    request_obj = tool.request_model(**pending_task.request_data)
-    executor = ToolExecutor()
+    # 用户同意：通过统一执行入口执行，带上本次连接的放行策略。
+    context: SSEContext = request.state.sse_context
+    executor = ToolExecutor(context.workspaces, policy=context.policy)
 
     try:
-        # 携带 approved=True 再次运行，安全网关放行，执行底层逻辑
-        result = await executor.run(tool, request_obj, approved=True)
-
-        # 执行成功后清理挂起状态
-        await pending_tool_task_service.remove_task(session_id, tool_id)
-
-        json_str = json.dumps(result.model_dump(), ensure_ascii=False)
-
-        tool_message = Message(
-            id=uuid_str(),
-            role=GlobalMessageRole.TOOL,
-            status=GlobalMessageStatus.TOOL_CALLED,
-            tool_call_id=tool_id,
-            content=json_str,
+        result = await executor.execute(
+            ToolCallRequest(tool_id=tool_id, tool_name=pending_task.tool_name,
+                            arguments=pending_task.request_data),
+            approved=True,
         )
-
-        return Response.ok(request, tool_message)
-
-    except Exception as e:
-        log_exception(e, "工具执行失败")
-
-        # 执行出错时更新状态为失败
+    except Exception as exc:
+        log_exception(exc, "工具执行失败")
         await pending_tool_task_service.update_status(session_id, tool_id, status=ToolTaskStatus.FAILED)
+        return Response.ok(request, _tool_message(tool_id, "Run tool failed"))
 
-        tool_message = Message(
-            id=uuid_str(),
-            role=GlobalMessageRole.TOOL,
-            status=GlobalMessageStatus.TOOL_CALLED,
-            tool_call_id=tool_id,
-            content="Run tool failed",
-        )
-
-        Response.ok(request, tool_message)
+    await pending_tool_task_service.remove_task(session_id, tool_id)
+    return Response.ok(request, _tool_message(tool_id,
+                                              json.dumps(result.model_dump(), ensure_ascii=False)))

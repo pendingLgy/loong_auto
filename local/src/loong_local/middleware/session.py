@@ -9,6 +9,23 @@ from loong_contracts.utis import Response
 from loong_contracts.utis.datetime_util import utcnow
 from loong_contracts.utis.uuid_util import uuid_str
 from ..core.context import SSEContext
+from ..tools.security import WorkspaceMode, WorkspacePolicy
+
+POLICY_HEADER = "x-workspace-policy"
+
+
+def build_policy(request: Request) -> WorkspacePolicy:
+    """客户端通过 X-Workspace-Policy 请求头声明本次连接的放行模式。
+
+    支持 ``read_only`` / ``workspace_write`` / ``full`` 三种模式；未传时使用配置项
+    ``gateway_config.workspace_mode``（默认 read_only）。
+    """
+    raw = request.headers.get(POLICY_HEADER, "").strip()
+    if raw:
+        return WorkspacePolicy.from_client(raw)
+
+    gateway_config = request.app.state.global_config.gateway_config
+    return WorkspacePolicy(mode=WorkspaceMode(gateway_config.workspace_mode))
 
 
 class SessionMiddleware:
@@ -32,6 +49,15 @@ class SessionMiddleware:
             await response(scope, receive, send)
             return
 
+        # 放行策略由客户端在连接时通过请求头传入；未传时按默认策略（只读）处理。
+        try:
+            policy = build_policy(request)
+        except ValueError as exc:
+            body = Response.fail(request, code=status.HTTP_400_BAD_REQUEST, msg=str(exc))
+            response = JSONResponse(status_code=status.HTTP_400_BAD_REQUEST,
+                                    content=body.model_dump(mode="json"))
+            await response(scope, receive, send)
+            return
 
         token = request.headers.get("authorization", "")
 
@@ -44,6 +70,7 @@ class SessionMiddleware:
                                                tenant_id=request.headers.get("x-tenant-id"),
                                                user_id=request.headers.get("x-user-id"),
                                                platform=request.headers.get("x-platform"),
+                                               policy=policy,
                                                cloud_client=cloud_client
                                                )
 

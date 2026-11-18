@@ -16,6 +16,8 @@ class GatewayConfig(BaseModel):
     port: int = Field(default=8765, ge=1, le=65535)
     cloud_url: str = Field(default="http://127.0.0.1:9527")
     workspace: Path = Field(default_factory=Path.cwd)
+    # 默认放行模式；客户端可用 X-Workspace-Policy 请求头覆盖。
+    workspace_mode: Literal["read_only", "workspace_write", "full"] = Field(default="read_only")
     log_path: Path = Field(default=Path("local/logs/gateway.log"))
     timeout: float = Field(default=180, gt=0)
     connect_timeout: float = Field(default=10, gt=0)

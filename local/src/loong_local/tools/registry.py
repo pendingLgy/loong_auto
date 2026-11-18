@@ -1,6 +1,5 @@
 """Loong Cloud Agent 工具注册中心（纯手动注册版）。"""
-from typing import Dict, Type, List, Optional
-from pathlib import Path
+from typing import Dict, Type, List
 from .base_tool import ABSTool
 from loong_contracts.agent.models import ToolDefinition
 
@@ -40,12 +39,13 @@ class ToolRegistry:
             raise KeyError(f"未找到注册的工具类: {tool_name}")
         return tool_cls
 
-    def create_tool_instance(self, tool_name: str, workspaces: List[Path]) -> ABSTool:
+    def create_tool_instance(self, tool_name: str) -> ABSTool:
+        """创建工具实例；执行环境（路径、沙箱）由 ToolExecutor 通过 ToolContext 注入。"""
         if tool_name in self._instances:
             return self._instances[tool_name]
 
         tool_cls = self.get_tool_class(tool_name)
-        return tool_cls(workspaces=workspaces)
+        return tool_cls()
 
     def list_tool_names(self) -> List[str]:
         return list(self._registry.keys())

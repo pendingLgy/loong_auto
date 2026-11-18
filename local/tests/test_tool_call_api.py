@@ -26,9 +26,10 @@ from loong_contracts.agent.models import Message
 from loong_contracts.common.llm_message_constant import GlobalMessageRole, GlobalMessageStatus
 from loong_contracts.request.message import AddMessageRequest, LLMParamRequest
 from loong_local.install_setting import init_tools
+from loong_local.tools.security import WorkspaceMode, WorkspacePolicy
 from loong_local.tools.base_tool import ToolSuspendedError
-from loong_local.tools.tool_excutor import ToolExecutor
-from loong_local.tools.tool_registry import GLOBAL_TOOL_REGISTRY
+from loong_local.tools.tool_executor import ToolCallRequest, ToolExecutor
+from loong_local.tools.registry import GLOBAL_TOOL_REGISTRY
 
 SUBSCRIBE_PATH = "/sse/subscribe"
 MESSAGE_PATH = "/message/api/events/chat/{client_id}/messages"
@@ -148,20 +149,18 @@ async def test_subscribe_execute_tool_and_resubmit(client, settings, tmp_path):
                 assert call["location"] == "remote"
                 assert call["id"]
 
-                # 用注册中心解析工具并真实执行。
-
+                # 通过统一执行入口解析并真实执行工具。
                 tool_name = call["name"]
                 tool_id = call["id"]
-                arguments = call["arguments"]
+                arguments = dict(call["arguments"])
 
                 definition = GLOBAL_TOOL_REGISTRY.get_group_definition(tool_name)
                 assert definition.name == TOOL_NAME
 
-                tool = GLOBAL_TOOL_REGISTRY.create_tool_instance(definition.name, [Path(r"F:\workspace\code\python\loong_auto")])
-                arguments = dict(arguments)
-                request_obj = tool.request_model(**arguments)
+                executor = ToolExecutor([tmp_path], policy=WorkspacePolicy(mode=WorkspaceMode.FULL))
                 try:
-                    result = await ToolExecutor().run(tool_id, tool, request_obj, approved=False)
+                    result = await executor.execute(
+                        ToolCallRequest(tool_id=tool_id, tool_name=tool_name, arguments=arguments))
                 except ToolSuspendedError as exc:
                     pytest.fail(f"模型选择了需要人工审批的命令，用例只执行只读命令：{exc.summary}")
 
