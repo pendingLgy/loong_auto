@@ -159,6 +159,32 @@ def _session_key(request: Request, session_id: str) -> tuple[str, str, str]:
     return str(identity.tenant_id), str(identity.id), session_id
 
 
+async def _run_dialogue(
+    channel: EventSession,
+    client_id: str,
+    session_id: str,
+    messages: list[Message],
+    config: ModelConfig,
+    tools: list[ToolDefinition],
+) -> None:
+    try:
+        async with ModelExecutor() as executor:
+            loop = AgentLoop(executor, config, tools, DEFAULT_LOCAL_TOOLS, session_id=session_id,client_id=client_id)
+            async with aclosing(loop.run_sse(messages)) as stream:
+                async for frame in stream:
+                    await channel.queue.put(frame)
+    except Exception as e:
+        log_exception(e, f"对话 SSE 执行失败，session_id={session_id}")
+        await channel.queue.put(LoopEvent(
+            session_id=session_id,
+            error=True,
+            messages=[Message(status=GlobalMessageStatus.STOP, content="对话执行失败")],
+        ).to_sse())
+    finally:
+        channel.busy = False
+
+
+
 @router.get("/chat/{client_id}/sse")
 @inject
 async def chat_sse(request: Request, client_id: str,
@@ -244,35 +270,12 @@ async def chat_sse(request: Request, client_id: str,
     )
 
 
-async def _run_dialogue(
-    channel: EventSession,
-    session_id: str,
-    messages: list[Message],
-    config: ModelConfig,
-    tools: list[ToolDefinition],
-) -> None:
-    try:
-        async with ModelExecutor() as executor:
-            loop = AgentLoop(executor, config, tools, DEFAULT_LOCAL_TOOLS, session_id=session_id)
-            async with aclosing(loop.run_sse(messages)) as stream:
-                async for frame in stream:
-                    await channel.queue.put(frame)
-    except Exception:
-        logger.exception("对话 SSE 执行失败，session_id={}", session_id)
-        await channel.queue.put(LoopEvent(
-            session_id=session_id,
-            error=True,
-            messages=[Message(status=GlobalMessageStatus.STOP, content="对话执行失败")],
-        ).to_sse())
-    finally:
-        channel.busy = False
-
-
-@router.post("/chat/{client_id}/messages")
+@router.post("/chat/{client_id}/session/{session_id}/messages")
 @inject
 async def submit_message(
     request: Request,
     client_id: str,
+    session_id: str,
     body: AddMessageRequest,
     message_store: MessageStore = Depends(Provide["MessageStore"]),
 ):
@@ -283,13 +286,14 @@ async def submit_message(
     if channel.busy:
         raise HTTPException(status_code=409, detail="当前会话正在执行，请等待完成后再提交")
 
-    session_id = body.session_id
 
     # 在首次 await 前占用会话，避免并发请求重复启动任务。
     channel.busy = True
     try:
         body.tenant_id = request.state.identity.tenant_id
         body.user_id = request.state.identity.id
+        body.session_id = session_id
+
         config = ModelConfig(
             provider=body.llm.provider,
             model=body.llm.model,
@@ -309,7 +313,7 @@ async def submit_message(
             model=body.llm.model,
         )
         channel.task = asyncio.create_task(
-            _run_dialogue(channel, session_id, messages, config, tools),
+            _run_dialogue(channel, client_id, session_id, messages, config, tools),
             name=f"dialogue:{session_id}",
         )
     except BaseException:

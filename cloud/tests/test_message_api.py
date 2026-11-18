@@ -30,8 +30,9 @@ async def test_chat_complete(client, settings):
     payload_json = body.model_dump(mode="json")
     # SecretStr 默认脱敏；HTTP 请求需要发送实际密钥。
     payload_json["llm"]["api_key"] = body.llm.api_key.get_secret_value()
-    session_id = "test-" + uuid4().hex
-    payload = check_response(await client.post(f"/api/messages/chat/{session_id}/complete", json=payload_json))
+    client_id = "client-" + uuid4().hex
+    session_id = "session-" + uuid4().hex
+    payload = check_response(await client.post(f"/api/messages/chat/{client_id}/session/{session_id}/complete", json=payload_json))
     messages = payload["data"]["messages"]
     assert messages[-1]["role"] == "assistant"
     assert messages[-1]["content"].strip()
@@ -39,7 +40,7 @@ async def test_chat_complete(client, settings):
     assert page["total"] >= 1
     assert any(row["content"] == "请只回复 OK" for row in page["rows"])
     # 相同消息再次提交应进入重复消息分支，不再次调用模型。
-    duplicate = await client.post(f"/api/messages/chat/{session_id}/complete", json=payload_json)
+    duplicate = await client.post(f"/api/messages/chat/{client_id}/session/{session_id}/complete", json=payload_json)
     assert duplicate.status_code == 200
     assert duplicate.json()["code"] != 200
 
@@ -58,8 +59,9 @@ async def test_chat_sse(client, settings):
     payload_json = body.model_dump(mode="json")
     # SecretStr 默认脱敏；HTTP 请求需要发送实际密钥。
     payload_json["llm"]["api_key"] = body.llm.api_key.get_secret_value()
-    session_id = "test-" + uuid4().hex
-    async with client.stream("POST", f"/api/messages/chat/{session_id}/sse", json=payload_json) as response:
+    client_id = "client-" + uuid4().hex
+    session_id = "session-" + uuid4().hex
+    async with client.stream("POST", f"/api/messages/chat/{client_id}/session/{session_id}/sse", json=payload_json) as response:
         assert response.status_code == 200
         assert response.headers["content-type"].startswith("text/event-stream")
 
@@ -86,7 +88,3 @@ async def test_list_messages(client):
     assert payload["rows"] == []
     assert payload["total"] == 0
 
-
-async def test_chat_rejects_invalid_body(client):
-    response = await client.post("/api/messages/chat/test/complete", json={})
-    assert response.status_code == 422

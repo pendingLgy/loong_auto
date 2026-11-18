@@ -115,13 +115,13 @@ class MessagesAPI:
         self.client = client
         self.prefix = prefix
 
-    async def complete(self, session_id: str, body: AddMessageRequest):
-        return await self.client.request("POST", f"{self.prefix}/api/messages/chat/{_segment(session_id)}/complete",
+    async def complete(self, client_id:str, session_id: str, body: AddMessageRequest):
+        return await self.client.request("POST", f"{self.prefix}/api/messages//chat/{_segment(client_id)}/session/{_segment(session_id)}/complete",
                                          BaseResponse[LoopEvent], body=body)
 
-    async def stream(self, session_id: str, body: AddMessageRequest) -> httpx.Response:
+    async def stream(self, client_id:str, session_id: str, body: AddMessageRequest) -> httpx.Response:
         """返回 SSE 响应对象，由调用方管理生命周期"""
-        return await self.client.stream_response("POST", f"{self.prefix}/api/messages/chat/{_segment(session_id)}/sse", body=body)
+        return await self.client.stream_response("POST", f"{self.prefix}/api/messages/chat/{_segment(client_id)}/session/{_segment(session_id)}/sse", body=body)
 
     async def list_sessions(self, *, session_title: str = "", page=1, page_size=20):
         return await self.client.request("GET", f"{self.prefix}/api/messages/sessions", BasePageResponse[list[dict]],
@@ -141,7 +141,7 @@ class EventsAPI:
         """返回事件订阅的 SSE 响应对象，由调用方管理生命周期"""
         return await self.client.stream_response("GET", f"{self.prefix}/api/events/chat/{_segment(client_id)}/sse")
 
-    async def submit(self, client_id: str, body: AddMessageRequest, *,
+    async def submit(self, client_id:str, session_id: str, body: AddMessageRequest, *,
                      headers: httpx.Headers | dict[str, str] | list[tuple[str, str]] | None = None) -> BaseResponse[None]:
-        return await self.client.request("POST", f"{self.prefix}/api/events/chat/{_segment(client_id)}/messages",
+        return await self.client.request("POST", f"{self.prefix}/api/events//chat/{_segment(client_id)}/session/{_segment(session_id)}/messages",
                                          BaseResponse[None], body=body, headers=headers)

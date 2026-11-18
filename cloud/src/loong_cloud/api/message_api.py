@@ -19,9 +19,11 @@ from loong_contracts.utis.response import PageResponse
 router = APIRouter(prefix="/messages", tags=["消息与聊天"])
 
 
-@router.post("/chat/{session_id}/complete")
+@router.post("/chat/{client_id}/session/{session_id}/complete")
 @inject
-async def chat_complete(request: Request, session_id: str, body: AddMessageRequest,
+async def chat_complete(request: Request,
+                        client_id:str,
+                        session_id: str, body: AddMessageRequest,
                         message_store: MessageStore = Depends(Provide["MessageStore"])
                         ):
     body.session_id = session_id
@@ -48,14 +50,16 @@ async def chat_complete(request: Request, session_id: str, body: AddMessageReque
     ]
 
     async with ModelExecutor() as executor:
-        event: LoopEvent = await AgentLoop(executor, config, tools, DEFAULT_LOCAL_TOOLS, session_id=session_id).run(llm_messages)
+        event: LoopEvent = await AgentLoop(executor, config, tools, DEFAULT_LOCAL_TOOLS, session_id=session_id, client_id=client_id).run(llm_messages)
 
     return Response.ok(request, event)
 
 
-@router.post("/chat/{session_id}/sse")
+@router.post("/chat/{client_id}/session/{session_id}/sse")
 @inject
-async def chat_sse(request: Request, session_id: str, body: AddMessageRequest,
+async def chat_sse(request: Request,
+                   client_id: str,
+                   session_id: str, body: AddMessageRequest,
                    message_store: MessageStore = Depends(Provide["MessageStore"])):
     body.session_id = session_id
     body.tenant_id = request.state.tenant_id
@@ -73,6 +77,7 @@ async def chat_sse(request: Request, session_id: str, body: AddMessageRequest,
         if llm_messages is None:
             # 以标准的 SSE 事件格式向前端推送错误信息
             error_event: LoopEvent = LoopEvent(error=True,
+                                               client_id=client_id,
                                                session_id=session_id,
                                                messages=[
                                                    Message(
@@ -88,7 +93,7 @@ async def chat_sse(request: Request, session_id: str, body: AddMessageRequest,
             return
 
         async with ModelExecutor() as executor:
-            async for frame in AgentLoop(executor, config, tools, DEFAULT_LOCAL_TOOLS, session_id=session_id).run_sse(llm_messages):
+            async for frame in AgentLoop(executor, config, tools, DEFAULT_LOCAL_TOOLS, session_id=session_id, client_id=client_id).run_sse(llm_messages):
                 print(f"{frame}")
                 yield f"{frame}"
 

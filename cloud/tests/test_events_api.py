@@ -38,7 +38,7 @@ async def read_event(lines):
 
 
 async def test_sse_heartbeat_and_duplicate_connection(client):
-    client_id = "events-heartbeat-" + uuid4().hex
+    client_id = "client-heartbeat-" + uuid4().hex
     path = f"/api/events/chat/{client_id}/sse"
     async with asyncio.timeout(45):
         async with client.stream("GET", path) as response:
@@ -61,10 +61,11 @@ async def test_sse_heartbeat_and_duplicate_connection(client):
 
 
 async def test_submit_requires_sse_connection(client):
-    session_id = "events-disconnected-" + uuid4().hex
+    client_id = "client-disconnected-" + uuid4().hex
+    session_id = "sessions-disconnected-" + uuid4().hex
     body = AddMessageRequest(
         tenant_id=0, user_id=0, session_id=session_id,
-        session_title="events-api-disconnected-test",
+        session_title="sessions-api-disconnected-test",
         llm=LLMParamRequest(provider="deepseek", model="deepseek-chat", temperature=0,
                             api_key="not-used-without-connection"),
         tools=[],
@@ -72,7 +73,7 @@ async def test_submit_requires_sse_connection(client):
     )
     payload = body.model_dump(mode="json")
     payload["llm"]["api_key"] = body.llm.api_key.get_secret_value()
-    response = await client.post(f"/api/events/chat/{session_id}/messages", json=payload)
+    response = await client.post(f"/api/events/chat/{client_id}/session/{session_id}/messages", json=payload)
     assert response.status_code == 409
     assert response.json()["code"] == 409
 
@@ -81,10 +82,10 @@ async def test_submit_message_pushes_dialogue_to_sse(client, settings):
     key = settings("DEEPSEEK_API_KEY")
     if not key:
         pytest.skip("真实对话测试需要配置 DEEPSEEK_API_KEY")
-    session_id = "events-dialogue-" + uuid4().hex
+    session_id = "sessions-dialogue-" + uuid4().hex
     body = AddMessageRequest(
         tenant_id=0, user_id=0, session_id=session_id,
-        session_title="events-api-test-" + uuid4().hex,
+        session_title="sessions-api-test-" + uuid4().hex,
         llm=LLMParamRequest(provider="deepseek", model="deepseek-chat", temperature=0, api_key=key),
         tools=[],
         messages=[Message(id=str(time.time_ns() // 1000), role="user", content="请只回复 OK")],
@@ -101,7 +102,7 @@ async def test_submit_message_pushes_dialogue_to_sse(client, settings):
             assert event == "connected"
             assert connected["client_id"] == client_id
 
-            submitted = await client.post(f"/api/events/chat/{client_id}/messages", json=payload)
+            submitted = await client.post(f"/api/events/chat/{client_id}/session/{session_id}/messages", json=payload)
             assert submitted.status_code == 200
             assert submitted.json()["code"] == 200
 
@@ -113,7 +114,7 @@ async def test_submit_message_pushes_dialogue_to_sse(client, settings):
                 assert result["session_id"] == session_id
                 if event == "heartbeat":
                     continue
-                assert not result["error"], "对话执行失败，请检查服务端日志"
+                assert not result["error"], "对话执行失败"
                 if result["summary"]:
                     final_message = result["messages"][-1]
                     assert final_message["role"] == "assistant"
@@ -131,11 +132,11 @@ async def test_multiple_remote_tools_across_dialogue_rounds(client, settings):
     key = settings("DEEPSEEK_API_KEY")
     if not key:
         pytest.skip("真实多轮工具测试需要配置 DEEPSEEK_API_KEY")
-    session_id = "events-tools-" + uuid4().hex
+    session_id = "sessions-tools-" + uuid4().hex
     client_id = "client-tools-" + uuid4().hex
     body = AddMessageRequest(
         tenant_id=0, user_id=0, session_id=session_id,
-        session_title="events-multiple-tools-test-" + uuid4().hex,
+        session_title="sessions-multiple-tools-test-" + uuid4().hex,
         llm=LLMParamRequest(provider="deepseek", model="deepseek-chat", temperature=0, api_key=key),
         tools=[
             ToolDefinition(
@@ -178,7 +179,7 @@ async def test_multiple_remote_tools_across_dialogue_rounds(client, settings):
             for round_index in range(4):
                 payload = body.model_dump(mode="json")
                 payload["llm"]["api_key"] = body.llm.api_key.get_secret_value()
-                submitted = await client.post(f"/api/events/chat/{client_id}/messages", json=payload)
+                submitted = await client.post(f"/api/events/chat/{client_id}/session/{session_id}/messages", json=payload)
                 assert submitted.status_code == 200
                 assert submitted.json()["code"] == 200, submitted.json()["msg"]
 
@@ -188,7 +189,7 @@ async def test_multiple_remote_tools_across_dialogue_rounds(client, settings):
                         continue
                     assert result["session_id"] == session_id
                     assert not result["error"], "多轮工具执行失败，请检查服务端日志"
-                    if result["summary"] or result["remote_tool_calls"]:
+                    if result["summary"] or result.get("remote_tool_calls") is not None:
                         break
 
                 if round_index == 3:
@@ -197,7 +198,7 @@ async def test_multiple_remote_tools_across_dialogue_rounds(client, settings):
                     assert result["messages"][-1]["content"].strip()
                     break
 
-                calls = result["remote_tool_calls"]
+                calls = result.get("remote_tool_calls",[])
                 assert len(calls) == 1, "依赖工具必须在不同轮次逐个执行"
                 call = calls[0]
                 assert call["name"] == expected[round_index]
@@ -232,11 +233,11 @@ async def test_dialogue_parallel_and_sequential_remote_tools(client, settings):
     key = settings("DEEPSEEK_API_KEY")
     if not key:
         pytest.skip("真实多阶段对话测试需要配置 DEEPSEEK_API_KEY")
-    session_id = "events-mixed-" + uuid4().hex
+    session_id = "sessions-mixed-" + uuid4().hex
     client_id = "client-mixed-" + uuid4().hex
     body = AddMessageRequest(
         tenant_id=0, user_id=0, session_id=session_id,
-        session_title="events-mixed-dialogue-test-" + uuid4().hex,
+        session_title="sessions-mixed-dialogue-test-" + uuid4().hex,
         llm=LLMParamRequest(provider="deepseek", model="deepseek-chat", temperature=0, api_key=key),
         tools=[
             ToolDefinition(name="get_project_info", location="remote",
@@ -298,7 +299,7 @@ async def test_dialogue_parallel_and_sequential_remote_tools(client, settings):
 
                 payload = body.model_dump(mode="json")
                 payload["llm"]["api_key"] = body.llm.api_key.get_secret_value()
-                submitted = await client.post(f"/api/events/chat/{client_id}/messages", json=payload)
+                submitted = await client.post(f"/api/events/chat/{client_id}/session/{session_id}/messages", json=payload)
                 assert submitted.status_code == 200
                 assert submitted.json()["code"] == 200, submitted.json()["msg"]
 
@@ -308,7 +309,7 @@ async def test_dialogue_parallel_and_sequential_remote_tools(client, settings):
                         continue
                     assert result["session_id"] == session_id
                     assert not result["error"], f"阶段 {stage} 执行失败，请查看服务端日志"
-                    if result["summary"] or result["remote_tool_calls"]:
+                    if result["summary"] or result.get("remote_tool_calls") is not None:
                         break
 
                 calls = result.get("remote_tool_calls",[])
@@ -348,17 +349,17 @@ async def test_remote_file_edit_failure_then_retry(client, settings):
     key = settings("DEEPSEEK_API_KEY")
     if not key:
         pytest.skip("真实文件编辑重试测试需要配置 DEEPSEEK_API_KEY")
-    session_id = "events-edit-retry-" + uuid4().hex
+    session_id = "sessions-edit-retry-" + uuid4().hex
     client_id = "client-edit-retry-" + uuid4().hex
     expected_content = "EDIT_RETRY_OK_" + uuid4().hex
 
     # 临时目录位于工作区，退出上下文时清理成功和失败路径产生的文件。
-    with TemporaryDirectory(prefix="events-edit-", dir=Path(__file__).parent) as directory:
+    with TemporaryDirectory(prefix="sessions-edit-", dir=Path(__file__).parent) as directory:
         root = Path(directory).resolve()
         target = root / "missing-parent" / "example.txt"
         body = AddMessageRequest(
             tenant_id=0, user_id=0, session_id=session_id,
-            session_title="events-file-edit-retry-test-" + uuid4().hex,
+            session_title="sessions-file-edit-retry-test-" + uuid4().hex,
             llm=LLMParamRequest(provider="deepseek", model="deepseek-chat", temperature=0, api_key=key),
             tools=[ToolDefinition(
                 name="edit_file", location="remote",
@@ -395,7 +396,7 @@ async def test_remote_file_edit_failure_then_retry(client, settings):
                 while True:
                     payload = body.model_dump(mode="json")
                     payload["llm"]["api_key"] = body.llm.api_key.get_secret_value()
-                    submitted = await client.post(f"/api/events/chat/{client_id}/messages", json=payload)
+                    submitted = await client.post(f"/api/events/chat/{client_id}/session/{session_id}/messages", json=payload)
                     assert submitted.status_code == 200
                     assert submitted.json()["code"] == 200, submitted.json()["msg"]
 
@@ -405,7 +406,7 @@ async def test_remote_file_edit_failure_then_retry(client, settings):
                             continue
                         assert result["session_id"] == session_id
                         assert not result["error"], "文件编辑对话失败，请检查服务端日志"
-                        if result["summary"] or result["remote_tool_calls"]:
+                        if result["summary"] or result.get("remote_tool_calls") is not None:
                             break
 
                     if result["summary"]:
