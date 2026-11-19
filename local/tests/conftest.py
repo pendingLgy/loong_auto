@@ -32,6 +32,7 @@ async def http_client(settings):
         timeout=float(settings("LOCAL_API_TIMEOUT", "180")),
         follow_redirects=False, trust_env=False,
     ) as client:
+        client.headers["x-security-token"] = settings("SECURITY_TOKEN")
         yield client
 
 

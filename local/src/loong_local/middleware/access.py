@@ -10,8 +10,8 @@ from loong_contracts.utis.uuid_util import uuid_str
 
 
 class LocalAccessMiddleware:
-    def __init__(self, app: ASGIApp, allowed_origins: list[str]):
-        self.app, self.allowed_origins = app, frozenset(allowed_origins)
+    def __init__(self, app: ASGIApp, allowed_hosts: list[str]):
+        self.app, self.allowed_hosts = app, frozenset(allowed_hosts)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] == "http":
@@ -22,17 +22,20 @@ class LocalAccessMiddleware:
             if not hasattr(request.state, "request_date"):
                 request.state.request_date = utcnow()
 
-            if request.url.hostname not in {"127.0.0.1", "localhost", "::1"}:
+            if request.url.hostname not in self.allowed_hosts:
                 body = Response.fail(request, code=status.HTTP_400_BAD_REQUEST, msg="不允许的 Host")
                 response = JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content=body.model_dump(mode="json"))
                 await response(scope, receive, send)
                 return
 
-            origin = request.headers.get("origin")
-            if origin and origin not in self.allowed_origins:
-                body = Response.fail(request, code=status.HTTP_403_FORBIDDEN, msg="不允许的 Origin")
-                response = JSONResponse(status_code=status.HTTP_403_FORBIDDEN, content=body.model_dump(mode="json"))
-                await response(scope, receive, send)
-                return
+            if request.app.state.enable_security_token:
+                security_token = request.headers.get("x-security-token", "")
+                if security_token != request.app.state.security_token:
+                    body = Response.fail(request, code=status.HTTP_403_FORBIDDEN,
+                                         msg="未配置 Security Token")
+                    response = JSONResponse(status_code=status.HTTP_403_FORBIDDEN,
+                                            content=body.model_dump(mode="json"))
+                    await response(scope, receive, send)
+                    return
 
         await self.app(scope, receive, send)

@@ -14,11 +14,14 @@ def loading_middleware(app: FastAPI):
     app.add_middleware(SessionMiddleware,
                        session_config_service=app_container.SessionConfigService())
 
+    app.add_middleware(LocalAccessMiddleware, allowed_hosts=global_config.gateway_config.allowed_hosts)
+
     app.add_middleware(CORSMiddleware,
                        allow_origins=global_config.gateway_config.allowed_origins,
                        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
                        allow_headers=["Authorization", "Content-Type", "Accept", "Last-Event-ID",
-                                      "X-Tenant-ID", "X-User-ID", "X-Platform", "X-Session-ID"],
+                                      "X-Tenant-ID", "X-User-ID", "X-Platform", "X-Session-ID",
+                                      "X-Security-Token"],
                        expose_headers=["X-Request-ID", "X-Request-Date", "X-Local-Request-ID"])
-    app.add_middleware(LocalAccessMiddleware, allowed_origins=global_config.gateway_config.allowed_origins)
+
     app.add_middleware(RequestMiddleware)

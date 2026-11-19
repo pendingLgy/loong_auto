@@ -24,6 +24,7 @@ class GatewayConfig(BaseModel):
     sse_read_timeout: float = Field(default=60, gt=0)
     heartbeat_interval: float = Field(default=15, gt=0)
     allowed_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173", "http://127.0.0.1:5173"])
+    allowed_hosts: list[str] = Field(default_factory=lambda: ["http://localhost:5173", "http://127.0.0.1:5173"])
 
     @field_validator("allowed_origins", mode="before")
     @classmethod

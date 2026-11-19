@@ -18,7 +18,8 @@ class GlobalConfig(BaseModel):
 
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(default="INFO", description="日志level")
 
-    white_list_urls: list[str] = Field(default_factory=list, description="URL 白名单")
+    enable_security_token: bool = Field(default=False, description="是否开启token校验")
+    security_token: str = Field(default="", description="本地网关访问令牌；为空时启动生成随机令牌")
 
     gateway_config: GatewayConfig = Field(default_factory=GatewayConfig, description="gateway配置")
     db_config: DatabaseConfig = Field(default_factory=DatabaseConfig, description="DB配置")
