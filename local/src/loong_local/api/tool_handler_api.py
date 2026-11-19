@@ -13,7 +13,9 @@ from loong_contracts.utis import Response
 from loong_contracts.utis.uuid_util import uuid_str
 from loong_local.core.context import SSEContext
 from loong_local.core.logging import log_exception
-from loong_local.tools.tool_executor import ToolCallRequest, ToolExecutor
+from loong_local.schema.model import PendingToolTaskModel
+from loong_local.service.session_config_service import SessionConfigService
+from loong_local.tools.tool_executor import ToolCallRequest
 from loong_local.service.pending_tool_task_service import PendingToolTaskService
 
 router = APIRouter(prefix="/tools", tags=["工具审批"])
@@ -36,9 +38,21 @@ async def resume_tool_endpoint(
         session_id: str,
         tool_id: str,
         decision: ApprovalDecisionRequest,
-        pending_tool_task_service: PendingToolTaskService = Depends(Provide["PendingToolTaskService"])
+        pending_tool_task_service: PendingToolTaskService = Depends(Provide["PendingToolTaskService"]),
+        session_config_service: SessionConfigService = Depends(Provide["SessionConfigService"])
 ):
-    pending_task = await pending_tool_task_service.get_task(session_id, tool_id)
+
+    context: SSEContext = request.state.sse_context
+
+    session_config = await session_config_service.get(session_id)
+    if session_config is None:
+        return Response.fail(request,msg="工作目录未配置")
+
+    policy = SessionConfigService.to_policy(session_config)
+    # 工作目录只做解析前的传递，存在性校验延迟到工具执行时处理，减少中间件耗时。
+    workspaces = SessionConfigService.to_workspaces(session_config)
+
+    pending_task:PendingToolTaskModel = await pending_tool_task_service.get_task(session_id, tool_id)
     if not pending_task:
         raise HTTPException(status_code=404, detail="未找到对应的挂起任务")
 
@@ -48,15 +62,16 @@ async def resume_tool_endpoint(
         await pending_tool_task_service.remove_task(session_id, tool_id)
         return Response.ok(request, _tool_message(tool_id, "User rejected the tool"))
 
-    # 用户同意：通过统一执行入口执行，带上本次连接的放行策略。
-    context: SSEContext = request.state.sse_context
-    executor = ToolExecutor(context.workspaces, policy=context.policy)
+    # 用户同意：用单例执行器执行，执行时传入本会话的策略与工作目录。
+    executor = context.tool_executor or request.app.state.tool_executor
 
     try:
         result = await executor.execute(
             ToolCallRequest(tool_id=tool_id, tool_name=pending_task.tool_name,
                             arguments=pending_task.request_data),
             approved=True,
+            policy=policy,
+            workspaces=tuple(workspaces),
         )
     except Exception as exc:
         log_exception(exc, "工具执行失败")

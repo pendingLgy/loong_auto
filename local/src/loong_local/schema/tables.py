@@ -36,3 +36,22 @@ def get_tool_tasks_table(metadata: MetaData, prefix: str = "") -> Table:
     Index(f"{prefix}idx_session_status", pending_tool_tasks_table.c.session_id, pending_tool_tasks_table.c.status)
 
     return pending_tool_tasks_table
+
+
+def get_session_configs_table(metadata: MetaData, prefix: str = "") -> Table:
+    """会话级工具配置：放行策略与允许的工作目录列表。"""
+    session_configs_table = Table(
+        f"{prefix}session_configs",
+        metadata,
+        Column("id", Integer, autoincrement=True, primary_key=True),
+        Column("session_id", String(128), comment="业务会话ID"),
+        Column("workspace_mode", String(32), nullable=False, default="read_only",
+               comment="放行模式: read_only / workspace_write / full"),
+        Column("workspaces", Text, nullable=False, default="[]",
+               comment="允许的工作目录 JSON 数组"),
+        Column("created_at", DateTime, default=None, nullable=True, comment="创建时间"),
+        Column("updated_at", DateTime, default=None, nullable=True, comment="更新时间"),
+        sqlite_autoincrement=True,
+    )
+
+    return session_configs_table

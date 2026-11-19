@@ -66,7 +66,7 @@ class ModelRequest(BaseModel):
 class LoopEvent(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    client_id: str | None = Field(default=None, description="client id")
+    client_id: str | None = Field(default=None, description="client_id")
     error: bool = Field(default=False, description="错误标识")
     summary: bool = Field(default=False, description="汇总消息标识")
     session_id: str | None = Field(default=None, description="session_id")

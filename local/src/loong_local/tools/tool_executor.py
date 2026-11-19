@@ -4,6 +4,10 @@
 - 工具只声明能力（``requires_approval``、``uses_sandbox``、``path_arguments``）并实现 ``execute``；
 - 执行器负责工具白名单、权限矩阵、路径校验、审批判定、沙箱执行与审计；
 - 工具拿到的 ``ToolContext`` 只包含已校验的路径和受控沙箱，无法绕过检查。
+
+执行器是应用级单例：不同会话的放行策略与工作目录在**执行时**通过
+``inspect`` / ``execute`` 的参数传入，执行器按 (策略, 工作目录) 缓存对应的
+``PathGuard`` 与沙箱，不会为每个请求重建执行器。
 """
 import json
 import os
@@ -50,70 +54,101 @@ class ToolInspection:
 
 
 class ToolExecutor:
-    """工具调用的唯一入口。"""
+    """工具调用的唯一入口；执行时按会话传入策略与工作目录。"""
 
     def __init__(
             self,
-            workspaces: Iterable[Path],
             *,
-            policy: WorkspacePolicy | None = None,
-            registry: ToolRegistry | None = None,
-            tool_guard: ToolGuard | None = None,
-            permission_guard: ToolPermissionGuard | None = None,
-            path_guard: PathGuard | None = None,
-            sandbox_config: SandboxConfig | None = None,
+            registry: ToolRegistry,
+            tool_guard: ToolGuard,
+            permission_guard: ToolPermissionGuard,
+            path_guard: PathGuard,
+            sandbox_config: SandboxConfig,
     ) -> None:
-        self.workspaces = tuple(Path(workspace).resolve(strict=True) for workspace in workspaces)
-        if not self.workspaces:
-            raise ValueError("工具执行器至少需要一个工作区")
 
-        self.policy = policy or WorkspacePolicy()
+        # 默认策略 / 默认工作目录：调用方没有传会话配置时使用。
         self.registry = registry or GLOBAL_TOOL_REGISTRY
         self.tool_guard = tool_guard or ToolGuard()
         self.permission_guard = permission_guard or ToolPermissionGuard()
-        self.path_guard = path_guard or PathGuard(self.workspaces, policy=self.policy)
+        self.path_guard = path_guard
         self.sandbox_config = sandbox_config
-        self._sandbox: SandboxExecutor | None = None
+
+        # 按 (策略, 工作目录) 缓存，避免每次执行重建守卫与沙箱。
+        self._runtime_cache: dict[tuple, tuple[PathGuard, SandboxExecutor]] = {}
+
+    # -------------------------------------------------------------- 运行时解析
+    def _runtime(self, policy: WorkspacePolicy, workspaces: Iterable[Path],
+                 ) -> tuple[WorkspacePolicy, tuple[Path, ...], PathGuard, SandboxExecutor]:
+        """解析本次执行的策略与工作目录，并按需缓存守卫与沙箱。
+
+        执行器与守卫都不持有默认值：会话配置必须以参数形式传入。
+        """
+        try:
+            resolved = tuple(Path(workspace).resolve(strict=True) for workspace in workspaces)
+        except OSError as exc:
+            raise ToolUnauthorizedError(f"会话工作目录不可用：{exc}") from exc
+        if not resolved:
+            raise ToolUnauthorizedError("会话未配置工作目录")
+
+        key = (policy.mode.value, tuple(str(path) for path in resolved))
+        entry = self._runtime_cache.get(key)
+        if entry is None:
+            reference = self.path_guard
+            guard = PathGuard(
+                allow_absolute_path=reference.allow_absolute_path,
+                allow_path_traversal=reference.allow_path_traversal,
+                allow_symlink=reference.allow_symlink,
+                follow_symlink=reference.follow_symlink,
+            )
+            entry = (guard, SandboxExecutor(resolved[0], self.sandbox_config))
+            self._runtime_cache[key] = entry
+        return policy, resolved, entry[0], entry[1]
 
     # ------------------------------------------------------------------ 准入
-    def inspect(self, tool_name: str, arguments: Any = None) -> ToolInspection:
-        """校验工具、参数与路径，给出审批建议；不执行任何副作用。"""
+    def inspect(self, tool_name: str, arguments: Any = None, *,
+                policy: WorkspacePolicy,
+                workspaces: Iterable[Path]) -> ToolInspection:
+        """按本次执行的会话配置校验工具与路径，给出审批建议；不执行副作用。"""
         self.tool_guard.check_tool(tool_name)
 
         if not self.permission_guard.permissions(tool_name):
             raise ToolPermissionError(f"工具 {tool_name} 未在权限矩阵中声明能力")
 
         tool = self.registry.create_tool_instance(tool_name)
+        effective_policy, resolved, guard, sandbox = self._runtime(policy, workspaces)
 
         try:
             request = tool.request_model(**self._arguments(arguments))
         except ValueError as exc:
             raise ToolUnauthorizedError(f"工具参数不合法：{exc}") from exc
 
-        paths = self._resolve_paths(tool, request)
+        paths = self._resolve_paths(tool, request, effective_policy, guard, resolved)
         if tool.uses_sandbox:
-            self._require_execute_permission(tool)
+            self._require_execute_permission(tool, guard, resolved, effective_policy)
         if tool.command_field:
-            self._validate_command_paths(tool, request)
+            self._validate_command_paths(tool, request, guard, resolved, effective_policy)
 
-        needs_approval = tool.requires_approval and self.policy.requires_approval
+        needs_approval = tool.requires_approval and effective_policy.requires_approval
         summary = self._summary(tool, request)
         risk_reason = getattr(request, "risk_reason", "") if needs_approval else ""
 
         context = ToolContext(
-            workspaces=self.workspaces,
-            policy=self.policy,
+            workspaces=resolved,
+            policy=effective_policy,
             paths=paths,
-            sandbox=self._sandbox_executor() if tool.uses_sandbox else None,
+            sandbox=sandbox if tool.uses_sandbox else None,
         )
         return ToolInspection(tool=tool, request=request, context=context,
                               needs_approval=needs_approval, summary=summary,
                               risk_reason=risk_reason)
 
     # ------------------------------------------------------------------ 执行
-    async def execute(self, call: ToolCallRequest, *, approved: bool = False):
+    async def execute(self, call: ToolCallRequest, *, approved: bool = False,
+                      policy: WorkspacePolicy,
+                      workspaces: Iterable[Path]):
         """执行一次工具调用；高危操作未授权时抛 ToolSuspendedError。"""
-        inspection = self.inspect(call.tool_name, call.arguments)
+        inspection = self.inspect(call.tool_name, call.arguments,
+                                  policy=policy, workspaces=workspaces)
 
         if inspection.needs_approval and not approved:
             AuditLogger.tool_call(tool_name=call.tool_name, tool_id=call.tool_id,
@@ -139,31 +174,37 @@ class ToolExecutor:
         return result
 
     # -------------------------------------------------------------- 路径校验
-    def _resolve_paths(self, tool: ABSTool, request: BaseToolParameters) -> dict[str, Path]:
-        base = self.workspaces[0]
+    @staticmethod
+    def _resolve_paths(tool: ABSTool, request: BaseToolParameters, policy: WorkspacePolicy,
+                       guard: PathGuard, workspaces: tuple[Path, ...]) -> dict[str, Path]:
+        base = workspaces[0]
         resolved: dict[str, Path] = {}
         for name, argument in tool.path_arguments(request).items():
             if not isinstance(argument, PathArgument):
                 raise ToolUnauthorizedError(f"工具 {tool.tool_name} 的路径参数声明不合法：{name}")
             try:
                 if argument.allow_missing:
-                    target = self.path_guard.validate_reference(
-                        argument.value, base=base, tool_name=tool.tool_name)
-                    self._ensure_writable_ancestor(target, argument.permission)
+                    target = guard.validate_reference(
+                        argument.value, workspaces=workspaces, policy=policy,
+                        base=base, tool_name=tool.tool_name)
+                    ToolExecutor._ensure_writable_ancestor(policy, target, argument.permission)
                 else:
-                    target = self.path_guard.resolve_path(
-                        argument.value, permission=argument.permission, base=base,
+                    target = guard.resolve_path(
+                        argument.value, workspaces=workspaces, policy=policy,
+                        permission=argument.permission, base=base,
                         tool_name=tool.tool_name)
             except PathSecurityError as exc:
                 raise ToolUnauthorizedError(f"{tool.tool_name}.{name}: {exc}") from exc
             resolved[name] = target
         return resolved
 
-    def _ensure_writable_ancestor(self, target: Path, permission: PathPermission) -> None:
+    @staticmethod
+    def _ensure_writable_ancestor(policy: WorkspacePolicy, target: Path,
+                                  permission: PathPermission) -> None:
         """allow_missing 路径：校验最近一个已存在祖先目录是否可写。"""
-        if not self.policy.allows(permission):
+        if not policy.allows(permission):
             raise PathSecurityError(
-                f"当前放行模式（{self.policy.mode.value}）不允许 {permission.value}：{target}",
+                f"当前放行模式（{policy.mode.value}）不允许 {permission.value}：{target}",
                 action=PathSecurityAction.PERMISSION_DENIED)
 
         existing = target.parent
@@ -176,30 +217,33 @@ class ToolExecutor:
             raise PathSecurityError(f"没有写入权限：{existing}",
                                     action=PathSecurityAction.PERMISSION_DENIED)
 
-    def _require_execute_permission(self, tool: ABSTool) -> None:
+    @staticmethod
+    def _require_execute_permission(tool: ABSTool, guard: PathGuard,
+                                    workspaces: tuple[Path, ...],
+                                    policy: WorkspacePolicy) -> None:
         try:
-            self.path_guard.check_permission(self.workspaces[0], PathPermission.EXECUTE)
+            guard.check_permission(workspaces[0], PathPermission.EXECUTE,
+                                   workspaces=workspaces, policy=policy)
         except PathSecurityError as exc:
             raise ToolUnauthorizedError(f"{tool.tool_name}: {exc}") from exc
 
-    def _validate_command_paths(self, tool: ABSTool, request: BaseToolParameters) -> None:
+    @staticmethod
+    def _validate_command_paths(tool: ABSTool, request: BaseToolParameters,
+                                guard: PathGuard, workspaces: tuple[Path, ...],
+                                policy: WorkspacePolicy) -> None:
         command = getattr(request, tool.command_field or "", "")
         if not isinstance(command, str) or not command.strip():
             return
 
-        base = self.workspaces[0]
+        base = workspaces[0]
         for raw in _extract_paths(command):
             try:
-                self.path_guard.validate_reference(raw, base=base, tool_name=tool.tool_name)
+                guard.validate_reference(raw, workspaces=workspaces, policy=policy,
+                                         base=base, tool_name=tool.tool_name)
             except PathSecurityError as exc:
                 raise ToolUnauthorizedError(f"{tool.tool_name}: {exc}") from exc
 
     # ------------------------------------------------------------------ 杂项
-    def _sandbox_executor(self) -> SandboxExecutor:
-        if self._sandbox is None:
-            self._sandbox = SandboxExecutor(self.workspaces[0], self.sandbox_config)
-        return self._sandbox
-
     @staticmethod
     def _summary(tool: ABSTool, request: BaseToolParameters) -> str:
         parts = []

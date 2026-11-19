@@ -1,12 +1,15 @@
 """上下文只绑定到单次 Request；凭证不持久化。"""
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List
+from typing import TYPE_CHECKING, List
 
 from httpx import Headers
 
 from loong_cloud_client import CloudClient
 from loong_local.tools.security import WorkspacePolicy
+
+if TYPE_CHECKING:
+    from loong_local.tools.tool_executor import ToolExecutor
 
 
 @dataclass(frozen=True)
@@ -18,16 +21,14 @@ class SSEContext:
     user_id: str | None = None
     platform: str | None = None
 
-    # 多个工作空间
-    workspaces: List[Path] = field(default_factory=lambda: [Path(r"F:\workspace\code\python\loong_auto")])
-    # 变更类操作默认拒绝：写/删/执行需按配置显式放开。
-    policy: WorkspacePolicy = field(default_factory=WorkspacePolicy)
+    # 按本次连接策略派生的工具执行器；由 SessionMiddleware 从 app.state 注入。
+    tool_executor: "ToolExecutor | None" = None
 
     cloud_client: CloudClient | None = None
 
     def headers(self) -> Headers:
         headers = Headers()
-        for name, value in (("Authorization", self.authorization), ("X-Client-ID", self.client_id),
+        for name, value in (("Authorization", self.authorization), ("X-Session-ID", self.client_id),
                             ("X-Local-Request-ID", self.local_request_id), ("X-Platform", self.platform)):
             if value:
                 headers[name] = value

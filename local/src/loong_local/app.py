@@ -6,23 +6,22 @@ from pathlib import Path
 from time import monotonic
 
 import httpx
-from fastapi import FastAPI, HTTPException
-from fastapi.exceptions import RequestValidationError
-from starlette import status
-from starlette.responses import JSONResponse
+from fastapi import FastAPI
 
 from loong_cloud_client import CloudClient
-from loong_contracts.utis import Response
-from loong_contracts.utis.uuid_util import uuid_str
+from loong_contracts.utis.uuid_util import identifier
 from loong_local.core.logging import configure_logging, log_exception
+from loong_local.exception_handlers import register_exception_handlers
 from .api import router
 from .config.config_global import GlobalConfig
 from .core.container import ApplicationContainer
-from .core.exceptions import ToolExecuteError
 from .db.sqlite_db import AsyncSqliteDB
 from .install_setting import SERVICE_TARGETS, WIRE_TARGETS, init_tools
 from .middleware.loading_middleware import loading_middleware
 from .schema import load_tables
+from .tools.registry import GLOBAL_TOOL_REGISTRY
+from .tools.security import (PathGuard, SandboxConfig, ToolGuard, ToolPermissionGuard)
+from .tools.tool_executor import ToolExecutor
 
 
 def _get_path() -> str:
@@ -46,10 +45,9 @@ def _get_path() -> str:
 
 def create_app() -> FastAPI:
     config_path = _get_path()
-
     global_config = GlobalConfig.load(config_path)
-    configure_logging(global_config.log_level)
 
+    configure_logging(global_config.log_level)
     load_tables(global_config.db_config.table_prefix)
 
     sqlite_db = AsyncSqliteDB(sqlite_config=global_config.db_config)
@@ -74,65 +72,39 @@ def create_app() -> FastAPI:
             except Exception as exc:
                 log_exception(exc, "关闭数据库失败")
 
-    container = ApplicationContainer(
+    app = FastAPI(title="Loong Local Gateway", version="0.2.0", lifespan=lifespan)
+
+    app.state.client_id = identifier()  # init client_id for start
+    app.state.global_config = global_config
+
+    app.state.container = ApplicationContainer(
         db=sqlite_db,
         gateway_config=global_config.gateway_config,
         service_targets=SERVICE_TARGETS,
         wire_targets=WIRE_TARGETS)
 
-    app = FastAPI(title="Loong Local Gateway", version="0.2.0", lifespan=lifespan)
+    # 工具执行器随应用启动创建；先把当前提供的工具全部注册进注册表，
+    # 白名单直接取注册表里的工具名，保证"注册了什么就只允许什么"。
+    init_tools()
 
-    app.state.container = container
-    app.state.global_config = global_config
+    app.state.tool_executor = ToolExecutor(
+        registry=GLOBAL_TOOL_REGISTRY,
+        tool_guard=ToolGuard(allowed_tools=GLOBAL_TOOL_REGISTRY.list_tool_names()),
+        permission_guard=ToolPermissionGuard(),
+        path_guard=PathGuard(),
+        sandbox_config=SandboxConfig(),
+    )
 
-    cloud_client = CloudClient(httpx.AsyncClient(
+    app.state.cloud_client = CloudClient(httpx.AsyncClient(
         base_url=global_config.gateway_config.cloud_url,
         timeout=global_config.gateway_config.timeout,
         follow_redirects=False, trust_env=False,
     ))
 
-    app.state.cloud_client = cloud_client
-
     loading_middleware(app)
 
     app.include_router(router)
 
-    init_tools()
-
-    def error_response(request, code, message, headers=None):
-        body = Response.fail(request, code=code, msg=message)
-        # 未处理异常的响应由最外层异常处理器生成，也需要携带上下文响应头。
-        response_headers = dict(headers or {})
-        response_headers["X-Request-ID"] = body.request_id
-        response_headers["X-Request-Date"] = body.request_date.isoformat()
-        return JSONResponse(status_code=code, content=body.model_dump(mode="json"), headers=response_headers)
-
-    @app.exception_handler(HTTPException)
-    async def http_error(request, exc):
-        log_exception(exc, f"HTTP 请求异常, path:{request.url.path}", request_id=request.state.request_id,
-                      request_date=request.state.request_date.isoformat(), status_code=exc.status_code)
-        return error_response(request, exc.status_code, str(exc.detail), exc.headers)
-
-    @app.exception_handler(RequestValidationError)
-    async def invalid_request(request, exc):
-        log_exception(exc, f"请求参数校验失败, path:{request.url.path}", request_id=request.state.request_id,
-                      request_date=request.state.request_date.isoformat(),
-                      status_code=status.HTTP_422_UNPROCESSABLE_CONTENT)
-        return error_response(request, status.HTTP_422_UNPROCESSABLE_CONTENT, "请求参数校验失败")
-
-    @app.exception_handler(ToolExecuteError)
-    async def invalid_request(request, exc):
-        log_exception(exc, f"Toll执行异常, path:{request.url.path}", request_id=request.state.request_id,
-                      request_date=request.state.request_date.isoformat(),
-                      status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        return error_response(request, status.HTTP_500_INTERNAL_SERVER_ERROR, str(exc.detail))
-
-    @app.exception_handler(Exception)
-    async def unexpected_error(request, exc):
-
-        log_exception(exc, f"服务内部异常, path:{request.url.path}", request_id=request.state.request_id,
-                      request_date=request.state.request_date.isoformat(),
-                      status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        return error_response(request, status.HTTP_500_INTERNAL_SERVER_ERROR, "服务内部错误")
+    register_exception_handlers(app)
 
     return app

@@ -15,6 +15,7 @@ SERVICE_TARGETS = [
 WIRE_TARGETS = [
     'loong_local.api.proxy_sse_api',
     'loong_local.api.tool_handler_api',
+    'loong_local.api.session_config_api',
 ]
 
 # 允许模型调用的工具集合；新增工具时在这里注册，权限矩阵同步声明。

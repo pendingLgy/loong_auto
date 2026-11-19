@@ -2,12 +2,13 @@ from dataclasses import dataclass
 
 from sqlalchemy import MetaData, Table
 
-from loong_local.schema.tables import get_tool_tasks_table
+from loong_local.schema.tables import get_session_configs_table, get_tool_tasks_table
 
 
 @dataclass(frozen=True)
 class Tables:
     pending_tool_tasks_table: Table
+    session_configs_table: Table
 
 
 GLOBAL_TABLE_METADATA: MetaData = MetaData()
@@ -20,6 +21,7 @@ def load_tables(prefix: str):
     if GLOBAL_TABLES is None:
         GLOBAL_TABLES = Tables(
             pending_tool_tasks_table=get_tool_tasks_table(GLOBAL_TABLE_METADATA, prefix),
+            session_configs_table=get_session_configs_table(GLOBAL_TABLE_METADATA, prefix),
         )
 
 

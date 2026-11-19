@@ -1,10 +1,12 @@
 # 任务状态字面量类型约束
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Literal, Optional, Dict, Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from loong_contracts.common.tool_constant import ToolTaskStatus
+
+WorkspaceModeLiteral = Literal["read_only", "workspace_write", "full"]
 
 
 class PendingToolTaskModel(BaseModel):
@@ -27,3 +29,15 @@ class PendingToolTaskModel(BaseModel):
 
     created_at: Optional[datetime] = Field(default=None, description="挂起创建时间")
     updated_at: Optional[datetime] = Field(default=None, description="状态更新时间")
+
+
+class SessionConfigModel(BaseModel):
+    """接收 session_configs 表记录的数据模型。"""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    session_id: str = Field(description="业务会话ID")
+    workspace_mode: WorkspaceModeLiteral = Field(default="read_only", description="放行模式")
+    workspaces: list[str] = Field(default_factory=list, description="允许的工作目录列表")
+    created_at: Optional[datetime] = Field(default=None, description="创建时间")
+    updated_at: Optional[datetime] = Field(default=None, description="更新时间")

@@ -134,7 +134,7 @@ class MessagesAPI:
 
 class EventsAPI:
     def __init__(self, client, prefix:str = ""):
-        self.client = client
+        self.client:CloudClient = client
         self.prefix = prefix
 
     async def subscribe(self, client_id: str) -> httpx.Response:
@@ -143,5 +143,5 @@ class EventsAPI:
 
     async def submit(self, client_id:str, session_id: str, body: AddMessageRequest, *,
                      headers: httpx.Headers | dict[str, str] | list[tuple[str, str]] | None = None) -> BaseResponse[None]:
-        return await self.client.request("POST", f"{self.prefix}/api/events//chat/{_segment(client_id)}/session/{_segment(session_id)}/messages",
+        return await self.client.request("POST", f"{self.prefix}/api/events/chat/{_segment(client_id)}/session/{_segment(session_id)}/messages",
                                          BaseResponse[None], body=body, headers=headers)

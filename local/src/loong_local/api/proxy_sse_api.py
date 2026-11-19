@@ -1,5 +1,6 @@
 """SSE 订阅入口，持久化事件支持 Last-Event-ID；不在回放时执行工具。"""
 import asyncio
+from dataclasses import dataclass
 
 import httpx
 from dependency_injector.wiring import Provide, inject
@@ -7,25 +8,34 @@ from fastapi import APIRouter, Request, Depends
 from loguru import logger
 from starlette.responses import Response, StreamingResponse
 
-from loong_contracts.agent.models import LoopEvent
+from loong_contracts.agent.models import LoopEvent, ToolCall
 from loong_contracts.common.llm_message_constant import GlobalMessageStatus
 from ..core.context import SSEContext
 from ..core.logging import log_exception
-from ..tools.tool_executor import ToolExecutor
 from ..service.pending_tool_task_service import PendingToolTaskService
+from ..service.session_config_service import SessionConfigService
+from ..tools.tool_executor import ToolExecutor
 
 router = APIRouter(prefix="/sse", tags=["sse订阅转发"])
+
+
+@dataclass(frozen=True)
+class PendingToolCall:
+    """SSE 阶段投递、后台 Worker 消费的原始工具调用。"""
+
+    session_id: str
+    tool_call: ToolCall
 
 
 @router.get("/subscribe")
 @inject
 async def subscribe(
-    request: Request,
-    pending_tool_task_service: PendingToolTaskService = Depends(Provide["PendingToolTaskService"])
+        request: Request,
+        pending_tool_task_service: PendingToolTaskService = Depends(Provide["PendingToolTaskService"]),
+        session_config_service: SessionConfigService = Depends(Provide["SessionConfigService"]),
 ):
     context: SSEContext = request.state.sse_context
     cloud_client = context.cloud_client
-    client_id = context.client_id
 
     # 保留客户端原始请求头（含 Last-Event-ID），再补充网关身份头。
     headers = httpx.Headers(request.headers)
@@ -38,10 +48,43 @@ async def subscribe(
     except Exception as e:
         return Response(content=f"Upstream connect failed: {str(e)}", status_code=502)
 
-    # 💡 定义专属的任务队列（容量可以根据需要限制，比如 1000）
+    # 定义专属的任务队列（容量可以根据需要限制，比如 1000）
     task_queue: asyncio.Queue = asyncio.Queue()
 
-    # 💡 开启后台 Worker 循环：专门从队列中安全串行消费并写入数据库
+    executor: ToolExecutor = context.tool_executor or request.app.state.tool_executor
+
+    async def persist_tool_call(pending: PendingToolCall) -> None:
+        """后台线程中读取会话配置、做工具准入，并持久化待审批任务。"""
+        if not pending.session_id:
+            logger.warning("工具调用缺少 session_id，已跳过落库 tool={}", pending.tool_call.name)
+            return
+
+        session_config = await session_config_service.get(pending.session_id)
+        if session_config is None:
+            logger.warning("会话配置不存在，跳过工具调度 session_id={}", pending.session_id)
+            return
+
+        policy = SessionConfigService.to_policy(session_config)
+        workspaces = SessionConfigService.to_workspaces(session_config)
+
+        try:
+            inspection = executor.inspect(pending.tool_call.name, pending.tool_call.arguments,
+                                          policy=policy, workspaces=workspaces)
+        except Exception as guard_error:
+            logger.warning("工具准入失败，已跳过调度 tool={} error={}",
+                           pending.tool_call.name, guard_error)
+            return
+
+        await pending_tool_task_service.save_pending_task(
+            tool_id=pending.tool_call.id,
+            session_id=pending.session_id,
+            tool_name=pending.tool_call.name,
+            request_data=inspection.request.model_dump(mode="json"),
+            summary=inspection.summary,
+            risk_reason=inspection.risk_reason if inspection.needs_approval else None,
+        )
+
+    # 开启后台 Worker 循环：专门从队列中安全串行消费并写入数据库
     async def db_worker():
         while True:
             try:
@@ -50,18 +93,8 @@ async def subscribe(
                     task_queue.task_done()
                     break
 
-                # 提取参数解包
-                tool_id, session_id, tool_name, request_data, summary, risk_reason = task_data
-
                 try:
-                    await pending_tool_task_service.save_pending_task(
-                        tool_id=tool_id,
-                        session_id=session_id,
-                        tool_name=tool_name,
-                        request_data=request_data,
-                        summary=summary,
-                        risk_reason=risk_reason
-                    )
+                    await persist_tool_call(task_data)
                 except Exception as db_err:
                     logger.error(f"后台数据库持久化任务执行失败: {db_err}")
                 finally:
@@ -78,7 +111,6 @@ async def subscribe(
     async def generate_proxy_stream():
         try:
             async for raw_chunk in upstream_response.aiter_raw():
-                # print(f"{raw_chunk.decode('utf-8')}")
                 yield raw_chunk
 
                 # 拼接缓冲区并按行切分，防止网络分包截断 JSON
@@ -95,28 +127,14 @@ async def subscribe(
                 if current_event in [GlobalMessageStatus.TOOL_CALLING.value]:
                     try:
                         if len(lines) > 1 and lines[1].startswith("data:"):
-                            loop_event: LoopEvent = LoopEvent.model_validate_json(lines[1][len("data:"):].strip())
-
+                            loop_event: LoopEvent = LoopEvent.model_validate_json(
+                                lines[1][len("data:"):].strip())
                             if loop_event.remote_tool_calls:
-                                # 统一走工具执行入口做准入与审批判定，调度层不再自己查注册表。
-                                executor = ToolExecutor(context.workspaces, policy=context.policy)
-                                for tool_call in loop_event.remote_tool_calls:
-                                    try:
-                                        inspection = executor.inspect(tool_call.name, tool_call.arguments)
-                                    except Exception as guard_error:
-                                        logger.warning("工具准入失败，已跳过调度 tool={} error={}",
-                                                       tool_call.name, guard_error)
-                                        continue
 
-                                    # 💡 极速非阻塞：将持久化参数打包推入队列，毫秒级返回，绝不卡住 SSE 流
-                                    await task_queue.put((
-                                        tool_call.id,
-                                        loop_event.session_id,
-                                        tool_call.name,
-                                        inspection.request.model_dump(mode="json"),
-                                        inspection.summary,
-                                        inspection.risk_reason if inspection.needs_approval else None
-                                    ))
+                                for tool_call in loop_event.remote_tool_calls or []:
+                                    # 极速非阻塞：毫秒级返回，绝不卡住 SSE 流
+                                    await task_queue.put(PendingToolCall(session_id=loop_event.session_id,
+                                                                         tool_call=tool_call))
 
                     except Exception as parse_err:
                         log_exception(parse_err,
@@ -125,14 +143,14 @@ async def subscribe(
         except Exception as e:
             raise e
         finally:
-            logger.info(f"{client_id} close sse")
+            logger.info(f"{context.client_id} close sse")
             # 3. 清理收尾：通知后台 Worker 优雅退出，并关闭上游连接
             await task_queue.put(None)  # 发送停止信号
             try:
                 # 等待队列中剩余任务处理完毕（可设超时防死等）
                 await asyncio.wait_for(task_queue.join(), timeout=3.0)
             except asyncio.TimeoutError:
-                logger.warning(f"{client_id} SSE 关闭时部分后台持久化任务未能在超时时间内完成")
+                logger.warning(f"{context.client_id} SSE 关闭时部分后台持久化任务未能在超时时间内完成")
 
             # 取消 Worker 任务
             worker_task.cancel()

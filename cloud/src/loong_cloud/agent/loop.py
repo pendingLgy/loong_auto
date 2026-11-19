@@ -54,7 +54,11 @@ class AgentLoop:
                     if isinstance(event, Message) and event.status in ["stop","tool_calling"]:
                         response = event
                     else:
-                        loop_event = LoopEvent(client_id=self.client_id, session_id=self.session_id, messages=[event], tool_calls=None, remote_tool_calls=None)
+                        last_message_event = event.status
+                        if event.content is None or len(event.content.strip()) == 0:
+                            last_message_event = GlobalMessageStatus.START
+
+                        loop_event = LoopEvent(client_id=self.client_id, session_id=self.session_id, messages=[event], tool_calls=None, remote_tool_calls=None, last_message_event=last_message_event)
                         yield loop_event
 
             if response is None:

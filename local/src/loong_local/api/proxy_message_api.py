@@ -1,52 +1,28 @@
 """消息提交入口；认证、自动拒绝及上下文补齐交由应用服务。"""
-from urllib.parse import quote
 
 import httpx
 from fastapi import APIRouter, Request
-from loguru import logger
-from starlette.responses import Response
 
+from loong_contracts.request import AddMessageRequest
+from loong_contracts.response import BaseResponse
 from ..core.context import SSEContext
 
-router = APIRouter(prefix="/message", tags=["消息提交接口转发"])
+router = APIRouter(prefix="/session", tags=["消息提交接口转发"])
 
 
-@router.api_route("/{target:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"])
-async def submit_message(request: Request, target: str):
+@router.api_route("/{session_id}/message", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"])
+async def submit_message(request: Request, session_id: str, body: AddMessageRequest):
     context: SSEContext = request.state.sse_context
 
     cloud_client = context.cloud_client
 
+    # 请求体会被重新序列化（SecretStr 脱敏字段还原、字段补全），长度与原请求不同，
+    # 不能透传 content-length，否则云端按旧长度截断请求体，报 "There was an error parsing the body"。
     headers = httpx.Headers(request.headers)
+    for name in ("content-length", "content-type", "host", "connection", "transfer-encoding"):
+        headers.pop(name, None)
     headers.update(context.headers())
 
-    outgoing = cloud_client.build_request(request.method, quote(target),
-                                          headers=headers, content=request.stream())
+    result: BaseResponse = await cloud_client.events.submit(context.client_id, session_id, body=body, headers=headers)
 
-    upstream = await cloud_client.send(outgoing, stream=False)
-
-    try:
-        log = logger.bind(
-            request_id=upstream.headers.get("x-request-id", "-"),
-            request_date=upstream.headers.get("x-request-date", "-")
-        )
-        log.info("path={} status={}", request.url.path, upstream.status_code)
-
-        content = await upstream.aread()
-
-        # httpx 的 Headers 对象的 items() 返回的是 str 类型
-        response_headers = {k: v for k, v in upstream.headers.items()}
-
-        response = Response(
-            content=content,
-            status_code=upstream.status_code,
-            headers=dict(response_headers)
-        )
-
-        response.headers["X-Local-Request-ID"] = context.local_request_id
-
-        return response
-
-    finally:
-        # 8. 确保无论成功还是异常，都关闭 upstream 响应连接
-        await upstream.aclose()
+    return result
