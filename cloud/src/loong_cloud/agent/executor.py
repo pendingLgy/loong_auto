@@ -57,10 +57,10 @@ class ModelExecutor:
             raise RuntimeError("模型执行器已关闭")
         provider = self._catalog.providers.get(config.provider)
         if provider is None:
-            raise ValueError("供应商未在模型目录中配置")
+            raise ValueError("供应商未在模型目录中")
         model = provider.models.get(config.model)
         if model is None:
-            raise ValueError("模型未在该供应商目录中配置")
+            raise ValueError("模型未在该供应商目录中")
         values = provider.model_dump(include={"base_url", "timeout"})
         connection = ProviderConnection.model_validate(values)
         key = config.provider

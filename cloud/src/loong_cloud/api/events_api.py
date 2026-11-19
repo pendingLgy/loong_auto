@@ -178,7 +178,7 @@ async def _run_dialogue(
         await channel.queue.put(LoopEvent(
             session_id=session_id,
             error=True,
-            messages=[Message(status=GlobalMessageStatus.STOP, content="对话执行失败")],
+            messages=[Message(status=GlobalMessageStatus.STOP, content=str(e))],
         ).to_sse())
     finally:
         channel.busy = False
