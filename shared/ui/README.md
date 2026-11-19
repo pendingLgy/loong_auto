@@ -4,13 +4,7 @@ Web 与 Electron 共用的 SolidJS DOM 组件。
 
 ## 目录
 
-```
-ui/
-├── src/
-│   ├── login/   # 登录表单：LoginPage（纯组件，不绑定网关/平台）
-│   └── task/    # 任务：TaskStatus、TaskTimeline
-└── preview/     # 组件预览（不参与生产构建）
-```
+目录树、组件放置与文件命名约定见 [STRUCTURE.md](STRUCTURE.md)。
 
 ## 检查组件效果
 
@@ -36,6 +30,21 @@ bun run --filter '@loong/ui' preview   # http://127.0.0.1:5174
 - 登录失败：`onSubmit` 抛错，展示错误文案；
 - 慢速提交：3 秒延迟，观察提交中的禁用态与 `aria-busy`。
 
+ThreePaneLayout 用例：
+
+- 默认布局：高度为当前窗口高度（`100vh`），最小高度默认 480px；中栏顶部导航栏两端是折叠按钮，左右分隔条可拖动，`onChange` 返回最新 `LayoutState`；
+- 恢复上次宽度：通过 `value` 传入已保存的 `leftWidth` / `rightWidth`；
+- 两侧已折叠：通过 `value` 恢复 `leftCollapsed` / `rightCollapsed`；
+- 英文（locale=en-US）。
+
+ServerConfigPage 用例：
+
+- 中文（默认）：空表单，校验服务器地址与 Token；
+- 带初始值：`initialValue` 预填地址与 Token；
+- 保存失败：`onSubmit` 抛错，展示红色错误；
+- 慢速保存：3 秒延迟，观察保存中状态；
+- 英文（locale=en-US）。
+
 新增组件用例：
 
 1. 在 `preview/cases/<component>.tsx` 中导出 `PreviewCase[]`（`id` / `group` / `title` / `render`，类型见 `preview/types.ts`）；
@@ -47,11 +56,13 @@ bun run --filter '@loong/ui' preview   # http://127.0.0.1:5174
 
 ```ts
 import { LoginPage } from "@loong/ui/login";
+import { ServerConfigPage } from "@loong/ui/server-config";
+import { ThreePaneLayout, type LayoutState } from "@loong/ui/layout";
 import { loginWithLocalGateway } from "@loong/client/login";
 import { TaskStatus, TaskTimeline } from "@loong/ui/task";
 ```
 
-`LoginPage` 只负责输入、校验展示、提交与错误展示：可见文案通过 `@loong/ui/i18n` 的 `translate(locale, key, fallback)` 获取（中文以 fallback 形式内联在组件里，默认 `zh-CN`；英文等其它语言维护在字典中），校验规则与登录实现（`onSubmit`）由消费端注入，不包含网关地址、平台或会话类型。网关登录实现位于 `@loong/client/login`。
+`LoginPage` / `ServerConfigPage` 只负责输入、校验展示、提交与错误展示：可见文案通过 `@loong/ui/i18n` 的 `translate(locale, key, fallback)` 获取（中文以 fallback 形式内联在组件里，默认 `zh-CN`；英文等其它语言维护在字典中），校验规则与登录实现（`onSubmit`）由消费端注入，不包含网关地址、平台或会话类型。网关登录实现位于 `@loong/client/login`。
 
 依赖版本由仓库根 `package.json` 的 `workspaces.catalog` 统一管理；组件以 TS 源码形式提供，由消费端（Web 的 Vite、Electron 的 electron-vite）用 Solid 插件编译。
 

@@ -7,7 +7,9 @@
     ".": "./index.ts",
     "./login": "./src/login/index.ts",
     "./task": "./src/task/index.ts",
-    "./i18n": "./src/i18n/index.ts"
+    "./i18n": "./src/i18n/index.ts",
+    "./server-config": "./src/server-config/index.ts",
+    "./layout": "./src/layout/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

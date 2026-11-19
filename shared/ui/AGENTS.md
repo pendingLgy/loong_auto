@@ -10,29 +10,9 @@
 - 网关/平台/持久化属于消费端（`web/pages`、`desktop/renderer`）或 `shared/client`，不得下沉到组件。
 - 组件不引入全局 CSS；样式由 Tailwind 工具类表达，消费端负责引入 Tailwind 并扫描本目录源码。
 
-## 目录约定
+## 目录结构
 
-```text
-shared/ui/
-├── index.html          # 预览入口
-├── index.ts            # 包出口
-├── package.json        # exports: "." / "./login" / "./task"
-├── preview/            # 组件画廊（不参与生产构建）
-│   ├── main.tsx        # 左侧导航 + 右侧渲染，搜索、分组折叠
-│   ├── cases/          # 每个组件一个用例文件
-│   ├── types.ts        # PreviewCase
-│   └── styles.css      # 仅预览入口使用
-├── src/
-│   ├── login/
-│   │   ├── LoginPage.tsx
-│   │   └── index.ts
-│   └── task/
-└── tsconfig.json       # 覆盖 src/login（task 待契约类型补齐）
-```
-
-- 组件按领域放 `src/<domain>/`，目录内用 `index.ts` 做 barrel；跨目录引用走包导出，不写相对路径穿透到别的领域。
-- 新增组件时同步补 `preview/cases/<domain>.tsx` 用例，并在 `preview/cases/index.ts` 注册。
-- 组件文件使用 `PascalCase.tsx`，非组件模块使用 `camelCase.ts`。
+目录树、组件放置与文件命名约定见 [STRUCTURE.md](STRUCTURE.md)。
 
 ## UI 设计规范
 
