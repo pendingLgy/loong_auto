@@ -3,6 +3,7 @@ import { layoutCases } from "./layout";
 import { loginCases } from "./login";
 import { navCases } from "./nav";
 import { serverConfigCases } from "./server-config";
+import { settingsCases } from "./settings";
 
 /**
  * 预览用例总表：新增组件时创建 `cases/<component>.tsx`，导出用例数组，
@@ -11,6 +12,7 @@ import { serverConfigCases } from "./server-config";
 export const cases: PreviewCase[] = [
   ...loginCases,
   ...serverConfigCases,
+  ...settingsCases,
   ...layoutCases,
   ...navCases,
 ];

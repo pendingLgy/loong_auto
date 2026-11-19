@@ -3,3 +3,4 @@ export * from "./src/login";
 export * from "./src/server-config";
 export * from "./src/layout";
 export * from "./src/nav";
+export * from "./src/settings";

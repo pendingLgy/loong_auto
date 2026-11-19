@@ -6,7 +6,7 @@
 shared/ui/
 ├── index.html          # 预览入口
 ├── index.ts            # 包出口
-├── package.json        # exports: "." / "./login" / "./server-config" / "./layout" / "./nav" / "./task" / "./i18n"
+├── package.json        # exports: "." / "./login" / "./server-config" / "./layout" / "./nav" / "./settings" / "./task" / "./i18n"
 ├── preview/            # 组件画廊（不参与生产构建）
 │   ├── main.tsx        # 左侧导航 + 右侧渲染，搜索、分组折叠
 │   ├── cases/          # 每个组件一个用例文件
@@ -27,6 +27,14 @@ shared/ui/
 │   │   ├── SideNavMenu.tsx       # 主导航（新建对话 / 自动化任务）
 │   │   ├── SideNavWorkspace.tsx  # 工作区列表
 │   │   ├── SideNavUser.tsx       # 底部用户头像 + 名称操作栏
+│   │   └── index.ts
+│   ├── settings/
+│   │   ├── SettingsPage.tsx            # 组合：Nav + 内容
+│   │   ├── SettingsNav.tsx             # 左侧分组导航
+│   │   ├── SettingsServerSection.tsx   # 服务器连接内容
+│   │   ├── SettingsProviderSection.tsx # 模型供应商内容
+│   │   ├── SettingsAccountSection.tsx  # 账号内容
+│   │   ├── types.ts                    # 公共类型
 │   │   └── index.ts
 │   └── task/
 └── tsconfig.json       # 覆盖 src/login（task 待契约类型补齐）

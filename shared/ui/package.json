@@ -10,7 +10,8 @@
     "./i18n": "./src/i18n/index.ts",
     "./server-config": "./src/server-config/index.ts",
     "./layout": "./src/layout/index.ts",
-    "./nav": "./src/nav/index.ts"
+    "./nav": "./src/nav/index.ts",
+    "./settings": "./src/settings/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
