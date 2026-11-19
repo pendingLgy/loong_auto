@@ -8,6 +8,10 @@ import solid from "vite-plugin-solid";
  */
 export default defineConfig({
   plugins: [solid(), tailwindcss()],
+  // 与预览一致：为 markdown 依赖提供 process.env 占位。
+  define: {
+    "process.env": "{}",
+  },
   // 兜底：即使某个文件没有经过 solid 插件，esbuild 也使用 Solid 的自动 JSX 运行时，
   // 避免退化成 `React.createElement` 并报 "React is not defined"。
   esbuild: {
@@ -28,6 +32,11 @@ export default defineConfig({
   optimizeDeps: {
     // @loong/ui 以源码形式提供，交给 vite-plugin-solid 转换，不做预打包。
     exclude: ["@loong/ui"],
+    esbuildOptions: {
+      define: {
+        "process.env": "{}",
+      },
+    },
   },
   resolve: {
     // 工作区内只保留一份 solid-js，避免 HMR/响应式因重复实例失效。

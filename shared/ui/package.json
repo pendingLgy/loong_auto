@@ -22,7 +22,8 @@
   "dependencies": {
     "effect": "catalog:",
     "@solid-primitives/i18n": "catalog:",
-    "@tanstack/solid-virtual": "catalog:"
+    "@tanstack/solid-virtual": "catalog:",
+    "@astrojs/markdown-remark": "catalog:"
   },
   "peerDependencies": {
     "solid-js": "catalog:"

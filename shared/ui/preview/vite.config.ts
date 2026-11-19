@@ -12,6 +12,18 @@ import solid from "vite-plugin-solid";
 export default defineConfig({
   root: ".",
   plugins: [solid({ include: [/\.tsx$/] }), tailwindcss()],
+  // @astrojs/markdown-remark 的 micromark/astro 代码在浏览器环境引用 process.env，
+  // 用 define 替换为空对象，避免 "process is not defined"。
+  define: {
+    "process.env": "{}",
+  },
+  optimizeDeps: {
+    esbuildOptions: {
+      define: {
+        "process.env": "{}",
+      },
+    },
+  },
   server: {
     host: "127.0.0.1",
     port: 5174,

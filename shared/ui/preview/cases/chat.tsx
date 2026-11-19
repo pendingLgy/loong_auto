@@ -5,27 +5,34 @@ import { LlmChat, type ChatMessage, type ChatModelGroup } from "../../src/chat";
 import type { ManagedProvider, ProviderOption } from "../../src/model-picker";
 import type { PreviewCase } from "../types";
 
+const nowMs = Date.now();
+const minutesAgo = (minutes: number) => new Date(nowMs - minutes * 60_000).toISOString();
+const daysAgo = (days: number) => new Date(nowMs - days * 24 * 60 * 60_000).toISOString();
+
 const SAMPLE_MESSAGES: ChatMessage[] = [
-  { id: "1", role: "user", content: "帮我了解一下这个项目。" },
+  { id: "1", role: "user", content: "帮我了解一下这个项目。", createdAt: minutesAgo(90) },
   {
     id: "2",
     role: "assistant",
-    content: "这是一个云端推理、本地执行的 Monorepo 项目：云端负责 LLM 与任务编排，本地网关负责工具执行与权限审批。",
+    content: "这是 **Markdown** 渲染示例：\n\n- 支持列表\n- 支持 `行内代码`\n\n```ts\nconst answer = 42;\n```",
+    createdAt: minutesAgo(89),
   },
-  { id: "3", role: "user", content: "本地网关的默认地址是什么？" },
+  { id: "3", role: "user", content: "本地网关的默认地址是什么？", createdAt: minutesAgo(30) },
   {
     id: "4",
     role: "assistant",
-    content: "本地网关默认运行在 http://127.0.0.1:9528，前端通过它访问云端。",
+    content: "本地网关默认运行在 `http://127.0.0.1:9528`，前端通过它访问云端。",
+    createdAt: daysAgo(2),
   },
 ];
 
 const MANY_MESSAGES: ChatMessage[] = Array.from({ length: 200 }, (_, index) => ({
   id: `m-${index}`,
   role: index % 2 === 0 ? "user" : "assistant",
+  createdAt: minutesAgo((200 - index) * 10),
   content: index % 2 === 0
     ? `这是第 ${index + 1} 条用户消息，用来演示虚拟滚动的长列表效果。`
-    : `这是第 ${index + 1} 条助手回复，消息列表会按可视区域渲染，而不是一次性渲染全部节点。`,
+    : `这是第 ${index + 1} 条助手回复：\n\n- 支持 **Markdown**\n- 用于检查异步渲染后的行高测量\n\n\`\`\`ts\nconst answer = ${index + 1};\n\`\`\``,
 }));
 
 const PROVIDERS: ProviderOption[] = [
@@ -104,12 +111,20 @@ function ChatCase(props: {
         }}
         onAdd={() => undefined}
         onSend={(content) => {
-          setMessages([...messages(), { id: String(nextId++), role: "user", content }]);
+          setMessages([
+        ...messages(),
+        { id: String(nextId++), role: "user", content, createdAt: new Date().toISOString() },
+      ]);
           setStreaming(true);
           window.setTimeout(() => {
             setMessages((current) => [
               ...current,
-              { id: String(nextId++), role: "assistant", content: "收到，这是示例回复。" },
+              {
+          id: String(nextId++),
+          role: "assistant",
+          content: "收到，这是示例回复。",
+          createdAt: new Date().toISOString(),
+        },
             ]);
             setStreaming(false);
           }, 900);

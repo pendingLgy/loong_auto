@@ -1,8 +1,10 @@
-import { For, Show, createEffect, createSignal, type Component, type JSX } from "solid-js";
+import { For, Show, createEffect, createSignal, onCleanup, type Component, type JSX } from "solid-js";
 
 import { createVirtualizer } from "@tanstack/solid-virtual";
 
 import { DEFAULT_LOCALE, translate, type Locale } from "../i18n";
+import { MessageRow } from "./MessageRow";
+import type { ChatMessage } from "./types";
 import {
   ModelPicker,
   type ConnectValues,
@@ -53,15 +55,6 @@ function PlusIcon(): JSX.Element {
   );
 }
 
-export type ChatRole = "user" | "assistant" | "system";
-
-export interface ChatMessage {
-  id: string;
-  role: ChatRole;
-  content: string;
-  createdAt?: string;
-}
-
 export interface LlmChatProps {
   /** 界面语言；默认中文。 */
   locale?: Locale;
@@ -96,34 +89,6 @@ export interface LlmChatProps {
   /** 最小宽度（px），默认 320。 */
   minWidth?: number;
   class?: string;
-}
-
-function MessageRow(props: { message: ChatMessage; locale: Locale }) {
-  const isUser = () => props.message.role === "user";
-  const isSystem = () => props.message.role === "system";
-
-  return (
-    <Show
-      when={!isSystem()}
-      fallback={
-        <p class="m-0 px-2 text-center text-[12px] text-slate-400 dark:text-slate-500">
-          {props.message.content}
-        </p>
-      }
-    >
-      <div class={`flex ${isUser() ? "justify-end" : "justify-start"}`}>
-        <div
-          class={`max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-3 py-2 text-sm ${
-            isUser()
-              ? "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-100"
-              : ""
-          }`}
-        >
-          {props.message.content}
-        </div>
-      </div>
-    </Show>
-  );
 }
 
 /**
@@ -164,6 +129,26 @@ export const LlmChat: Component<LlmChatProps> = (props) => {
     if (count > 0 && scroller) {
       virtualizer.scrollToIndex(count - 1, { align: "end" });
     }
+  });
+
+  // Markdown 是异步渲染的，渲染完成后高度会变化；这里针对具体行重新测量，
+  // 避免虚拟列表仍按旧高度排布导致消息重叠。
+  const pendingRows = new Set<HTMLElement>();
+  let measureFrame: number | undefined;
+  const measureRow = (element: HTMLElement) => {
+    const row = element.closest<HTMLElement>("[data-index]");
+    if (!row) return;
+    pendingRows.add(row);
+    if (measureFrame !== undefined) return;
+    measureFrame = requestAnimationFrame(() => {
+      measureFrame = undefined;
+      pendingRows.forEach((node) => virtualizer.measureElement(node));
+      pendingRows.clear();
+    });
+  };
+
+  onCleanup(() => {
+    if (measureFrame !== undefined) cancelAnimationFrame(measureFrame);
   });
 
   const syncContent = () => {
@@ -285,10 +270,14 @@ export const LlmChat: Component<LlmChatProps> = (props) => {
                 <div
                   data-index={item.index}
                   ref={virtualizer.measureElement}
-                  class="absolute left-0 top-0 w-full pb-3"
+                  class="absolute left-0 top-0 w-full pb-[40px]"
                   style={{ transform: `translateY(${item.start}px)` }}
                 >
-                  <MessageRow message={messages()[item.index]} locale={locale()} />
+                  <MessageRow
+                    message={messages()[item.index]}
+                    locale={locale()}
+                    onRendered={measureRow}
+                  />
                 </div>
               )}
             </For>

@@ -24,6 +24,10 @@ shared/ui/
 │   │   └── index.ts
 │   ├── chat/
 │   │   ├── LlmChat.tsx           # LLM 聊天面板
+│   │   ├── MessageRow.tsx        # 单条消息展示
+│   │   ├── MarkdownContent.tsx   # Markdown 渲染
+│   │   ├── clipboard.ts          # 复制到剪贴板
+│   │   ├── types.ts              # ChatMessage / ChatRole
 │   │   └── index.ts
 │   ├── model-picker/
 │   │   ├── ModelPicker.tsx       # 模型选择弹窗
