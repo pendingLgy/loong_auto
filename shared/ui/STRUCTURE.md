@@ -6,7 +6,7 @@
 shared/ui/
 ├── index.html          # 预览入口
 ├── index.ts            # 包出口
-├── package.json        # exports: "." / "./login" / "./server-config" / "./layout" / "./nav" / "./settings" / "./task" / "./i18n"
+├── package.json        # exports: "." / "./login" / "./server-config" / "./layout" / "./chat" / "./model-picker" / "./nav" / "./settings" / "./task" / "./i18n"
 ├── preview/            # 组件画廊（不参与生产构建）
 │   ├── main.tsx        # 左侧导航 + 右侧渲染，搜索、分组折叠
 │   ├── cases/          # 每个组件一个用例文件
@@ -21,6 +21,12 @@ shared/ui/
 │   │   └── index.ts
 │   ├── layout/
 │   │   ├── ThreePaneLayout.tsx
+│   │   └── index.ts
+│   ├── chat/
+│   │   ├── LlmChat.tsx           # LLM 聊天面板
+│   │   └── index.ts
+│   ├── model-picker/
+│   │   ├── ModelPicker.tsx       # 模型选择弹窗
 │   │   └── index.ts
 │   ├── nav/
 │   │   ├── SideNav.tsx           # 组合：Menu + Workspace

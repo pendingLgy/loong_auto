@@ -1,6 +1,8 @@
 import type { PreviewCase } from "../types";
+import { chatCases } from "./chat";
 import { layoutCases } from "./layout";
 import { loginCases } from "./login";
+import { modelPickerCases } from "./model-picker";
 import { navCases } from "./nav";
 import { serverConfigCases } from "./server-config";
 import { settingsCases } from "./settings";
@@ -15,4 +17,6 @@ export const cases: PreviewCase[] = [
   ...settingsCases,
   ...layoutCases,
   ...navCases,
+  ...chatCases,
+  ...modelPickerCases,
 ];

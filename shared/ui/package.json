@@ -11,7 +11,9 @@
     "./server-config": "./src/server-config/index.ts",
     "./layout": "./src/layout/index.ts",
     "./nav": "./src/nav/index.ts",
-    "./settings": "./src/settings/index.ts"
+    "./settings": "./src/settings/index.ts",
+    "./chat": "./src/chat/index.ts",
+    "./model-picker": "./src/model-picker/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -19,7 +21,8 @@
   },
   "dependencies": {
     "effect": "catalog:",
-    "@solid-primitives/i18n": "catalog:"
+    "@solid-primitives/i18n": "catalog:",
+    "@tanstack/solid-virtual": "catalog:"
   },
   "peerDependencies": {
     "solid-js": "catalog:"
