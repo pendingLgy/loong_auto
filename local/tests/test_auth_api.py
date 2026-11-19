@@ -13,8 +13,11 @@ from loong_contracts.request.login import LoginRequest, RegisterRequest, Refresh
 from loong_contracts.response.login import LoginResponse, UserInfoResponse
 
 
+URL_PREFIX = "api/common"
+
+
 async def test_auth_register_login_me_refresh_logout(http_client):
-    cloud = CloudClient(http_client)
+    cloud = CloudClient(http_client,prefix=URL_PREFIX)
     """验证完整认证流程以及退出后 access token 被撤销。"""
     username = "local_auth_" + uuid4().hex
     password = uuid4().hex
@@ -54,7 +57,7 @@ async def test_auth_register_login_me_refresh_logout(http_client):
 
 
 async def test_auth_login_wrong_password(http_client):
-    cloud = CloudClient(http_client)
+    cloud = CloudClient(http_client,prefix=URL_PREFIX)
     username = "local_auth_" + uuid4().hex
     register_body = RegisterRequest(username=username, password=uuid4().hex, name="密码错误测试")
     registered = await cloud.auth.register(register_body)
@@ -66,7 +69,7 @@ async def test_auth_login_wrong_password(http_client):
 
 
 async def test_auth_me_invalid_token(http_client):
-    cloud = CloudClient(http_client)
+    cloud = CloudClient(http_client,prefix=URL_PREFIX)
     http_client.headers["Authorization"] = "Bearer invalid-test-token"
     with pytest.raises(httpx.HTTPStatusError) as error:
         await cloud.auth.me()
@@ -74,7 +77,7 @@ async def test_auth_me_invalid_token(http_client):
 
 
 async def test_auth_me_configured_account(client, settings):
-    response = await CloudClient(client).auth.me()
+    response = await CloudClient(client,prefix=URL_PREFIX).auth.me()
     assert isinstance(response.data, UserInfoResponse)
     if settings("LOCAL_API_USERNAME"):
         assert response.data.username == settings("LOCAL_API_USERNAME")

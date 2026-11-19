@@ -38,9 +38,8 @@ async def http_client(settings):
 @pytest.fixture(scope="function")
 async def client(http_client, settings):
     """返回带默认认证头的 HTTP 客户端，令牌失效时重新登录。"""
-    auth = CloudClient(http_client,prefix="common").auth
+    auth = CloudClient(http_client,prefix="api/common").auth
     token = settings("LOCAL_API_ACCESS_TOKEN").strip()
-    http_client.headers["x-client-id"] = uuid_str()
 
     if token:
         http_client.headers["Authorization"] = f"Bearer {token}"

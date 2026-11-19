@@ -15,7 +15,6 @@
 import asyncio
 import json
 import os
-from pathlib import Path
 from uuid import uuid4
 
 import httpx
@@ -26,13 +25,14 @@ from loong_contracts.agent.models import Message
 from loong_contracts.common.llm_message_constant import GlobalMessageRole, GlobalMessageStatus
 from loong_contracts.request.message import AddMessageRequest, LLMParamRequest
 from loong_local.install_setting import init_tools
-from loong_local.tools.security import WorkspaceMode, WorkspacePolicy
 from loong_local.tools.base_tool import ToolSuspendedError
-from loong_local.tools.tool_executor import ToolCallRequest, ToolExecutor
 from loong_local.tools.registry import GLOBAL_TOOL_REGISTRY
+from loong_local.tools.security import (PathGuard, SandboxConfig, ToolGuard,
+                                        ToolPermissionGuard, WorkspaceMode, WorkspacePolicy)
+from loong_local.tools.tool_executor import ToolCallRequest, ToolExecutor
 
-SUBSCRIBE_PATH = "/sse/subscribe"
-MESSAGE_PATH = "/message/api/events/chat/{client_id}/messages"
+SUBSCRIBE_PATH = "/api/sse/subscribe"
+MESSAGE_PATH = "/api/session/{session_id}/message"
 EVENT_TIMEOUT_SECONDS = 120
 
 
@@ -77,6 +77,12 @@ async def test_subscribe_execute_tool_and_resubmit(client, settings, tmp_path):
     sample.write_text("tool call sample", encoding="utf-8")
 
     session_id = f"session_{uuid4().hex}"
+    # 建立连接前先登记会话配置：工作目录用 tmp_path，允许完整权限，工具无需审批。
+    created = await client.put(f"/api/session-configs/{session_id}",
+                               json={"workspace_mode": "full", "workspaces": [str(tmp_path)]})
+    assert created.status_code == 200, created.text
+    client.headers["x-session-id"] = session_id
+
     provider = settings("SSE_TEST_PROVIDER", "deepseek")
     model = settings("SSE_TEST_MODEL", "deepseek-chat")
     tool_definition = GLOBAL_TOOL_REGISTRY.get_group_definition(TOOL_NAME)
@@ -97,7 +103,8 @@ async def test_subscribe_execute_tool_and_resubmit(client, settings, tmp_path):
     # 循环状态：待提交消息、连接标识、工具执行标记与最终事件。
     pending_messages = [
         Message(id=uuid4().hex, role=GlobalMessageRole.USER,
-                content=f"请调用 {TOOL_NAME} 工具执行命令列出当前目录 workspaces={Path(r"F:\workspace\code\python\loong_auto")}内容，"
+                content=f"请调用 {TOOL_NAME} 工具执行命令列出当前目录"
+                        f"（工作目录 {tmp_path}）的内容，"
                         f"dangerous 标记为 false，不要执行其他命令。")
     ]
     client_id = None
@@ -124,7 +131,7 @@ async def test_subscribe_execute_tool_and_resubmit(client, settings, tmp_path):
                 payload = body.model_dump(mode="json")
                 # SecretStr 默认脱敏，只在本次提交时显式取出密钥。
                 payload["llm"]["api_key"] = api_key
-                submitted = await client.post(MESSAGE_PATH.format(client_id=client_id),
+                submitted = await client.post(MESSAGE_PATH.format(session_id=session_id),
                                               json=payload)
                 assert submitted.status_code == 200
                 assert submitted.json()["code"] == 200
@@ -157,10 +164,20 @@ async def test_subscribe_execute_tool_and_resubmit(client, settings, tmp_path):
                 definition = GLOBAL_TOOL_REGISTRY.get_group_definition(tool_name)
                 assert definition.name == TOOL_NAME
 
-                executor = ToolExecutor([tmp_path], policy=WorkspacePolicy(mode=WorkspaceMode.FULL))
+                executor = ToolExecutor(
+                    registry=GLOBAL_TOOL_REGISTRY,
+                    tool_guard=ToolGuard(
+                        allowed_tools=GLOBAL_TOOL_REGISTRY.list_tool_names()),
+                    permission_guard=ToolPermissionGuard(),
+                    path_guard=PathGuard(),
+                    sandbox_config=SandboxConfig(),
+                )
                 try:
                     result = await executor.execute(
-                        ToolCallRequest(tool_id=tool_id, tool_name=tool_name, arguments=arguments))
+                        ToolCallRequest(tool_id=tool_id, tool_name=tool_name,
+                                        arguments=arguments),
+                        policy=WorkspacePolicy(mode=WorkspaceMode.FULL),
+                        workspaces=(tmp_path,))
                 except ToolSuspendedError as exc:
                     pytest.fail(f"模型选择了需要人工审批的命令，用例只执行只读命令：{exc.summary}")
 
@@ -189,6 +206,8 @@ async def test_subscribe_execute_tool_and_resubmit(client, settings, tmp_path):
                 break
     finally:
         await response.aclose()
+        # 清理本次会话配置，避免在网关数据库中残留测试数据。
+        await client.delete(f"/api/session-configs/{session_id}")
 
     assert final is not None
     assert final["error"] is False

@@ -25,58 +25,78 @@ def workspace(tmp_path):
     return root
 
 
-def _action(guard: PathGuard, raw: str, **kwargs) -> PathSecurityAction:
+class Guarded:
+    """把工作区与策略绑定到 PathGuard，测试里少写重复参数。
+
+    PathGuard 本身不持有 workpaces/policy，校验时由调用方传入。
+    """
+
+    def __init__(self, workspaces, policy: WorkspacePolicy | None = None, **flags):
+        self.workspaces = tuple(Path(workspace) for workspace in workspaces)
+        self.policy = policy or WorkspacePolicy()
+        self.guard = PathGuard(**flags)
+
+    def validate_reference(self, raw, **kwargs):
+        return self.guard.validate_reference(raw, workspaces=self.workspaces,
+                                             policy=self.policy, **kwargs)
+
+    def resolve_path(self, raw, **kwargs):
+        return self.guard.resolve_path(raw, workspaces=self.workspaces,
+                                       policy=self.policy, **kwargs)
+
+
+def _action(guarded: Guarded, raw: str, **kwargs) -> PathSecurityAction:
     with pytest.raises(PathSecurityError) as error:
-        guard.validate_reference(raw, **kwargs)
+        guarded.validate_reference(raw, **kwargs)
     return error.value.action
 
 
 def test_allows_relative_path(workspace):
-    guard = PathGuard([workspace])
+    guard = Guarded([workspace])
     target = guard.validate_reference("project/a.py")
     assert target == (workspace / "project" / "a.py").resolve()
 
 
 def test_allows_current_dir_prefix(workspace):
-    guard = PathGuard([workspace])
+    guard = Guarded([workspace])
     assert guard.validate_reference("./project/a.py").name == "a.py"
 
 
 def test_rejects_internal_traversal_by_default(workspace):
-    guard = PathGuard([workspace])
+    guard = Guarded([workspace])
     assert _action(guard, "project/../uploads/a.txt") is PathSecurityAction.PATH_TRAVERSAL
 
 
 def test_allows_internal_traversal_when_enabled(workspace):
-    guard = PathGuard([workspace], allow_path_traversal=True)
+    guard = Guarded([workspace], allow_path_traversal=True)
     target = guard.validate_reference("project/../uploads/a.txt")
     assert target == (workspace / "uploads" / "a.txt").resolve()
 
 
 def test_rejects_path_traversal(workspace):
-    guard = PathGuard([workspace])
+    guard = Guarded([workspace])
     assert _action(guard, "../../etc/passwd") is PathSecurityAction.PATH_TRAVERSAL
 
 
 def test_rejects_absolute_paths(workspace):
-    guard = PathGuard([workspace])
+    guard = Guarded([workspace])
     assert _action(guard, "/etc/passwd") is PathSecurityAction.ABSOLUTE_PATH
     assert _action(guard, "C:\\Windows\\system.ini") is PathSecurityAction.ABSOLUTE_PATH
 
 
 def test_allows_absolute_path_inside_workspace_when_enabled(workspace):
-    guard = PathGuard([workspace], allow_absolute_path=True)
+    guard = Guarded([workspace], allow_absolute_path=True)
     target = guard.validate_reference(str(workspace / "project" / "a.py"))
     assert target == (workspace / "project" / "a.py").resolve()
 
 
 def test_rejects_unc_path(workspace):
-    guard = PathGuard([workspace])
+    guard = Guarded([workspace])
     assert _action(guard, "\\\\server\\share\\a.txt") is PathSecurityAction.UNC_PATH
 
 
 def test_rejects_empty_and_null_byte(workspace):
-    guard = PathGuard([workspace])
+    guard = Guarded([workspace])
     assert _action(guard, "") is PathSecurityAction.INVALID_PATH
     assert _action(guard, "a.py\x00.txt") is PathSecurityAction.INVALID_PATH
 
@@ -91,13 +111,13 @@ def test_rejects_symlink_escape(workspace, tmp_path):
     except OSError:
         pytest.skip("当前环境不允许创建符号链接")
 
-    guard = PathGuard([workspace])
+    guard = Guarded([workspace])
     action = _action(guard, "project/link/passwd")
     assert action in {PathSecurityAction.SYMLINK, PathSecurityAction.OUTSIDE_WORKSPACE}
 
 
 def test_missing_file_depends_on_operation(workspace):
-    guard = PathGuard([workspace])
+    guard = Guarded([workspace])
     # 命令参数里的待创建文件可以只校验归属
     assert guard.validate_reference("project/notfound.py").name == "notfound.py"
     # 读操作要求文件存在
@@ -108,9 +128,9 @@ def test_missing_file_depends_on_operation(workspace):
 
 def test_read_only_mode_denies_mutations(workspace):
     """默认 read_only：读放行，写/删/执行一律拒绝。"""
-    guard = PathGuard([workspace])
+    guard = Guarded([workspace])
     assert guard.policy.mode is WorkspaceMode.READ_ONLY
-    assert guard.requires_approval is False
+    assert guard.policy.requires_approval is False
     assert guard.resolve_path("project/a.py", permission=PathPermission.READ).name == "a.py"
     for permission in (PathPermission.WRITE, PathPermission.DELETE, PathPermission.EXECUTE):
         with pytest.raises(PathSecurityError) as error:
@@ -120,8 +140,8 @@ def test_read_only_mode_denies_mutations(workspace):
 
 def test_workspace_write_mode_allows_mutations_with_approval(workspace):
     """workspace_write：工作区内允许写/删/执行，但高危操作需要人工确认。"""
-    guard = PathGuard([workspace], policy=WorkspacePolicy(mode=WorkspaceMode.WORKSPACE_WRITE))
-    assert guard.requires_approval is True
+    guard = Guarded([workspace], policy=WorkspacePolicy(mode=WorkspaceMode.WORKSPACE_WRITE))
+    assert guard.policy.requires_approval is True
     assert guard.resolve_path("output/new.txt", permission=PathPermission.WRITE).name == "new.txt"
     assert guard.resolve_path("output/result.txt", permission=PathPermission.DELETE).name == "result.txt"
     assert guard.resolve_path("project", permission=PathPermission.EXECUTE).name == "project"
@@ -129,8 +149,8 @@ def test_workspace_write_mode_allows_mutations_with_approval(workspace):
 
 def test_full_mode_allows_mutations_without_approval(workspace):
     """full：工作区内完全权限，不再逐次人工确认；工作区边界仍然有效。"""
-    guard = PathGuard([workspace], policy=WorkspacePolicy(mode=WorkspaceMode.FULL))
-    assert guard.requires_approval is False
+    guard = Guarded([workspace], policy=WorkspacePolicy(mode=WorkspaceMode.FULL))
+    assert guard.policy.requires_approval is False
     assert guard.resolve_path("output/new.txt", permission=PathPermission.WRITE).name == "new.txt"
     with pytest.raises(PathSecurityError) as error:
         guard.resolve_path("../escape.txt", permission=PathPermission.WRITE)
