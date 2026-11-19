@@ -15,6 +15,17 @@ import type { PreviewCase } from "../types";
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
+const POPULAR_PROVIDERS = [
+  { name: "OpenAI", description: "GPT 系列模型", baseUrl: "https://api.openai.com/v1" },
+  { name: "Anthropic", description: "Claude 系列模型", baseUrl: "https://api.anthropic.com" },
+];
+
+const ALL_PROVIDERS = [
+  ...POPULAR_PROVIDERS,
+  { name: "DeepSeek", description: "DeepSeek 系列模型", baseUrl: "https://api.deepseek.com" },
+  { name: "Google", description: "Gemini 系列模型", baseUrl: "https://generativelanguage.googleapis.com" },
+];
+
 function NavOnlyCase(props: { locale?: Locale }) {
   const [active, setActive] = createSignal<SettingsSectionKey>("server");
 
@@ -55,7 +66,9 @@ function ProviderSectionOnlyCase(props: { locale?: Locale }) {
     <div class="mx-auto w-full max-w-xl p-4">
       <SettingsProviderSection
         locale={props.locale}
-        providers={[{ name: "OpenAI", baseUrl: "https://api.openai.com/v1", model: "gpt-4o" }]}
+        providers={[{ name: "OpenAI", alias: "我的 OpenAI", baseUrl: "https://api.openai.com/v1" }]}
+        popular={POPULAR_PROVIDERS}
+        allProviders={ALL_PROVIDERS}
         onAdd={async () => undefined}
       />
     </div>
@@ -90,10 +103,22 @@ function SettingsCase(props: {
         }}
         provider={{
           providers: [
-            { name: "OpenAI", baseUrl: "https://api.openai.com/v1", model: "gpt-4o" },
+            { name: "OpenAI", alias: "我的 OpenAI", baseUrl: "https://api.openai.com/v1" },
           ],
+          onEditProvider: (provider) => setMessage(`编辑供应商：${provider.name}`),
+          onUpdateApiKey: async (provider) => {
+            setMessage(`修改 API Key：${provider.name}`);
+          },
+          onRenameProvider: async (provider, alias) => {
+            setMessage(`重命名供应商：${provider.name} → ${alias}`);
+          },
+          onDeleteProvider: (provider) => setMessage(`移除供应商：${provider.alias || provider.name}`),
+          popular: POPULAR_PROVIDERS,
+          allProviders: ALL_PROVIDERS,
+          onSelectPopular: (provider) => setMessage(`选择热门供应商：${provider.name}`),
+          onSelectAllProvider: (provider) => setMessage(`选择全部供应商：${provider.name}`),
           onAdd: async (values) => {
-            setMessage(`添加供应商：${values.name}`);
+            setMessage(`添加供应商：${values.alias || values.name}`);
           },
         }}
         account={{

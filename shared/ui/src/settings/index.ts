@@ -12,6 +12,7 @@ export type {
   ConfiguredModelProvider,
   ConfiguredServer,
   ModelProviderValues,
+  PopularProvider,
   SettingsAccountOptions,
   SettingsProviderOptions,
   SettingsSectionKey,

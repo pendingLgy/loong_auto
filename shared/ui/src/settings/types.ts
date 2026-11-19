@@ -46,6 +46,8 @@ export interface SettingsAccountOptions {
 /** 模型供应商表单值。 */
 export interface ModelProviderValues {
   name: string;
+  /** 用户自定义的别称；为空时使用 name。 */
+  alias: string;
   baseUrl: string;
   apiKey: string;
   model: string;
@@ -54,16 +56,38 @@ export interface ModelProviderValues {
 /** 已配置的模型供应商。 */
 export interface ConfiguredModelProvider {
   name: string;
+  /** 用户自定义别称；展示时优先使用。 */
+  alias?: string;
   baseUrl: string;
-  model?: string;
+}
+
+/** 热门供应商推荐。 */
+export interface PopularProvider {
+  name: string;
+  description: string;
+  baseUrl: string;
 }
 
 /** 模型供应商页面的配置（挂在 SettingsPage.provider 下）。 */
 export interface SettingsProviderOptions {
-  /** 添加供应商表单的初始值。 */
-  initialValue?: ModelProviderValues;
   /** 已配置的供应商列表。 */
   providers?: ConfiguredModelProvider[];
+  /** 热门供应商卡片的数据。 */
+  popular?: PopularProvider[];
+  /** 「全部供应商」弹窗的数据（与热门列表独立）。 */
+  allProviders?: PopularProvider[];
+  /** 点击已配置供应商的「编辑」。 */
+  onEditProvider?: (provider: ConfiguredModelProvider) => void;
+  /** 在重命名弹窗中保存别称。 */
+  onRenameProvider?: (provider: ConfiguredModelProvider, alias: string) => Promise<void>;
+  /** 点击已配置供应商的「移除」。 */
+  onDeleteProvider?: (provider: ConfiguredModelProvider) => void;
+  /** 在编辑弹窗中保存新的 API Key。 */
+  onUpdateApiKey?: (provider: ConfiguredModelProvider, apiKey: string) => Promise<void>;
+  /** 点击热门供应商。 */
+  onSelectPopular?: (provider: PopularProvider) => void;
+  /** 点击「全部供应商」弹窗中的供应商。 */
+  onSelectAllProvider?: (provider: PopularProvider) => void;
   /** 添加模型供应商。 */
   onAdd?: (values: ModelProviderValues) => Promise<void>;
 }
