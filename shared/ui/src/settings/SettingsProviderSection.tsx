@@ -264,6 +264,15 @@ export const SettingsProviderSection: Component<SettingsProviderSectionProps> = 
       </Show>
 
       <div class={`grid gap-4 ${props.class ?? ""}`}>
+        <header class="grid gap-1">
+          <h2 class="m-0 text-base font-semibold text-slate-800 dark:text-slate-100">
+            {translate(locale(), "settings.provider.title", "供应商")}
+          </h2>
+          <p class="m-0 text-sm text-slate-500 dark:text-slate-400">
+            {translate(locale(), "settings.provider.description", "管理模型供应商与 API Key 配置")}
+          </p>
+        </header>
+
         <div class="grid gap-3 rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-white/10 dark:bg-slate-900/80">
           <h2 class="m-0 text-sm font-semibold text-slate-700 dark:text-slate-200">
             {translate(locale(), "settings.provider.configuredTitle", "已配置的供应商")}

@@ -3,10 +3,12 @@ import { Show, createSignal, type Component } from "solid-js";
 import { DEFAULT_LOCALE, translate, type Locale } from "../i18n";
 import { SettingsAccountSection } from "./SettingsAccountSection";
 import { SettingsNav } from "./SettingsNav";
+import { SettingsModelSection } from "./SettingsModelSection";
 import { SettingsProviderSection } from "./SettingsProviderSection";
 import { SettingsServerSection } from "./SettingsServerSection";
 import type {
   SettingsAccountOptions,
+  SettingsModelOptions,
   SettingsProviderOptions,
   SettingsSectionKey,
   SettingsServerOptions,
@@ -23,6 +25,8 @@ export interface SettingsPageProps {
   server?: SettingsServerOptions;
   /** 模型供应商页面专属配置。 */
   provider?: SettingsProviderOptions;
+  /** 模型页面专属配置。 */
+  model?: SettingsModelOptions;
   /** 账号页面专属配置。 */
   account?: SettingsAccountOptions;
   class?: string;
@@ -69,6 +73,10 @@ export const SettingsPage: Component<SettingsPageProps> = (props) => {
 
           <Show when={activeSection() === "provider"}>
             <SettingsProviderSection locale={props.locale} {...props.provider} />
+          </Show>
+
+          <Show when={activeSection() === "model"}>
+            <SettingsModelSection locale={props.locale} {...props.model} />
           </Show>
 
           <Show when={activeSection() === "account"}>

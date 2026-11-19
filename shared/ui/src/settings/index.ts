@@ -6,6 +6,8 @@ export { SettingsServerSection } from "./SettingsServerSection";
 export type { SettingsServerSectionProps } from "./SettingsServerSection";
 export { SettingsProviderSection } from "./SettingsProviderSection";
 export type { SettingsProviderSectionProps } from "./SettingsProviderSection";
+export { SettingsModelSection } from "./SettingsModelSection";
+export type { SettingsModelSectionProps } from "./SettingsModelSection";
 export { SettingsAccountSection } from "./SettingsAccountSection";
 export type { SettingsAccountSectionProps } from "./SettingsAccountSection";
 export type {
@@ -14,6 +16,9 @@ export type {
   ModelProviderValues,
   PopularProvider,
   SettingsAccountOptions,
+  ModelInfo,
+  ProviderModelGroup,
+  SettingsModelOptions,
   SettingsProviderOptions,
   SettingsSectionKey,
   SettingsServerOptions,

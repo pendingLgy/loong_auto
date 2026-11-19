@@ -20,6 +20,7 @@ export const SettingsNav: Component<SettingsNavProps> = (props) => {
   const sections = (): Array<{ key: SettingsSectionKey; label: string }> => [
     { key: "server", label: translate(locale(), "settings.server.title", "服务器") },
     { key: "provider", label: translate(locale(), "settings.provider.title", "供应商") },
+    { key: "model", label: translate(locale(), "settings.model.title", "模型") },
     { key: "account", label: translate(locale(), "settings.account.title", "账号") },
   ];
 

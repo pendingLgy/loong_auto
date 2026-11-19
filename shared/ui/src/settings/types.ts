@@ -17,7 +17,7 @@ export interface ConfiguredServer {
 }
 
 /** 设置分组标识。 */
-export type SettingsSectionKey = "server" | "provider" | "account";
+export type SettingsSectionKey = "server" | "provider" | "model" | "account";
 
 /** 服务器连接页面的配置（挂在 SettingsPage.server 下）。 */
 export interface SettingsServerOptions {
@@ -90,4 +90,34 @@ export interface SettingsProviderOptions {
   onSelectAllProvider?: (provider: PopularProvider) => void;
   /** 添加模型供应商。 */
   onAdd?: (values: ModelProviderValues) => Promise<void>;
+}
+
+/** 供应商提供的模型。 */
+export interface ModelInfo {
+  /** 模型标识，例如 gpt-4o。 */
+  id: string;
+  /** 显示名称；默认使用 id。 */
+  name?: string;
+  /** 是否已启动。 */
+  enabled?: boolean;
+}
+
+/** 已配置供应商及其提供的全部模型。 */
+export interface ProviderModelGroup {
+  /** 供应商名称。 */
+  providerName: string;
+  /** 用户自定义别称；展示时优先使用。 */
+  alias?: string;
+  /** 供应商接口地址。 */
+  baseUrl: string;
+  /** 供应商提供的全部模型。 */
+  models: ModelInfo[];
+}
+
+/** 模型页面的配置（挂在 SettingsPage.model 下）。 */
+export interface SettingsModelOptions {
+  /** 已配置的供应商及其模型列表。 */
+  providers?: ProviderModelGroup[];
+  /** 保存供应商下模型的启用状态。 */
+  onSaveModels?: (provider: ProviderModelGroup, models: ModelInfo[]) => Promise<void>;
 }

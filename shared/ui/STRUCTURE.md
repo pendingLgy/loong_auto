@@ -33,6 +33,7 @@ shared/ui/
 │   │   ├── SettingsNav.tsx             # 左侧分组导航
 │   │   ├── SettingsServerSection.tsx   # 服务器连接内容
 │   │   ├── SettingsProviderSection.tsx # 模型供应商内容
+│   │   ├── SettingsModelSection.tsx    # 模型内容
 │   │   ├── SettingsAccountSection.tsx  # 账号内容
 │   │   ├── types.ts                    # 公共类型
 │   │   └── index.ts

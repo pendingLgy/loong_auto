@@ -3,6 +3,7 @@ import { Show, createSignal } from "solid-js";
 import type { Locale } from "../../src/i18n";
 import {
   SettingsAccountSection,
+  SettingsModelSection,
   SettingsNav,
   SettingsPage,
   SettingsProviderSection,
@@ -61,6 +62,36 @@ function AccountSectionOnlyCase(props: { locale?: Locale }) {
   );
 }
 
+function ModelSectionOnlyCase(props: { locale?: Locale }) {
+  return (
+    <div class="mx-auto w-full max-w-xl p-4">
+      <SettingsModelSection
+        locale={props.locale}
+        providers={[
+          {
+            providerName: "OpenAI",
+            alias: "我的 OpenAI",
+            baseUrl: "https://api.openai.com/v1",
+            models: [
+              { id: "gpt-4o", enabled: true },
+              { id: "gpt-4o-mini" },
+              { id: "o3" },
+            ],
+          },
+          {
+            providerName: "DeepSeek",
+            baseUrl: "https://api.deepseek.com",
+            models: [
+              { id: "deepseek-chat", enabled: true },
+              { id: "deepseek-reasoner" },
+            ],
+          },
+        ]}
+      />
+    </div>
+  );
+}
+
 function ProviderSectionOnlyCase(props: { locale?: Locale }) {
   return (
     <div class="mx-auto w-full max-w-xl p-4">
@@ -99,6 +130,32 @@ function SettingsCase(props: {
               throw new Error("security_token 错误");
             }
             setMessage("配置已保存");
+          },
+        }}
+        model={{
+          providers: [
+            {
+              providerName: "OpenAI",
+              alias: "我的 OpenAI",
+              baseUrl: "https://api.openai.com/v1",
+              models: [
+                { id: "gpt-4o", enabled: true },
+                { id: "gpt-4o-mini" },
+                { id: "o3" },
+              ],
+            },
+            {
+              providerName: "DeepSeek",
+              baseUrl: "https://api.deepseek.com",
+              models: [
+                { id: "deepseek-chat", enabled: true },
+                { id: "deepseek-reasoner" },
+              ],
+            },
+          ],
+          onSaveModels: async (provider, models) => {
+            const enabled = models.filter((item) => item.enabled).length;
+            setMessage(`${provider.providerName}：已启用 ${enabled} 个模型`);
           },
         }}
         provider={{
@@ -148,6 +205,12 @@ export const settingsCases: PreviewCase[] = [
     render: () => <ServerSectionOnlyCase />,
   },
   {
+    id: "settings-model-section",
+    group: "SettingsPage",
+    title: "仅模型内容（SettingsModelSection）",
+    render: () => <ModelSectionOnlyCase />,
+  },
+  {
     id: "settings-provider-section",
     group: "SettingsPage",
     title: "仅供应商内容（SettingsProviderSection）",
@@ -187,6 +250,12 @@ export const settingsCases: PreviewCase[] = [
         ]}
       />
     ),
+  },
+  {
+    id: "settings-model",
+    group: "SettingsPage",
+    title: "模型分组",
+    render: () => <SettingsCase initialSection="model" />,
   },
   {
     id: "settings-provider",
