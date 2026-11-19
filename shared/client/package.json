@@ -1,5 +1,14 @@
 {
-  "name": "@loong/client", "version": "0.1.0", "private": true,
-  "type": "module", "exports": { ".": "./index.ts" },
-  "dependencies": { "effect": "^3.0.0", "eventsource-parser": "^3.0.0" }
+  "name": "@loong/client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./index.ts",
+    "./login": "./login.ts"
+  },
+  "dependencies": {
+    "effect": "catalog:",
+    "eventsource-parser": "catalog:"
+  }
 }

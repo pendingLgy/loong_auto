@@ -58,10 +58,10 @@ HTTP 客户端由调用方创建、配置和关闭。SDK 只提供 auth/messages
 ## TypeScript 共享模块
 
 - contracts：公共 TypeScript 类型。
-- client：Effect 本地网关客户端，供 TUI、Web、Electron 使用。
-- ui：SolidJS DOM 组件，供 Web、Electron 使用，TUI 不导入。
+- client：Effect 本地网关客户端（含登录 `@loong/client/login`），供 TUI、Web、Electron 使用。
+- ui：纯 SolidJS DOM 组件，供 Web、Electron 使用，TUI 不导入；组件不依赖网关、平台或会话，登录等上下文逻辑由消费端注入；文案由 `@loong/ui/i18n` 提供，默认 `zh-CN`（中文内联为 fallback，字典维护其它语言）。
 
-这些目录已有 package.json 与基础源码，尚未配置完整 Bun workspace、统一构建或类型检查脚本，由消费端构建工具处理；不提供不存在的 dev/build 命令。Python 契约、TypeScript 类型与 Schema 的完整自动生成流水线尚未建立。
+依赖由仓库根 Bun workspace 统一安装与锁定（根 `bun install`），版本在根 `package.json` 的 `workspaces.catalog` 中维护；`shared/ui` 提供 `bun run --filter '@loong/ui' typecheck` 与组件预览 `bun run --filter '@loong/ui' preview`（http://127.0.0.1:5174，不依赖网关），构建由消费端（Web 的 Vite、Electron 的 electron-vite）处理。Python 契约、TypeScript 类型与 Schema 的完整自动生成流水线尚未建立。
 
 用户端业务请求经过 local，本 SDK 供 Python 本地网关等可信消费端访问 cloud，不能作为界面绕过本地网关的依据。local 启动方式见 [本地构建说明](../local/BUILD.md)。
 

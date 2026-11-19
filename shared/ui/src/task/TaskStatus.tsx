@@ -1,4 +1,4 @@
-import type { Task } from "../contracts/types";
+import type { Task } from "../../../contracts/types";
 
 const labels: Record<Task["status"], string> = {
   queued: "排队中", running: "推理中", waiting_tool: "等待本地执行",

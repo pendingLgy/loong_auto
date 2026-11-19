@@ -1,0 +1,24 @@
+root = true
+
+# 全局通用默认规则
+[*]
+charset = utf-8
+insert_final_newline = true
+end_of_line = lf
+indent_style = space
+indent_size = 2
+max_line_length = 80
+
+# Node.js / 前端相关文件（2 空格缩进）
+[*.{js,mjs,cjs,ts,mts,cts,jsx,tsx,json,yaml,yml}]
+indent_size = 2
+max_line_length = 100
+
+# Python 相关文件（PEP 8 标准 4 空格缩进）
+[*.{py,pyi}]
+indent_size = 4
+max_line_length = 100
+
+# Makefile 必须使用 Tab 缩进（防止误改导致报错）
+[Makefile]
+indent_style = tab

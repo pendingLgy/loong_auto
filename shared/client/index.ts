@@ -74,3 +74,5 @@ export function createLocalClient(options: {
     }),
   };
 }
+
+export * from "./login";
