@@ -33,7 +33,7 @@ class Message(BaseModel):
     output_tokens: int | None = Field(default=0, description="输出 Token 用量")
     total_tokens: int | None = Field(default=0, description="总 Token 用量")
     content: str = ""
-    tool_calls: list[ToolCall] | None = Field(default_factory=list)
+    tool_calls: list[ToolCall] | None = Field(default=None)
     tool_call_id: str | None = None
 
 

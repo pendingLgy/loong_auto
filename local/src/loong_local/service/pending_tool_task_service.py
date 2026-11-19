@@ -21,7 +21,7 @@ class PendingToolTaskService:
             tool_id: str,
             session_id: str,
             tool_name: str,
-            request_data: Dict[str, Any],
+            request_data: Dict[str, Any] | str,
             summary: str,
             risk_reason: Optional[str] = None
     ) -> None:
@@ -86,7 +86,20 @@ class PendingToolTaskService:
             if not row:
                 return None
 
-            return PendingToolTaskModel.model_validate(row)
+            # request_data 在表中是 JSON Text，读出来是字符串，模型需要字典。
+            # 兼容历史数据可能被重复序列化的情况，逐层解到字典为止。
+            data = dict(row)
+            raw = data.get("request_data")
+            for _ in range(3):
+                if not isinstance(raw, str):
+                    break
+                try:
+                    raw = json.loads(raw)
+                except json.JSONDecodeError:
+                    raw = {}
+            data["request_data"] = raw if isinstance(raw, dict) else {}
+
+            return PendingToolTaskModel.model_validate(data)
 
     async def update_status(self, session_id: str, tool_id: str, status: ToolTaskStatus) -> None:
         """

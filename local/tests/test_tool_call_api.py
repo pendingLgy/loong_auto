@@ -33,6 +33,7 @@ from loong_local.tools.tool_executor import ToolCallRequest, ToolExecutor
 
 SUBSCRIBE_PATH = "/api/sse/subscribe"
 MESSAGE_PATH = "/api/session/{session_id}/message"
+APPROVE_PATH = "/api/tools/{session_id}/approved/{tool_id}"
 EVENT_TIMEOUT_SECONDS = 120
 
 
@@ -61,6 +62,20 @@ class SSEStream:
         assert data is not None, f"事件 {event} 缺少 data 负载"
         return event, json.loads(data)
 
+
+async def approve_pending_tool(client, session_id: str, tool_id: str) -> dict:
+    """等待后台 Worker 落库后提交审批，返回执行结果对应的 tool 消息。"""
+    for _ in range(20):
+        response = await client.post(
+            APPROVE_PATH.format(session_id=session_id, tool_id=tool_id),
+            json={"approved": True})
+        if response.status_code == 200:
+            return response.json()["data"]
+        if response.status_code != 404:
+            pytest.fail(f"审批接口异常：{response.status_code} {response.text}")
+        # 挂起任务由 subscribe 的后台 Worker 异步写入，稍等后重试。
+        await asyncio.sleep(0.1)
+    pytest.fail("待审批任务未在超时时间内落库")
 
 async def test_subscribe_execute_tool_and_resubmit(client, settings, tmp_path):
     """订阅 SSE 后用 while 循环处理推送：触发工具调用、本地执行、再次提交并读到最终回答。"""
@@ -216,3 +231,261 @@ async def test_subscribe_execute_tool_and_resubmit(client, settings, tmp_path):
     assert messages[-1]["content"].strip()
     # 工具结果已写入会话上下文，最终回答基于真实执行结果。
     assert any(message["role"] == GlobalMessageRole.TOOL.value for message in messages)
+
+
+async def test_dangerous_tool_call_requires_manual_approval(client, settings, tmp_path):
+    """危险工具在 workspace_write 模式下必须审批：审批前不执行，审批后才真正落盘。"""
+    api_key = settings("DEEPSEEK_API_KEY").strip()
+    if not api_key:
+        pytest.skip("未配置 DEEPSEEK_API_KEY，跳过真实模型测试")
+
+    TOOL_NAME = "shell_command"
+    if TOOL_NAME not in GLOBAL_TOOL_REGISTRY.list_tool_names():
+        init_tools()
+
+    session_id = f"session_{uuid4().hex}"
+    # workspace_write：写操作需要人工审批；工作目录限定在 tmp_path。
+    created = await client.put(f"/api/session-configs/{session_id}",
+                               json={"workspace_mode": "workspace_write",
+                                     "workspaces": [str(tmp_path)]})
+    assert created.status_code == 200, created.text
+    client.headers["x-session-id"] = session_id
+
+    marker = tmp_path / "approval_marker.txt"
+    command = (f"New-Item -ItemType File -Force -Path '{marker.name}'"
+               if os.name == "nt" else f"touch {marker.name}")
+
+    provider = settings("SSE_TEST_PROVIDER", "deepseek")
+    model = settings("SSE_TEST_MODEL", "deepseek-chat")
+    tool_definition = GLOBAL_TOOL_REGISTRY.get_group_definition(TOOL_NAME)
+    assert tool_definition.location == "remote"
+
+    common_body = dict(
+        tenant_id=0,
+        user_id=0,
+        session_id=session_id,
+        session_title="工具审批测试",
+        llm=LLMParamRequest(provider=provider, model=model, temperature=0,
+                            api_key=SecretStr(api_key)),
+        tools=[tool_definition],
+    )
+
+    pending_messages = [
+        Message(id=uuid4().hex, role=GlobalMessageRole.USER,
+                content=f"请调用 {TOOL_NAME} 工具执行命令：{command}。"
+                        f"这是创建文件的操作，dangerous 标记为 true，不要执行其他命令。")
+    ]
+    client_id = None
+    tool_executed = False
+    final = None
+
+    response = await client.send(client.build_request("GET", SUBSCRIBE_PATH), stream=True)
+    try:
+        stream = SSEStream(response)
+
+        while True:
+            if client_id is None:
+                assert response.status_code == 200, await response.aread()
+                assert response.headers["content-type"].startswith("text/event-stream")
+                event, data = await stream.next_event()
+                assert event == GlobalMessageStatus.CONNECTED.value
+                client_id = data["client_id"]
+                assert client_id
+                continue
+
+            if pending_messages:
+                body = AddMessageRequest(**common_body, messages=pending_messages)
+                payload = body.model_dump(mode="json")
+                payload["llm"]["api_key"] = api_key
+                submitted = await client.post(MESSAGE_PATH.format(session_id=session_id),
+                                              json=payload)
+                assert submitted.status_code == 200
+                assert submitted.json()["code"] == 200
+                pending_messages = None
+
+            event, data = await stream.next_event()
+            if event == GlobalMessageStatus.HEARTBEAT.value:
+                continue
+            assert data.get("session_id") == session_id
+
+            tool_calls = data.get("remote_tool_calls")
+            if tool_calls:
+                assert event == GlobalMessageStatus.TOOL_CALLING.value
+                if tool_executed:
+                    pytest.fail("模型在回传工具结果后再次请求工具调用")
+
+                assert len(tool_calls) == 1
+                call = tool_calls[0]
+                assert call["name"] == TOOL_NAME
+                # 审批前不应产生任何副作用。
+                assert not marker.exists(), "危险命令在人工审批前被执行了"
+
+                tool_message = await approve_pending_tool(client, session_id, call["id"])
+                assert tool_message["role"] == GlobalMessageRole.TOOL.value
+                assert tool_message["tool_call_id"] == call["id"]
+                assert "Run tool failed" not in tool_message["content"]
+                # 审批通过后才真正执行。
+                assert marker.exists(), "审批通过后命令仍未执行"
+
+                tool_executed = True
+                assistant = Message.model_validate(data["messages"][-1])
+                assert assistant.role == GlobalMessageRole.ASSISTANT
+                pending_messages = [assistant, Message.model_validate(tool_message)]
+                continue
+
+            if event == GlobalMessageStatus.STOP.value:
+                assert tool_executed, "模型未触发工具调用，事件流直接结束"
+                final = data
+                break
+    finally:
+        await response.aclose()
+        await client.delete(f"/api/session-configs/{session_id}")
+
+    assert final is not None
+    assert final["error"] is False
+    messages = final["messages"]
+    assert messages[-1]["role"] == GlobalMessageRole.ASSISTANT.value
+    assert messages[-1]["content"].strip()
+    assert any(message["role"] == GlobalMessageRole.TOOL.value for message in messages)
+
+
+async def test_mixed_tool_calls_execute_in_tool_call_order(client, settings, tmp_path):
+    """一次响应里混合多个工具：只读工具直接执行，危险工具走审批，且严格按 tool_calls 顺序。"""
+    api_key = settings("DEEPSEEK_API_KEY").strip()
+    if not api_key:
+        pytest.skip("未配置 DEEPSEEK_API_KEY，跳过真实模型测试")
+
+    if "read_file" not in GLOBAL_TOOL_REGISTRY.list_tool_names():
+        init_tools()
+
+    session_id = f"session_{uuid4().hex}"
+    created = await client.put(f"/api/session-configs/{session_id}",
+                               json={"workspace_mode": "workspace_write",
+                                     "workspaces": [str(tmp_path)]})
+    assert created.status_code == 200, created.text
+    client.headers["x-session-id"] = session_id
+
+    sample = tmp_path / "sample.txt"
+    sample.write_text("mixed tool sample", encoding="utf-8")
+    written = tmp_path / "approval_demo.txt"
+
+    provider = settings("SSE_TEST_PROVIDER", "deepseek")
+    model = settings("SSE_TEST_MODEL", "deepseek-chat")
+    tool_definitions = [GLOBAL_TOOL_REGISTRY.get_group_definition(name)
+                        for name in ("read_file", "write_file")]
+
+    common_body = dict(
+        tenant_id=0,
+        user_id=0,
+        session_id=session_id,
+        session_title="混合工具测试",
+        llm=LLMParamRequest(provider=provider, model=model, temperature=0,
+                            api_key=SecretStr(api_key)),
+        tools=tool_definitions,
+    )
+
+    pending_messages = [
+        Message(id=uuid4().hex, role=GlobalMessageRole.USER,
+                content="请在同一轮里调用两个工具：先用 read_file 读取 sample.txt，"
+                        "再用 write_file 把内容 approved 写入 approval_demo.txt。"
+                        "不要调用其他工具。")
+    ]
+    client_id = None
+    mixed_executed = False
+    final = None
+
+    executor = ToolExecutor(
+        registry=GLOBAL_TOOL_REGISTRY,
+        tool_guard=ToolGuard(allowed_tools=GLOBAL_TOOL_REGISTRY.list_tool_names()),
+        permission_guard=ToolPermissionGuard(),
+        path_guard=PathGuard(),
+        sandbox_config=SandboxConfig(),
+    )
+
+    response = await client.send(client.build_request("GET", SUBSCRIBE_PATH), stream=True)
+    try:
+        stream = SSEStream(response)
+
+        while True:
+            if client_id is None:
+                assert response.status_code == 200, await response.aread()
+                assert response.headers["content-type"].startswith("text/event-stream")
+                event, data = await stream.next_event()
+                assert event == GlobalMessageStatus.CONNECTED.value
+                client_id = data["client_id"]
+                assert client_id
+                continue
+
+            if pending_messages:
+                body = AddMessageRequest(**common_body, messages=pending_messages)
+                payload = body.model_dump(mode="json")
+                payload["llm"]["api_key"] = api_key
+                submitted = await client.post(MESSAGE_PATH.format(session_id=session_id),
+                                              json=payload)
+                assert submitted.status_code == 200
+                assert submitted.json()["code"] == 200
+                pending_messages = None
+
+            event, data = await stream.next_event()
+            if event == GlobalMessageStatus.HEARTBEAT.value:
+                continue
+            assert data.get("session_id") == session_id
+
+            tool_calls = data.get("remote_tool_calls")
+            if tool_calls:
+                assert event == GlobalMessageStatus.TOOL_CALLING.value
+                if mixed_executed:
+                    pytest.fail("模型在回传工具结果后再次请求工具调用")
+
+                names = [call["name"] for call in tool_calls]
+                assert set(names) == {"read_file", "write_file"}, f"模型未按预期调用工具：{names}"
+
+                assistant = Message.model_validate(data["messages"][-1])
+                assert assistant.role == GlobalMessageRole.ASSISTANT
+
+                tool_messages: list[Message] = []
+                for call in tool_calls:
+                    tool = GLOBAL_TOOL_REGISTRY.create_tool_instance(call["name"])
+                    if tool.requires_approval:
+                        # 危险工具：必须走人工审批，由审批接口执行。
+                        message = await approve_pending_tool(client, session_id, call["id"])
+                    else:
+                        # 只读工具：直接执行，不触发审批。
+                        result = await executor.execute(
+                            ToolCallRequest(tool_id=call["id"], tool_name=call["name"],
+                                            arguments=call["arguments"]),
+                            policy=WorkspacePolicy(mode=WorkspaceMode.WORKSPACE_WRITE),
+                            workspaces=(tmp_path,))
+                        message = Message(id=uuid4().hex, role=GlobalMessageRole.TOOL,
+                                          status=GlobalMessageStatus.TOOL_CALLED,
+                                          tool_call_id=call["id"],
+                                          content=result.model_dump_json()).model_dump(mode="json")
+                    assert message["tool_call_id"] == call["id"]
+                    tool_messages.append(Message.model_validate(message))
+
+                # 严格按 tool_calls 顺序返回结果。
+                assert [message.tool_call_id for message in tool_messages] == \
+                       [call["id"] for call in tool_calls]
+                # 危险工具必须审批后才落盘。
+                assert written.exists()
+                mixed_executed = True
+                pending_messages = [assistant, *tool_messages]
+                continue
+
+            if event == GlobalMessageStatus.STOP.value:
+                assert mixed_executed, "模型未触发工具调用，事件流直接结束"
+                final = data
+                break
+    finally:
+        await response.aclose()
+        await client.delete(f"/api/session-configs/{session_id}")
+
+    assert final is not None
+    assert final["error"] is False
+    assert written.exists()
+    assert written.read_text(encoding="utf-8") == "approved"
+    messages = final["messages"]
+    assert messages[-1]["role"] == GlobalMessageRole.ASSISTANT.value
+    tool_message_ids = [message["tool_call_id"] for message in messages
+                        if message["role"] == GlobalMessageRole.TOOL.value]
+    assert tool_message_ids
