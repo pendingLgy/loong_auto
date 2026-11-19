@@ -1,5 +1,6 @@
-import { For, Show, createSignal, type Component, type JSX } from "solid-js";
+import { For, Show, createSignal, onMount, type Component, type JSX } from "solid-js";
 
+import { ChevronIcon, MoreIcon, PlusIcon, SearchIcon, SpinnerIcon } from "../icon";
 import { DEFAULT_LOCALE, translate, type Locale } from "../i18n";
 
 /** 工作区下的对话。 */
@@ -13,6 +14,14 @@ export interface Workspace {
   id: string;
   name: string;
   conversations: WorkspaceConversation[];
+}
+
+/** 供其他组件触发的命令式方法。 */
+export interface SideNavWorkspaceRef {
+  /** 刷新工作区列表。 */
+  refreshWorkspaces: () => void;
+  /** 刷新指定工作区的对话记录。 */
+  refreshConversations: (workspaceId: string) => void;
 }
 
 export interface SideNavWorkspaceProps {
@@ -32,76 +41,36 @@ export interface SideNavWorkspaceProps {
   onMoreWorkspace?: (workspaceId: string) => void;
   /** 点击工作区的「新建对话」按钮。 */
   onCreateConversation?: (workspaceId: string) => void;
+  /** 刷新工作区列表。 */
+  onRefreshWorkspaces?: () => void;
+  /** 刷新指定工作区的对话记录。 */
+  onRefreshConversations?: (workspaceId: string) => void;
+  /**
+   * 标记对话是否正在处理中；返回 true 时在对话右侧显示 loading 图标。
+   */
+  isConversationProcessing?: (workspaceId: string, conversationId: string) => boolean;
+  /** 组件就绪后回传命令式方法，供其他组件触发刷新。 */
+  onReady?: (ref: SideNavWorkspaceRef) => void;
   class?: string;
 }
 
-function SearchIcon(): JSX.Element {
-  return (
-    <svg
-      class="h-3.5 w-3.5"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="1.8"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      aria-hidden="true"
-    >
-      <circle cx="11" cy="11" r="7" />
-      <path d="m20 20-3.5-3.5" />
-    </svg>
-  );
-}
 
-function PlusIcon(): JSX.Element {
-  return (
-    <svg
-      class="h-3.5 w-3.5"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="1.8"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M12 5v14M5 12h14" />
-    </svg>
-  );
-}
 
-function ChevronIcon(props: { expanded: boolean }): JSX.Element {
-  return (
-    <svg
-      class={`h-3.5 w-3.5 shrink-0 transition-transform ${props.expanded ? "rotate-90" : ""}`}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="1.8"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      aria-hidden="true"
-    >
-      <path d="m9 6 6 6-6 6" />
-    </svg>
-  );
-}
 
-function MoreIcon(): JSX.Element {
-  return (
-    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <circle cx="5" cy="12" r="1.6" />
-      <circle cx="12" cy="12" r="1.6" />
-      <circle cx="19" cy="12" r="1.6" />
-    </svg>
-  );
-}
+
 
 /** 左侧工作区列表：搜索、新增工作区、折叠展开、对话选择与工作区操作。 */
 export const SideNavWorkspace: Component<SideNavWorkspaceProps> = (props) => {
   const locale = () => props.locale ?? DEFAULT_LOCALE;
 
   const [collapsedWorkspaces, setCollapsedWorkspaces] = createSignal<ReadonlySet<string>>(new Set());
+
+  onMount(() => {
+    props.onReady?.({
+      refreshWorkspaces: () => props.onRefreshWorkspaces?.(),
+      refreshConversations: (workspaceId) => props.onRefreshConversations?.(workspaceId),
+    });
+  });
 
   const isCollapsed = (workspaceId: string) => collapsedWorkspaces().has(workspaceId);
 
@@ -200,7 +169,17 @@ export const SideNavWorkspace: Component<SideNavWorkspaceProps> = (props) => {
                           : "text-slate-500 hover:bg-slate-900/5 dark:text-slate-400 dark:hover:bg-white/5"
                       }`}
                     >
-                      <span class="truncate">{conversation.title}</span>
+                      <span class="min-w-0 flex-1 truncate">{conversation.title}</span>
+                      <Show when={props.isConversationProcessing?.(workspace.id, conversation.id)}>
+                        <span
+                          class="grid h-4 w-4 shrink-0 place-items-center text-blue-600 dark:text-blue-400"
+                          role="status"
+                          aria-label={translate(locale(), "nav.processing", "处理中")}
+                          title={translate(locale(), "nav.processing", "处理中")}
+                        >
+                          <SpinnerIcon />
+                        </span>
+                      </Show>
                     </button>
                   )}
                 </For>

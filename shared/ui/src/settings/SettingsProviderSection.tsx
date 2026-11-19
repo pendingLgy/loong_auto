@@ -1,5 +1,6 @@
 import { For, Show, createSignal, type Component, type JSX } from "solid-js";
 
+import { CloseIcon, FlameIcon, MoreIcon, SearchIcon } from "../icon";
 import { DEFAULT_LOCALE, translate, type Locale } from "../i18n";
 import type {
   ConfiguredModelProvider,
@@ -14,23 +15,7 @@ export interface SettingsProviderSectionProps extends SettingsProviderOptions {
   class?: string;
 }
 
-function MoreDotsIcon(): JSX.Element {
-  return (
-    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <circle cx="5" cy="12" r="1.6" />
-      <circle cx="12" cy="12" r="1.6" />
-      <circle cx="19" cy="12" r="1.6" />
-    </svg>
-  );
-}
 
-function FlameIcon(): JSX.Element {
-  return (
-    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <path d="M12 2c.6 3.1 2.1 4.7 3.8 6.4C17.7 10.3 19 12 19 14.5A7 7 0 0 1 5 14.5c0-2 .8-3.6 2.2-5 .2 1.5.9 2.6 2 3.2-.4-3.6 1-6.6 2.8-10.7Z" />
-    </svg>
-  );
-}
 
 function isHttpUrl(value: string): boolean {
   try {
@@ -310,7 +295,7 @@ export const SettingsProviderSection: Component<SettingsProviderSectionProps> = 
                   aria-expanded={menuProvider() === provider}
                   class="grid h-7 w-7 shrink-0 place-items-center rounded-md text-slate-500 outline-none transition hover:bg-slate-900/10 hover:text-slate-700 focus-visible:ring-2 focus-visible:ring-sky-500/40 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-200"
                 >
-                  <MoreDotsIcon />
+                  <MoreIcon />
                 </button>
                 <Show when={menuProvider() === provider}>
                   <div
@@ -665,17 +650,12 @@ export const SettingsProviderSection: Component<SettingsProviderSectionProps> = 
                 title={translate(locale(), "settings.provider.close", "关闭")}
                 class="grid h-7 w-7 place-items-center rounded-md text-slate-500 outline-none transition hover:bg-slate-900/5 hover:text-slate-800 focus-visible:ring-2 focus-visible:ring-sky-500/40 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-200"
               >
-                <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
-                  <path d="m6 6 12 12M18 6 6 18" />
-                </svg>
+                <CloseIcon />
               </button>
             </header>
 
             <label class="flex h-9 items-center gap-2 rounded-lg border border-slate-300 bg-white px-2 text-slate-400 focus-within:border-sky-500 focus-within:ring-2 focus-within:ring-sky-500/30 dark:border-white/15 dark:bg-slate-950/60">
-              <svg class="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
-                <circle cx="11" cy="11" r="7" />
-                <path d="m20 20-3.5-3.5" />
-              </svg>
+              <SearchIcon />
               <input
                 class="w-full bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400 dark:text-slate-200"
                 type="search"

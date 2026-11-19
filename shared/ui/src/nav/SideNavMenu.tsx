@@ -1,5 +1,6 @@
 import { For, type Component, type JSX } from "solid-js";
 
+import { NavItemIcon } from "../icon";
 import { DEFAULT_LOCALE, translate, type Locale } from "../i18n";
 
 /** 主导航的菜单项标识。 */
@@ -19,24 +20,6 @@ export interface SideNavMenuProps {
   class?: string;
 }
 
-function ItemIcon(props: { name: SideNavKey }): JSX.Element {
-  return (
-    <svg
-      class="h-4 w-4 shrink-0"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="1.8"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      aria-hidden="true"
-    >
-      {props.name === "newChat"
-        ? <path d="M20 11.5a7.5 7.5 0 0 1-10.9 6.7L4 20l1.8-5.1A7.5 7.5 0 1 1 20 11.5Z" />
-        : <path d="M12 8v4l2.5 2.5M12 3a9 9 0 1 0 9 9 9 9 0 0 0-9-9Z" />}
-    </svg>
-  );
-}
 
 /** 左侧主导航：新建对话、自动化任务。 */
 export const SideNavMenu: Component<SideNavMenuProps> = (props) => {
@@ -70,7 +53,7 @@ export const SideNavMenu: Component<SideNavMenuProps> = (props) => {
                 : "text-slate-600 hover:bg-slate-900/5 dark:text-slate-300 dark:hover:bg-white/5"
             }`}
           >
-            <ItemIcon name={item.key} />
+            <NavItemIcon name={item.key} />
             <span class="truncate">{item.label}</span>
           </button>
         )}

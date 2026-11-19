@@ -1,5 +1,6 @@
 import type { PreviewCase } from "../types";
 import { chatCases } from "./chat";
+import { iconCases } from "./icon";
 import { layoutCases } from "./layout";
 import { loginCases } from "./login";
 import { modelPickerCases } from "./model-picker";
@@ -19,4 +20,5 @@ export const cases: PreviewCase[] = [
   ...navCases,
   ...chatCases,
   ...modelPickerCases,
+  ...iconCases,
 ];

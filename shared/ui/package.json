@@ -13,7 +13,8 @@
     "./nav": "./src/nav/index.ts",
     "./settings": "./src/settings/index.ts",
     "./chat": "./src/chat/index.ts",
-    "./model-picker": "./src/model-picker/index.ts"
+    "./model-picker": "./src/model-picker/index.ts",
+    "./icon": "./src/icon/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

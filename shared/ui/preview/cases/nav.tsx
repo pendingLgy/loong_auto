@@ -44,6 +44,9 @@ function NavCase(props: { locale?: Locale; initial?: SideNavKey }) {
         onCreateWorkspace={() => setLastAction("新增工作区")}
         onMoreWorkspace={(workspaceId) => setLastAction(`更多：${workspaceId}`)}
         onCreateConversation={(workspaceId) => setLastAction(`新建对话：${workspaceId}`)}
+        onRefreshWorkspaces={() => setLastAction("刷新工作区")}
+        onRefreshConversations={(workspaceId) => setLastAction(`刷新对话记录：${workspaceId}`)}
+        isConversationProcessing={(_, conversationId) => conversationId === "A-2"}
         user={{ name: "Loong", username: "loong@example.com" }}
         onUserClick={() => setLastAction("用户菜单")}
         onSettings={() => setLastAction("设置")}
@@ -86,6 +89,9 @@ function WorkspaceOnlyCase(props: { locale?: Locale }) {
         workspaces={WORKSPACES}
         activeConversationId={conversation()}
         onSelectConversation={(_, conversationId) => setConversation(conversationId)}
+        onRefreshWorkspaces={() => undefined}
+        onRefreshConversations={() => undefined}
+        isConversationProcessing={(_, conversationId) => conversationId === "A-2"}
       />
     </div>
   );

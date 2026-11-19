@@ -3,6 +3,7 @@ import { createEffect, createResource, type Component } from "solid-js";
 import { createMarkdownProcessor } from "@astrojs/markdown-remark";
 
 import { DEFAULT_LOCALE, translate, type Locale } from "../i18n";
+import { checkIconSvg, copyIconSvg } from "../icon";
 import { copyText } from "./clipboard";
 
 type Processor = Awaited<ReturnType<typeof createMarkdownProcessor>>;
@@ -96,9 +97,6 @@ function escapeHtml(value: string): string {
 }
 
 
-const COPY_ICON = '<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>';
-const CHECK_ICON = '<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 13 4 4L19 7"/></svg>';
-
 const markdownClass = "grid min-w-0 gap-1.5 whitespace-normal break-words text-sm leading-relaxed "
   + "[&_a]:text-sky-600 [&_a]:underline "
   + "[&_blockquote]:m-0 [&_blockquote]:border-l-2 [&_blockquote]:border-slate-300 [&_blockquote]:pl-3 "
@@ -166,7 +164,7 @@ export const MarkdownContent: Component<MarkdownContentProps> = (props) => {
 
     void copyText(code.textContent ?? "")
       .then(() => {
-        button.innerHTML = CHECK_ICON;
+        button.innerHTML = checkIconSvg;
         button.setAttribute("aria-label", translate(locale(), "chat.copied", "已复制"));
         button.setAttribute("title", translate(locale(), "chat.copied", "已复制"));
       })
@@ -177,7 +175,7 @@ export const MarkdownContent: Component<MarkdownContentProps> = (props) => {
       .finally(() => {
         window.setTimeout(() => {
           if (!button.isConnected) return;
-          button.innerHTML = COPY_ICON;
+          button.innerHTML = copyIconSvg;
           button.setAttribute("aria-label", translate(locale(), "chat.copyCode", "复制"));
           button.setAttribute("title", translate(locale(), "chat.copyCode", "复制"));
         }, 1200);
@@ -191,7 +189,7 @@ export const MarkdownContent: Component<MarkdownContentProps> = (props) => {
     if (content === undefined || !node) return;
 
     node.querySelectorAll<HTMLButtonElement>("[data-copy-code]").forEach((button) => {
-      button.innerHTML = COPY_ICON;
+      button.innerHTML = copyIconSvg;
       button.setAttribute("aria-label", copyLabel);
       button.setAttribute("title", copyLabel);
     });

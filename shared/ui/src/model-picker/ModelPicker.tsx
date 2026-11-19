@@ -1,5 +1,6 @@
 import { For, Show, createEffect, createSignal, type Component, type JSX } from "solid-js";
 
+import { BackIcon, PlusIcon, SearchIcon, SlidersIcon } from "../icon";
 import { DEFAULT_LOCALE, translate, type Locale } from "../i18n";
 
 /** 可选的模型。 */
@@ -73,73 +74,9 @@ export interface ModelPickerProps {
 
 type PickerView = "select" | "providers" | "manage";
 
-function PlusIcon(): JSX.Element {
-  return (
-    <svg
-      class="h-3.5 w-3.5"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="1.8"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M12 5v14M5 12h14" />
-    </svg>
-  );
-}
 
-function SlidersIcon(): JSX.Element {
-  return (
-    <svg
-      class="h-3.5 w-3.5"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="1.5"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9.75" />
-    </svg>
-  );
-}
 
-function BackIcon(): JSX.Element {
-  return (
-    <svg
-      class="h-3.5 w-3.5"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="1.8"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      aria-hidden="true"
-    >
-      <path d="m15 6-6 6 6 6" />
-    </svg>
-  );
-}
 
-function SearchIcon(): JSX.Element {
-  return (
-    <svg
-      class="h-3.5 w-3.5 shrink-0"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="1.8"
-      stroke-linecap="round"
-      aria-hidden="true"
-    >
-      <circle cx="11" cy="11" r="7" />
-      <path d="m20 20-3.5-3.5" />
-    </svg>
-  );
-}
 
 /** 模型选择弹窗：选择模型、添加供应商、管理已配置模型。 */
 export const ModelPicker: Component<ModelPickerProps> = (props) => {

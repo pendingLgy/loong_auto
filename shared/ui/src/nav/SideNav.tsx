@@ -3,7 +3,7 @@ import type { Component } from "solid-js";
 import { DEFAULT_LOCALE, translate, type Locale } from "../i18n";
 import { SideNavMenu, type SideNavKey } from "./SideNavMenu";
 import { SideNavUser, type SideNavUserData } from "./SideNavUser";
-import { SideNavWorkspace, type Workspace } from "./SideNavWorkspace";
+import { SideNavWorkspace, type SideNavWorkspaceRef, type Workspace } from "./SideNavWorkspace";
 
 export interface SideNavProps {
   /** 界面语言；默认中文。 */
@@ -30,6 +30,14 @@ export interface SideNavProps {
   onMoreWorkspace?: (workspaceId: string) => void;
   /** 点击工作区的「新建对话」按钮。 */
   onCreateConversation?: (workspaceId: string) => void;
+  /** 刷新工作区列表。 */
+  onRefreshWorkspaces?: () => void;
+  /** 刷新指定工作区的对话记录。 */
+  onRefreshConversations?: (workspaceId: string) => void;
+  /** 标记对话是否正在处理中，用于显示 loading 图标。 */
+  isConversationProcessing?: (workspaceId: string, conversationId: string) => boolean;
+  /** 获取工作区命令式方法（刷新工作区 / 刷新对话记录）。 */
+  onWorkspaceReady?: (ref: SideNavWorkspaceRef) => void;
   /** 底部用户信息。 */
   user?: SideNavUserData;
   /** 点击底部用户栏。 */
@@ -77,6 +85,10 @@ export const SideNav: Component<SideNavProps> = (props) => {
         onCreateWorkspace={props.onCreateWorkspace}
         onMoreWorkspace={props.onMoreWorkspace}
         onCreateConversation={props.onCreateConversation}
+        onRefreshWorkspaces={props.onRefreshWorkspaces}
+        onRefreshConversations={props.onRefreshConversations}
+        isConversationProcessing={props.isConversationProcessing}
+        onReady={props.onWorkspaceReady}
       />
     </div>
     <SideNavUser

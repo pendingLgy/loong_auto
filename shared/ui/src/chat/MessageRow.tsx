@@ -1,44 +1,12 @@
 import { Show, createSignal, onCleanup, type Component, type JSX } from "solid-js";
 
 import { translate, type Locale } from "../i18n";
+import { CheckIcon, CopyIcon } from "../icon";
 import { MarkdownContent } from "./MarkdownContent";
 import { copyText } from "./clipboard";
 import type { ChatMessage } from "./types";
 
-function CopyIcon(): JSX.Element {
-  return (
-    <svg
-      class="h-3.5 w-3.5"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="1.8"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      aria-hidden="true"
-    >
-      <rect x="9" y="9" width="11" height="11" rx="2" />
-      <path d="M5 15V5a2 2 0 0 1 2-2h10" />
-    </svg>
-  );
-}
 
-function CheckIcon(): JSX.Element {
-  return (
-    <svg
-      class="h-3.5 w-3.5"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="1.8"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      aria-hidden="true"
-    >
-      <path d="m5 13 4 4L19 7" />
-    </svg>
-  );
-}
 
 function pad(value: number): string {
   return String(value).padStart(2, "0");

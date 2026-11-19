@@ -3,6 +3,7 @@ import { For, Show, createEffect, createSignal, onCleanup, type Component, type 
 import { createVirtualizer } from "@tanstack/solid-virtual";
 
 import { DEFAULT_LOCALE, translate, type Locale } from "../i18n";
+import { PlusIcon, SendIcon, StopIcon } from "../icon";
 import { MessageRow } from "./MessageRow";
 import type { ChatMessage } from "./types";
 import {
@@ -13,47 +14,8 @@ import {
   type ProviderOption,
 } from "../model-picker";
 
-function SendIcon(): JSX.Element {
-  return (
-    <svg
-      class="h-4 w-4"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="1.8"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M12 19V5M5 12l7-7 7 7" />
-    </svg>
-  );
-}
 
-function StopIcon(): JSX.Element {
-  return (
-    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <rect x="6" y="6" width="12" height="12" rx="2" />
-    </svg>
-  );
-}
 
-function PlusIcon(): JSX.Element {
-  return (
-    <svg
-      class="h-4 w-4"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="1.8"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M12 5v14M5 12h14" />
-    </svg>
-  );
-}
 
 export interface LlmChatProps {
   /** 界面语言；默认中文。 */
@@ -202,7 +164,7 @@ export const LlmChat: Component<LlmChatProps> = (props) => {
           title={translate(locale(), "chat.add", "添加")}
           class="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-slate-200 text-slate-600 outline-none transition hover:bg-slate-900/5 hover:text-slate-800 focus-visible:ring-2 focus-visible:ring-sky-500/40 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-slate-100"
         >
-          <PlusIcon />
+          <PlusIcon class="h-4 w-4" />
         </button>
 
         <button

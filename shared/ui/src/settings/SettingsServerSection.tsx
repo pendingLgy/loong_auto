@@ -1,5 +1,6 @@
 import { For, Show, createSignal, type Component, type JSX } from "solid-js";
 
+import { PlusIcon } from "../icon";
 import { DEFAULT_LOCALE, translate, type Locale } from "../i18n";
 import type { SettingsServerOptions, SettingsValues } from "./types";
 
@@ -9,22 +10,6 @@ export interface SettingsServerSectionProps extends SettingsServerOptions {
   class?: string;
 }
 
-function PlusIcon(): JSX.Element {
-  return (
-    <svg
-      class="h-3.5 w-3.5"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="1.8"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M12 5v14M5 12h14" />
-    </svg>
-  );
-}
 
 function isHttpUrl(value: string): boolean {
   try {

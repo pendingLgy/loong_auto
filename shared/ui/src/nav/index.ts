@@ -5,4 +5,4 @@ export type { SideNavKey, SideNavMenuProps } from "./SideNavMenu";
 export { SideNavUser } from "./SideNavUser";
 export type { SideNavUserData, SideNavUserProps } from "./SideNavUser";
 export { SideNavWorkspace } from "./SideNavWorkspace";
-export type { SideNavWorkspaceProps, Workspace, WorkspaceConversation } from "./SideNavWorkspace";
+export type { SideNavWorkspaceProps, SideNavWorkspaceRef, Workspace, WorkspaceConversation } from "./SideNavWorkspace";
