@@ -6,11 +6,11 @@
 
 | 模块 | 文档 | 当前状态 |
 | --- | --- | --- |
-| cloud | [构建与启动](../cloud/BUILD_AND_RUN.md) | 有服务和测试 |
-| local | [构建与启动](../local/BUILD_AND_RUN.md) | 健康检查骨架 |
-| shared | [构建与使用](../shared/BUILD_AND_RUN.md) | 公共契约与基础库 |
+| cloud | [构建与启动](../cloud/BUILD.md) | 有服务和测试 |
+| local | [构建与启动](../local/BUILD.md) | 健康检查骨架 |
+| shared | [构建与使用](../shared/BUILD.md) | 公共契约与基础库 |
 | tui | [构建与启动](../tui/BUILD_AND_RUN.md) | 目录骨架 |
-| web | [构建与启动](../web/BUILD_AND_RUN.md) | 目录骨架 |
+| web | [构建与启动](../web/BUILD.md) | Bun + Vite，含登录页 |
 | desktop | [构建与启动](../desktop/BUILD_AND_RUN.md) | 目录骨架 |
 
 ## Python 工程操作
@@ -31,6 +31,6 @@ uv build --package loong-cloud
 
 ## 后续工程能力
 
-尚未提供根 Bun workspace、前端构建脚本、PyInstaller 配置、Dockerfile 或部署流水线。补齐对应实现后再维护可执行命令，不将规划命令标记为已有能力。
+已建立根 Bun workspace（`shared/client`、`shared/ui`、`web`），依赖版本在根 `package.json` 的 `workspaces.catalog` 统一管理，安装统一在仓库根执行 `bun install`；Web 端使用 Bun + Vite（见 [Web 构建说明](../web/BUILD.md)）。TUI/Electron 构建脚本、PyInstaller 配置、Dockerfile 与部署流水线尚未建立。补齐对应实现后再维护可执行命令，不将规划命令标记为已有能力。
 
 依赖组织见 [Python 工程管理](workspace/README.md)。

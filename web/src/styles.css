@@ -1,0 +1,4 @@
+@import "tailwindcss";
+
+/* 共享组件源码不在 Vite 根目录下，显式声明扫描范围。 */
+@source "../../shared/ui/src";

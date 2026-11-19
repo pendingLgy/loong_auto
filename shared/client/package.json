@@ -4,7 +4,11 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./index.ts",
+    ".": "./src/index.ts",
+    "./api": "./src/api/index.ts",
+    "./http": "./src/http/index.ts",
+    "./types": "./src/types/index.ts",
+    "./i18n": "./src/i18n.ts",
     "./login": "./login.ts"
   },
   "dependencies": {

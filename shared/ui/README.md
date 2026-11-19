@@ -74,4 +74,4 @@ import { TaskStatus, TaskTimeline } from "@loong/ui/task";
 @source "../../shared/ui/src";
 ```
 
-Web 端的样式入口是 `web/app/styles.css`，预览端的样式入口是 `shared/ui/preview/styles.css`，两者都通过 `@tailwindcss/vite` 接入。
+Web 端的样式入口是 `web/src/styles.css`，预览端的样式入口是 `shared/ui/preview/styles.css`，两者都通过 `@tailwindcss/vite` 接入。

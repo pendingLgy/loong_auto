@@ -58,7 +58,7 @@ HTTP 客户端由调用方创建、配置和关闭。SDK 只提供 auth/messages
 ## TypeScript 共享模块
 
 - contracts：公共 TypeScript 类型。
-- client：Effect 本地网关客户端（含登录 `@loong/client/login`），供 TUI、Web、Electron 使用。
+- client：Effect 本地网关客户端，按 `src/api`（AuthApi、createLocalClient）、`src/http`（fetch 请求封装与统一响应解析，支持 `prefix` 路由转发前缀，默认 `/api/common`）、`src/types`（请求参数、响应模型、ClientError）拆分；401（HTTP 状态或信封 code）统一抛 `UnauthorizedError`（`ClientError` 子类，可用 `isUnauthorized` 判断）；错误文案支持 `locale`（默认 `zh-CN`，`en-US` 字典见 `@loong/client/i18n`，中文以内联 fallback 为准）；兼容入口 `@loong/client/login`，供 TUI、Web、Electron 使用。
 - ui：纯 SolidJS DOM 组件，供 Web、Electron 使用，TUI 不导入；组件不依赖网关、平台或会话，登录等上下文逻辑由消费端注入；文案由 `@loong/ui/i18n` 提供，默认 `zh-CN`（中文内联为 fallback，字典维护其它语言）。
 
 依赖由仓库根 Bun workspace 统一安装与锁定（根 `bun install`），版本在根 `package.json` 的 `workspaces.catalog` 中维护；`shared/ui` 提供 `bun run --filter '@loong/ui' typecheck` 与组件预览 `bun run --filter '@loong/ui' preview`（http://127.0.0.1:5174，不依赖网关），构建由消费端（Web 的 Vite、Electron 的 electron-vite）处理。Python 契约、TypeScript 类型与 Schema 的完整自动生成流水线尚未建立。

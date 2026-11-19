@@ -199,7 +199,7 @@ export const ThreePaneLayout: Component<ThreePaneLayoutProps> = (props) => {
   );
 
   const divider = (side: Side) => (
-    <div class="relative flex w-2 shrink-0 items-stretch justify-center bg-slate-200/70 transition-colors hover:bg-slate-300 dark:bg-white/10 dark:hover:bg-white/20">
+    <div class="relative flex w-px shrink-0 items-stretch justify-center bg-slate-200/70 transition-colors hover:bg-slate-300 dark:bg-white/10 dark:hover:bg-white/20">
       <div
         role="separator"
         aria-orientation="vertical"
@@ -208,7 +208,7 @@ export const ThreePaneLayout: Component<ThreePaneLayoutProps> = (props) => {
         aria-valuemax={maxWidth(side)}
         aria-valuenow={width(side)}
         tabIndex={0}
-        class={`h-full w-full touch-none outline-none focus-visible:ring-2 focus-visible:ring-sky-500/40 ${collapsed(side) ? "pointer-events-none" : "cursor-col-resize"}`}
+        class={`relative h-full w-full touch-none outline-none before:absolute before:inset-y-0 before:-left-1.5 before:-right-1.5 before:content-[''] focus-visible:ring-2 focus-visible:ring-sky-500/40 ${collapsed(side) ? "pointer-events-none" : "cursor-col-resize"}`}
         onPointerDown={startDrag(side)}
         onPointerMove={moveDrag(side)}
         onPointerUp={endDrag(side)}

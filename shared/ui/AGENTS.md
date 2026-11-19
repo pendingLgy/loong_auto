@@ -7,7 +7,7 @@
 - 本目录只放 **Web 与 Electron 共用的 SolidJS DOM 组件**，不放 TUI 组件、网络客户端或业务编排。
 - 组件必须是纯展示 + 交互：不读取网关地址、不认识 `platform`、不 import `@loong/client`，不持有 `LoginSession` 之类的领域类型。
 - 业务数据、校验规则、提交动作通过 props 注入；可见文案统一通过 `translate` 获取（中文以内联 fallback 为准，其它语言在 `src/i18n` 字典），不通过 props 传递文案。
-- 网关/平台/持久化属于消费端（`web/pages`、`desktop/renderer`）或 `shared/client`，不得下沉到组件。
+- 网关/平台/持久化属于消费端（`web/src/pages`、`desktop/renderer`）或 `shared/client`，不得下沉到组件。
 - 组件不引入全局 CSS；样式由 Tailwind 工具类表达，消费端负责引入 Tailwind 并扫描本目录源码。
 
 ## 目录结构
@@ -79,7 +79,7 @@
 1. **只使用 Tailwind CSS v4 工具类**。禁止 `<style>` 标签、`style={{...}}` 内联样式、组件级 `.css` 文件。
 2. 禁止引入全局选择器（`body`、`*`）或覆盖 Tailwind 预置类；组件样式必须自包含。
 3. 禁止 `!important`；需要覆盖时调整类顺序或使用修饰符。
-4. 禁止在组件里 `import "xxx.css"`；CSS 入口只属于消费端（`web/app/styles.css`、`preview/styles.css`）。
+4. 禁止在组件里 `import "xxx.css"`；CSS 入口只属于消费端（`web/src/styles.css`、`preview/styles.css`）。
 5. Tailwind 只识别**完整字面量**类名：条件样式必须是完整字符串（`active ? "bg-blue-500" : "bg-transparent"`），禁止 `bg-${color}-500` 这类拼接。
 
 ### 类名书写顺序
