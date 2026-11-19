@@ -10,5 +10,5 @@
     "jsxImportSource": "solid-js",
     "lib": ["ES2022", "DOM", "DOM.Iterable"]
   },
-  "include": ["src/login/**/*.ts", "src/login/**/*.tsx", "src/server-config/**/*.ts", "src/server-config/**/*.tsx", "src/layout/**/*.ts", "src/layout/**/*.tsx"]
+  "include": ["src/login/**/*.ts", "src/login/**/*.tsx", "src/server-config/**/*.ts", "src/server-config/**/*.tsx", "src/layout/**/*.ts", "src/layout/**/*.tsx", "src/nav/**/*.ts", "src/nav/**/*.tsx"]
 }

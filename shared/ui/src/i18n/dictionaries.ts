@@ -38,6 +38,18 @@ export const enUS = {
   "layout.resizeLeft": "Resize left panel",
   "layout.resizeRight": "Resize right panel",
   "layout.saved": "Saved layout: {{ state }}",
+  "nav.newChat": "New chat",
+  "nav.automationTasks": "Automation tasks",
+  "nav.label": "Main navigation",
+  "nav.workspaces": "Workspaces",
+  "nav.emptyWorkspaces": "No workspaces yet",
+  "nav.searchWorkspaces": "Search workspaces",
+  "nav.createWorkspace": "New workspace",
+  "nav.moreWorkspace": "More workspace actions",
+  "nav.newConversation": "New conversation",
+  "nav.userMenu": "User menu",
+  "nav.userFallback": "Not signed in",
+  "nav.settings": "Settings",
 } as const;
 
 export type MessageKey = keyof typeof enUS;
