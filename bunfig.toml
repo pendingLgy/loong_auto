@@ -1,0 +1,10 @@
+# 仓库级 Bun 配置。
+#
+# 所有 Node 侧 workspace 共用根 `bun.lock`，请在仓库根执行 `bun install`。
+# 依赖版本统一在根 package.json 的 `workspaces.catalog` 中维护，各 workspace
+# 通过 `catalog:` 协议引用，避免同名依赖在不同包之间出现版本漂移；
+# 升级时只改根 package.json 一处，再重新执行 `bun install`。
+
+[install]
+# Vite / vite-plugin-solid 从根 node_modules 解析依赖，保持默认 hoisted 布局。
+linker = "hoisted"
