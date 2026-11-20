@@ -48,6 +48,8 @@ export interface SideNavProps {
   height?: number | string;
   /** 最小高度（px），默认 480。 */
   minHeight?: number;
+  /** 最小宽度（px），默认 0。 */
+  minWidth?: number;
   class?: string;
 }
 
@@ -65,8 +67,12 @@ export const SideNav: Component<SideNavProps> = (props) => {
   return (
   <nav
     aria-label={translate(props.locale ?? DEFAULT_LOCALE, "nav.label", "主导航")}
-    class={`flex w-56 shrink-0 flex-col border-r border-slate-200 bg-slate-50/80 dark:border-white/10 dark:bg-slate-900/60 ${props.class ?? ""}`}
-    style={{ height: height(), "min-height": `${props.minHeight ?? 480}px` }}
+    class={`flex w-full shrink-0 flex-col border-r border-slate-200 bg-slate-50/80 dark:border-white/10 dark:bg-slate-900/60 ${props.class ?? ""}`}
+    style={{
+      height: height(),
+      "min-height": `${props.minHeight ?? 480}px`,
+      "min-width": `${props.minWidth ?? 0}px`,
+    }}
   >
     <div class="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-3">
       <SideNavMenu

@@ -5,8 +5,8 @@ import type { LoginResponse } from "@loong/client";
 import { DEFAULT_LOCALE, translate, type Locale } from "@loong/ui/i18n";
 import { LoginPage } from "@loong/ui/login";
 
-import { createApiClient } from "../api";
-import { saveUser } from "../storage/user";
+import { createApiClient } from "../../api";
+import { saveUser } from "../../storage/user";
 
 export interface WebLoginPageProps {
   /** 本地网关地址；Web 由网关托管时可省略，默认使用页面 origin。 */

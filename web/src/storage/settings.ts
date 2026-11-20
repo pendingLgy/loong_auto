@@ -4,10 +4,10 @@ import type { LayoutState } from "@loong/ui/layout";
 
 /** 与 `ThreePaneLayout` 的默认值保持一致；这里不 import 组件模块，避免 storage 依赖 UI 运行时。 */
 const DEFAULT_LAYOUT: LayoutState = {
-  leftWidth: 240,
-  rightWidth: 280,
+  leftWidth: 300,
+  rightWidth: 300,
   leftCollapsed: false,
-  rightCollapsed: false,
+  rightCollapsed: true,
 };
 
 /**

@@ -5,7 +5,7 @@ import { assertLocalGateway, createLocalClient } from "@loong/client";
 import { DEFAULT_LOCALE, translate, type Locale } from "@loong/ui/i18n";
 import { ServerConfigPage, type ServerConfigValues } from "@loong/ui/server-config";
 
-import { saveServerConfig, serverConfig } from "../storage/server_config";
+import { saveServerConfig, serverConfig } from "../../storage/server_config";
 
 export interface WebServerConfigPageProps {
   /** 界面语言；默认中文。 */

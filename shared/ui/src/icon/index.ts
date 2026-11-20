@@ -10,6 +10,7 @@ import chevronIcon from "../assets/icons/ChevronIcon.svg?raw";
 import closeIcon from "../assets/icons/CloseIcon.svg?raw";
 import copyIcon from "../assets/icons/CopyIcon.svg?raw";
 import flameIcon from "../assets/icons/FlameIcon.svg?raw";
+import homeIcon from "../assets/icons/HomeIcon.svg?raw";
 import moreIcon from "../assets/icons/MoreIcon.svg?raw";
 import navAutomationIcon from "../assets/icons/NavAutomationIcon.svg?raw";
 import navChatIcon from "../assets/icons/NavChatIcon.svg?raw";
@@ -78,6 +79,10 @@ export function SpinnerIcon(props: IconProps = {}): Node {
 
 export function MoreIcon(props: IconProps = {}): Node {
   return createIcon(moreIcon, `inline-block align-middle ${props.class ?? "h-3.5 w-3.5"}`);
+}
+
+export function HomeIcon(props: IconProps = {}): Node {
+  return createIcon(homeIcon, `inline-block align-middle ${props.class ?? "h-3.5 w-3.5"}`);
 }
 
 export function FlameIcon(props: IconProps = {}): Node {
