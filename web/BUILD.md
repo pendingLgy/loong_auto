@@ -55,18 +55,22 @@ web/
     ├── routers/        # 路由表与守卫
     │   ├── index.ts
     │   ├── guards.tsx  # RequireServerConfig / RequireAuth / GuestOnly / SetupOnly
-    │   └── routes.tsx  # /setup、/login、/、/settings 路由表
+    │   └── routes.tsx  # /setup、/、/settings 路由表
     ├── api.ts          # createApiClient（使用 @loong/client）
     ├── storage/        # 持久化状态
-    │   ├── server_config.ts  # 服务器配置（健康检查通过后写入）
+    │   ├── server_config.ts  # 多服务器配置与连通状态
     │   ├── settings.ts       # 页面设置（布局宽度、折叠状态）
     │   └── user.ts           # 登录用户数据（登录成功后写入）
     ├── styles.css      # Tailwind 入口
     └── pages/          # 按功能拆分
-        ├── home/
-        │   ├── HomePage.tsx
+        ├── server-workspace/
+        │   ├── ServerWorkspaceView.tsx
         │   ├── HomeIndex.tsx
         │   └── home-context.ts
+        ├── home-tabs/
+        │   ├── HomeTabsView.tsx
+        │   ├── AddServerDialog.tsx
+        │   └── ServerInfoDialog.tsx
         ├── login/
         │   └── WebLoginPage.tsx
         ├── server-config/
@@ -77,22 +81,20 @@ web/
 
 ## 路由、配置与登录
 
-路由守卫顺序：**先判断服务器配置，再判断登录状态**。
+路由守卫顺序：**只判断服务器配置**，登录校验已移除。
 
-- `/setup`：服务器配置页；已配置时跳回 `/`。
-- `/login`：未配置服务器时跳 `/setup`；已登录时跳 `/`。
-- `/`：未配置 → `/setup`；未登录 → `/login`；都满足时渲染 `HomePage`（`ThreePaneLayout`）。
-- `/settings`：`/` 的嵌套子路由，需登录；HomePage 左中右布局保持不变，中栏渲染 `web/src/pages/settings/WebSettingsPage.tsx`（内部使用 `@loong/ui/settings` 的 `SettingsPage`）。
-- 服务器配置通过 `client.health.security_token()` 校验后写入 `localStorage`（`loong.web.server-config`）；`createApiClient` 默认使用该地址与 security_token。
+- `/setup`：服务器配置页；已配置时跳 `/`。
+- `/`：未配置 → `/setup`；否则渲染 `HomeTabsView`。
+- `/settings`：未配置 → `/setup`；否则渲染 `web/src/pages/settings/WebSettingsPage.tsx`（内部使用 `@loong/ui/settings` 的 `SettingsPage`）。
+- `/login`、`RequireAuth`、`GuestOnly` 不再参与路由守卫；登录页文件保留，但当前流程不使用登录。
+- 服务器配置以 `{ servers }` 存于 `localStorage`（`loong.web.server-config`），每项含 `id`、`name`、`serverUrl`、`token`、`connected`（连通状态）、`checkedAt`（最近检查时间）；`activeId` 仅保存在内存中，刷新后默认选中第一个服务器；`saveServerConfig` 仅在传入 `id` 时更新对应服务器，未传 id 时始终新增（不按 URL 去重）；名称重复会自动追加创建日期 `YYYY-MM-dd_HH:mm`（仍重复则再加序号），`setActiveServer` 切换当前服务器，`updateServerStatus` 更新连通状态，`removeServer` 删除；旧版单对象配置会自动迁移为数组。`createApiClient` 使用当前选中服务器的地址与 security_token。
 - 登录成功后 `WebLoginPage` 把用户数据（access/refresh token、用户信息）写入 `localStorage`（`loong.web.user`）；退出时清除。旧版本 `loong.web.session` 会自动迁移。
-- 页面设置（含三栏布局宽度、折叠状态）保存在 `localStorage`（`loong.web.settings`）；`HomePage` 的 `onLayoutChange` 会立即写入，下次打开优先读取。旧版本 `sessionStorage` 的 `loong.web.layout` 会自动迁移。
-- 首页「退出」清除用户数据，守卫自动回到登录页；服务器配置保留。
+- 页面设置（含三栏布局宽度、折叠状态）保存在 `localStorage`（`loong.web.settings`）；`ServerWorkspaceView` 的 `onLayoutChange` 会立即写入，下次打开优先读取。旧版本 `sessionStorage` 的 `loong.web.layout` 会自动迁移。
+- 服务器配置写入后由配置页跳转 `/home-tabs`，不再要求登录。
 
-## 登录页
+## 登录页（当前未使用）
 
-- 通用组件：`shared/ui/src/login/LoginPage.tsx`（不绑定网关/平台/会话，登录逻辑通过 `onSubmit` 注入）
-- Effect 网关客户端：`shared/client/login.ts`（`@loong/client/login`）
-- Web 入口：`web/src/pages/login/WebLoginPage.tsx`（通过 `@loong/client` 的 `createLocalClient().auth.login` 登录，平台 `web`）
-- 页面挂载：`web/src/main.tsx`，登录成功后会话暂存在内存（`web/src/session.ts`）
+- 登录校验与 `/login` 路由已移除，配置服务器后直接进入 `HomeTabsView`。
+- 保留文件：`shared/ui/src/login/LoginPage.tsx`、`web/src/pages/login/WebLoginPage.tsx`，后续需要登录流程时可重新接入路由。
 
 生产环境静态资源由本地网关托管（该服务尚未实现），前端不直接调用云端业务接口。

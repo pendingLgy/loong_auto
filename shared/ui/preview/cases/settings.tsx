@@ -10,11 +10,8 @@ import {
   SettingsServerSection,
   type ConfiguredServer,
   type SettingsSectionKey,
-  type SettingsValues,
 } from "../../src/settings";
 import type { PreviewCase } from "../types";
-
-const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 const POPULAR_PROVIDERS = [
   { name: "OpenAI", description: "GPT 系列模型", baseUrl: "https://api.openai.com/v1" },
@@ -42,9 +39,8 @@ function ServerSectionOnlyCase(props: { locale?: Locale }) {
     <div class="mx-auto w-full max-w-xl p-4">
       <SettingsServerSection
         locale={props.locale}
-        servers={[{ name: "本地开发", serverUrl: "http://127.0.0.1:9528" }]}
+        server={{ name: "本地开发", serverUrl: "http://127.0.0.1:9528" }}
         onTestServer={() => undefined}
-        onAdd={async () => undefined}
       />
     </div>
   );
@@ -108,10 +104,8 @@ function ProviderSectionOnlyCase(props: { locale?: Locale }) {
 
 function SettingsCase(props: {
   locale?: Locale;
-  initialValue?: SettingsValues;
   initialSection?: SettingsSectionKey;
   servers?: ConfiguredServer[];
-  fail?: boolean;
 }) {
   const [message, setMessage] = createSignal("");
 
@@ -120,17 +114,10 @@ function SettingsCase(props: {
       <SettingsPage
         locale={props.locale}
         defaultSection={props.initialSection}
+        onBack={()=>{}}
         server={{
-          initialValue: props.initialValue,
-          servers: props.servers ?? [{ name: "本地开发", serverUrl: "http://127.0.0.1:9528" }],
+          server: (props.servers ?? [{ name: "本地开发", serverUrl: "http://127.0.0.1:9528" }])[0],
           onTestServer: (server) => setMessage(`测试连接：${server.serverUrl}`),
-          onAdd: async () => {
-            await sleep(700);
-            if (props.fail) {
-              throw new Error("security_token 错误");
-            }
-            setMessage("配置已保存");
-          },
         }}
         model={{
           providers: [
@@ -229,26 +216,11 @@ export const settingsCases: PreviewCase[] = [
     render: () => <SettingsCase />,
   },
   {
-    id: "settings-prefilled",
-    group: "SettingsPage",
-    title: "带初始值",
-    render: () => (
-      <SettingsCase
-        initialValue={{ name: "本地开发", serverUrl: "http://127.0.0.1:9528", token: "dev-token" }}
-      />
-    ),
-  },
-  {
     id: "settings-servers",
     group: "SettingsPage",
-    title: "已配置多个服务器",
+    title: "服务器信息",
     render: () => (
-      <SettingsCase
-        servers={[
-          { name: "本地开发", serverUrl: "http://127.0.0.1:9528" },
-          { name: "测试环境", serverUrl: "http://127.0.0.1:9530" },
-        ]}
-      />
+      <SettingsCase servers={[{ name: "本地开发", serverUrl: "http://127.0.0.1:9528" }]} />
     ),
   },
   {
@@ -268,12 +240,6 @@ export const settingsCases: PreviewCase[] = [
     group: "SettingsPage",
     title: "账号分组",
     render: () => <SettingsCase initialSection="account" />,
-  },
-  {
-    id: "settings-error",
-    group: "SettingsPage",
-    title: "保存失败",
-    render: () => <SettingsCase fail />,
   },
   {
     id: "settings-en",

@@ -1,5 +1,6 @@
 import { createEffect, createSignal, on, type Component, type JSX } from "solid-js";
 
+import { PanelCollapseIcon, PanelExpandIcon } from "../icon";
 import { DEFAULT_LOCALE, translate, type Locale } from "../i18n";
 
 export interface LayoutState {
@@ -24,8 +25,6 @@ export interface ThreePaneLayoutProps {
   left?: JSX.Element;
   /** 右栏内容。 */
   right?: JSX.Element;
-  /** 中栏顶部导航栏内容（折叠按钮固定在导航栏两端）。 */
-  toolbar?: JSX.Element;
   /** 中栏内容。 */
   children?: JSX.Element;
   /** 组件高度，默认 100vh（当前窗口高度）；嵌入固定容器时可覆盖。 */
@@ -180,15 +179,17 @@ export const ThreePaneLayout: Component<ThreePaneLayoutProps> = (props) => {
       title={collapseLabel(side)}
       class="grid h-8 w-8 shrink-0 place-items-center rounded-md text-slate-500 transition hover:bg-slate-900/5 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-200"
     >
-      {side === LEFT
-        ? (collapsed(LEFT) ? "›" : "‹")
-        : (collapsed(RIGHT) ? "‹" : "›")}
+      {collapsed(side)
+        ? <PanelExpandIcon class={`h-4 w-4 ${side === RIGHT ? "rotate-180" : ""}`} />
+        : <PanelCollapseIcon class={`h-4 w-4 ${side === RIGHT ? "rotate-180" : ""}`} />}
     </button>
   );
 
   const aside = (side: Side) => (
     <aside
-      class="flex min-h-0 shrink-0 flex-col overflow-hidden bg-slate-100/70 dark:bg-slate-900/60"
+      class={`flex min-h-0 shrink-0 flex-col overflow-hidden bg-slate-100/70 dark:bg-slate-900/60 ${
+        dragging() === side ? "" : "transition-[width] duration-200 ease-out motion-reduce:transition-none"
+      }`}
       style={{ width: collapsed(side) ? "0px" : `${width(side)}px` }}
       aria-hidden={collapsed(side)}
     >
@@ -226,9 +227,8 @@ export const ThreePaneLayout: Component<ThreePaneLayoutProps> = (props) => {
       {aside(LEFT)}
       {divider(LEFT)}
       <section class="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header class="flex h-11 shrink-0 items-center gap-1 border-b border-slate-200 bg-white/80 px-1.5 dark:border-white/10 dark:bg-slate-900/70">
+        <header class="flex h-11 shrink-0 items-center justify-between gap-1 px-1.5">
           {toggleButton(LEFT)}
-          <div class="min-w-0 flex-1 px-2">{props.toolbar}</div>
           {toggleButton(RIGHT)}
         </header>
         <div class="min-h-0 flex-1 overflow-auto">{props.children}</div>

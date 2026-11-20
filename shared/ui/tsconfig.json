@@ -10,5 +10,5 @@
     "jsxImportSource": "solid-js",
     "lib": ["ES2022", "DOM", "DOM.Iterable"]
   },
-  "include": ["src/login/**/*.ts", "src/login/**/*.tsx", "src/server-config/**/*.ts", "src/server-config/**/*.tsx", "src/layout/**/*.ts", "src/layout/**/*.tsx", "src/chat/**/*.ts", "src/chat/**/*.tsx", "src/icon/**/*.ts", "src/svg-env.d.ts", "src/icon/**/*.tsx", "src/model-picker/**/*.ts", "src/model-picker/**/*.tsx", "src/nav/**/*.ts", "src/nav/**/*.tsx", "src/settings/**/*.ts", "src/settings/**/*.tsx"]
+  "include": ["src/login/**/*.ts", "src/login/**/*.tsx", "src/server-config/**/*.ts", "src/server-config/**/*.tsx", "src/layout/**/*.ts", "src/layout/**/*.tsx", "src/chat/**/*.ts", "src/chat/**/*.tsx", "src/home-tabs/**/*.ts", "src/home-tabs/**/*.tsx", "src/dialog/**/*.ts", "src/dialog/**/*.tsx", "src/message/**/*.ts", "src/message/**/*.tsx", "src/icon/**/*.ts", "src/svg-env.d.ts", "src/icon/**/*.tsx", "src/model-picker/**/*.ts", "src/model-picker/**/*.tsx", "src/nav/**/*.ts", "src/nav/**/*.tsx", "src/settings/**/*.ts", "src/settings/**/*.tsx"]
 }

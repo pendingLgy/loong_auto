@@ -9,6 +9,8 @@ export interface SettingsValues {
 
 /** 已配置的服务器。 */
 export interface ConfiguredServer {
+  /** 服务器配置 id。 */
+  id?: string;
   /** 服务名称。 */
   name?: string;
   serverUrl: string;
@@ -21,16 +23,12 @@ export type SettingsSectionKey = "server" | "provider" | "model" | "account";
 
 /** 服务器连接页面的配置（挂在 SettingsPage.server 下）。 */
 export interface SettingsServerOptions {
-  /** 添加服务器表单的初始值。 */
-  initialValue?: SettingsValues;
-  /** 已配置的服务器列表。 */
-  servers?: ConfiguredServer[];
+  /** 当前服务器配置。 */
+  server?: ConfiguredServer;
   /** 点击已配置服务器。 */
   onSelectServer?: (serverUrl: string) => void;
   /** 点击已配置服务器的「测试连接」。 */
   onTestServer?: (server: ConfiguredServer) => void;
-  /** 添加服务器。 */
-  onAdd?: (values: SettingsValues) => Promise<void>;
 }
 
 /** 账号页面的配置（挂在 SettingsPage.account 下）。 */

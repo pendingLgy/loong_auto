@@ -34,6 +34,7 @@ export const SettingsProviderSection: Component<SettingsProviderSectionProps> = 
   const [dialogApiKey, setDialogApiKey] = createSignal("");
   const [dialogSaving, setDialogSaving] = createSignal(false);
   const [dialogError, setDialogError] = createSignal("");
+  const [dialogErrors, setDialogErrors] = createSignal<{ baseUrl?: string; apiKey?: string }>({});
   const [showAll, setShowAll] = createSignal(false);
   const [searchQuery, setSearchQuery] = createSignal("");
 
@@ -42,10 +43,12 @@ export const SettingsProviderSection: Component<SettingsProviderSectionProps> = 
   const [renameAlias, setRenameAlias] = createSignal("");
   const [renameSaving, setRenameSaving] = createSignal(false);
   const [renameError, setRenameError] = createSignal("");
+  const [renameFieldError, setRenameFieldError] = createSignal("");
   const [editProvider, setEditProvider] = createSignal<ConfiguredModelProvider | null>(null);
   const [editApiKey, setEditApiKey] = createSignal("");
   const [editSaving, setEditSaving] = createSignal(false);
   const [editError, setEditError] = createSignal("");
+  const [editFieldError, setEditFieldError] = createSignal("");
 
   const locale = () => props.locale ?? DEFAULT_LOCALE;
 
@@ -69,18 +72,21 @@ export const SettingsProviderSection: Component<SettingsProviderSectionProps> = 
     setDialogBaseUrl(provider.baseUrl);
     setDialogApiKey("");
     setDialogError("");
+    setDialogErrors({});
   };
 
   const closeConnect = () => {
     if (dialogSaving()) return;
     setDialogProvider(null);
     setDialogError("");
+    setDialogErrors({});
   };
 
   const openEdit = (provider: ConfiguredModelProvider) => {
     setEditProvider(provider);
     setEditApiKey("");
     setEditError("");
+    setEditFieldError("");
     props.onEditProvider?.(provider);
   };
 
@@ -88,18 +94,21 @@ export const SettingsProviderSection: Component<SettingsProviderSectionProps> = 
     if (editSaving()) return;
     setEditProvider(null);
     setEditError("");
+    setEditFieldError("");
   };
 
   const openRename = (provider: ConfiguredModelProvider) => {
     setRenameTarget(provider);
     setRenameAlias(provider.alias?.trim() || provider.name);
     setRenameError("");
+    setRenameFieldError("");
   };
 
   const closeRename = () => {
     if (renameSaving()) return;
     setRenameTarget(null);
     setRenameError("");
+    setRenameFieldError("");
   };
 
   const handleRenameSubmit: JSX.EventHandler<HTMLFormElement, SubmitEvent> = (event) => {
@@ -109,10 +118,11 @@ export const SettingsProviderSection: Component<SettingsProviderSectionProps> = 
 
     const alias = renameAlias().trim();
     if (!alias) {
-      setRenameError(translate(locale(), "settings.errors.providerAliasRequired", "请输入别称"));
+      setRenameFieldError(translate(locale(), "settings.errors.providerAliasRequired", "请输入别称"));
       return;
     }
 
+    setRenameFieldError("");
     setRenameError("");
     setRenameSaving(true);
 
@@ -132,10 +142,11 @@ export const SettingsProviderSection: Component<SettingsProviderSectionProps> = 
     if (!provider || editSaving()) return;
 
     if (!editApiKey()) {
-      setEditError(translate(locale(), "settings.errors.providerApiKeyRequired", "请输入 API Key"));
+      setEditFieldError(translate(locale(), "settings.errors.providerApiKeyRequired", "请输入 API Key"));
       return;
     }
 
+    setEditFieldError("");
     setEditError("");
     setEditSaving(true);
 
@@ -163,20 +174,23 @@ export const SettingsProviderSection: Component<SettingsProviderSectionProps> = 
       model: "",
     };
 
+    const nextErrors: { baseUrl?: string; apiKey?: string } = {};
     if (!values.baseUrl) {
-      setDialogError(translate(locale(), "settings.errors.providerBaseUrlRequired", "请输入接口地址"));
-      return;
-    }
-    if (!isHttpUrl(values.baseUrl)) {
-      setDialogError(translate(locale(), "settings.errors.providerBaseUrlInvalid",
-        "接口地址必须是 http/https URL"));
-      return;
+      nextErrors.baseUrl = translate(locale(), "settings.errors.providerBaseUrlRequired", "请输入接口地址");
+    } else if (!isHttpUrl(values.baseUrl)) {
+      nextErrors.baseUrl = translate(locale(), "settings.errors.providerBaseUrlInvalid",
+        "接口地址必须是 http/https URL");
     }
     if (!values.apiKey) {
-      setDialogError(translate(locale(), "settings.errors.providerApiKeyRequired", "请输入 API Key"));
+      nextErrors.apiKey = translate(locale(), "settings.errors.providerApiKeyRequired", "请输入 API Key");
+    }
+
+    if (nextErrors.baseUrl || nextErrors.apiKey) {
+      setDialogErrors(nextErrors);
       return;
     }
 
+    setDialogErrors({});
     setDialogError("");
     setDialogSaving(true);
 
@@ -236,7 +250,7 @@ export const SettingsProviderSection: Component<SettingsProviderSectionProps> = 
     </div>
   );
 
-  const inputClass = "w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-[14px] text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 disabled:opacity-60 dark:border-white/15 dark:bg-slate-950/60 dark:text-slate-100";
+  const inputClass = "w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-[15px] text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 disabled:opacity-60 aria-invalid:border-red-500 aria-invalid:focus:border-red-500 aria-invalid:focus:ring-red-500/30 dark:border-white/15 dark:bg-slate-950/60 dark:text-slate-100";
 
   return (
     <>
@@ -375,6 +389,7 @@ export const SettingsProviderSection: Component<SettingsProviderSectionProps> = 
             aria-modal="true"
             aria-label={translate(locale(), "settings.provider.connectTitle", "连接供应商")}
             onClick={(event) => event.stopPropagation()}
+            novalidate
             onSubmit={handleConnectSubmit}
             aria-busy={dialogSaving()}
           >
@@ -417,9 +432,18 @@ export const SettingsProviderSection: Component<SettingsProviderSectionProps> = 
                 spellcheck={false}
                 required
                 disabled={dialogSaving()}
+                aria-invalid={dialogErrors().baseUrl ? "true" : undefined}
                 value={dialogBaseUrl()}
-                onInput={(event) => setDialogBaseUrl(event.currentTarget.value)}
+                onInput={(event) => {
+                  setDialogBaseUrl(event.currentTarget.value);
+                  setDialogErrors((current) => ({ ...current, baseUrl: undefined }));
+                }}
               />
+              <Show when={dialogErrors().baseUrl}>
+                <span class="text-[13px] font-medium text-red-600 dark:text-red-400" role="alert">
+                  {dialogErrors().baseUrl}
+                </span>
+              </Show>
             </label>
 
             <label class="grid gap-2">
@@ -436,9 +460,18 @@ export const SettingsProviderSection: Component<SettingsProviderSectionProps> = 
                 required
                 autofocus
                 disabled={dialogSaving()}
+                aria-invalid={dialogErrors().apiKey ? "true" : undefined}
                 value={dialogApiKey()}
-                onInput={(event) => setDialogApiKey(event.currentTarget.value)}
+                onInput={(event) => {
+                  setDialogApiKey(event.currentTarget.value);
+                  setDialogErrors((current) => ({ ...current, apiKey: undefined }));
+                }}
               />
+              <Show when={dialogErrors().apiKey}>
+                <span class="text-[13px] font-medium text-red-600 dark:text-red-400" role="alert">
+                  {dialogErrors().apiKey}
+                </span>
+              </Show>
             </label>
 
             <Show when={dialogError()}>
@@ -486,6 +519,7 @@ export const SettingsProviderSection: Component<SettingsProviderSectionProps> = 
             aria-modal="true"
             aria-label={translate(locale(), "settings.provider.editTitle", "修改 API Key")}
             onClick={(event) => event.stopPropagation()}
+            novalidate
             onSubmit={handleEditSubmit}
             aria-busy={editSaving()}
           >
@@ -512,9 +546,18 @@ export const SettingsProviderSection: Component<SettingsProviderSectionProps> = 
                 required
                 autofocus
                 disabled={editSaving()}
+                aria-invalid={editFieldError() ? "true" : undefined}
                 value={editApiKey()}
-                onInput={(event) => setEditApiKey(event.currentTarget.value)}
+                onInput={(event) => {
+                  setEditApiKey(event.currentTarget.value);
+                  setEditFieldError("");
+                }}
               />
+              <Show when={editFieldError()}>
+                <span class="text-[13px] font-medium text-red-600 dark:text-red-400" role="alert">
+                  {editFieldError()}
+                </span>
+              </Show>
             </label>
 
             <Show when={editError()}>
@@ -562,6 +605,7 @@ export const SettingsProviderSection: Component<SettingsProviderSectionProps> = 
             aria-modal="true"
             aria-label={translate(locale(), "settings.provider.renameTitle", "重命名供应商")}
             onClick={(event) => event.stopPropagation()}
+            novalidate
             onSubmit={handleRenameSubmit}
             aria-busy={renameSaving()}
           >
@@ -588,9 +632,18 @@ export const SettingsProviderSection: Component<SettingsProviderSectionProps> = 
                 required
                 autofocus
                 disabled={renameSaving()}
+                aria-invalid={renameFieldError() ? "true" : undefined}
                 value={renameAlias()}
-                onInput={(event) => setRenameAlias(event.currentTarget.value)}
+                onInput={(event) => {
+                  setRenameAlias(event.currentTarget.value);
+                  setRenameFieldError("");
+                }}
               />
+              <Show when={renameFieldError()}>
+                <span class="text-[13px] font-medium text-red-600 dark:text-red-400" role="alert">
+                  {renameFieldError()}
+                </span>
+              </Show>
             </label>
 
             <Show when={renameError()}>

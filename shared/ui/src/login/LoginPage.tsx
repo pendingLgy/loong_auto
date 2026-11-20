@@ -29,6 +29,7 @@ export const LoginPage: Component<LoginPageProps> = (props) => {
   const [password, setPassword] = createSignal("");
   const [pending, setPending] = createSignal(false);
   const [error, setError] = createSignal("");
+  const [fieldErrors, setFieldErrors] = createSignal<{ username?: string; password?: string }>({});
 
   const locale = () => props.locale ?? DEFAULT_LOCALE;
 
@@ -46,20 +47,25 @@ export const LoginPage: Component<LoginPageProps> = (props) => {
       password: password(),
     };
 
+    const nextErrors: { username?: string; password?: string } = {};
     if (!credentials.username) {
-      setError(translate(locale(), "login.errors.usernameRequired", "请输入用户名"));
-      return;
+      nextErrors.username = translate(locale(), "login.errors.usernameRequired", "请输入用户名");
     }
     if (!credentials.password) {
-      setError(translate(locale(), "login.errors.passwordRequired", "请输入密码"));
+      nextErrors.password = translate(locale(), "login.errors.passwordRequired", "请输入密码");
+    }
+    if (nextErrors.username || nextErrors.password) {
+      setFieldErrors(nextErrors);
       return;
     }
+
     const validationError = props.validate?.(credentials);
     if (validationError) {
       setError(validationError);
       return;
     }
 
+    setFieldErrors({});
     setError("");
     setPending(true);
 
@@ -79,10 +85,13 @@ export const LoginPage: Component<LoginPageProps> = (props) => {
       });
   };
 
+const inputClass = "w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-[15px] text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 disabled:opacity-60 aria-invalid:border-red-500 aria-invalid:focus:border-red-500 aria-invalid:focus:ring-red-500/30 dark:border-white/15 dark:bg-slate-950/60 dark:text-slate-100";
+
   return (
     <main class="grid min-h-screen place-items-center bg-linear-to-br from-sky-50 via-white to-slate-100 p-6 text-slate-900 dark:from-slate-900 dark:via-slate-950 dark:to-black dark:text-slate-100">
       <form
         class="grid w-full max-w-sm gap-[18px] rounded-2xl border border-slate-200 bg-white/90 p-7 shadow-2xl shadow-slate-900/10 backdrop-blur dark:border-white/10 dark:bg-slate-900/80 dark:shadow-black/50"
+        novalidate
         onSubmit={handleSubmit}
         aria-label={translate(locale(), "login.title", "登录 Loong")}
         aria-busy={pending()}
@@ -101,7 +110,7 @@ export const LoginPage: Component<LoginPageProps> = (props) => {
             {translate(locale(), "login.username", "用户名")}
           </span>
           <input
-            class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-[15px] text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 disabled:opacity-60 dark:border-white/15 dark:bg-slate-950/60 dark:text-slate-100"
+            class={inputClass}
             name="username"
             type="text"
             autocomplete="username"
@@ -109,9 +118,18 @@ export const LoginPage: Component<LoginPageProps> = (props) => {
             required
             autofocus={props.autofocus}
             disabled={pending() || props.disabled}
+            aria-invalid={fieldErrors().username ? "true" : undefined}
             value={username()}
-            onInput={(event) => setUsername(event.currentTarget.value)}
+            onInput={(event) => {
+              setUsername(event.currentTarget.value);
+              setFieldErrors((current) => ({ ...current, username: undefined }));
+            }}
           />
+          <Show when={fieldErrors().username}>
+            <span class="text-[13px] font-medium text-red-600 dark:text-red-400" role="alert">
+              {fieldErrors().username}
+            </span>
+          </Show>
         </label>
 
         <label class="grid gap-2">
@@ -119,16 +137,25 @@ export const LoginPage: Component<LoginPageProps> = (props) => {
             {translate(locale(), "login.password", "密码")}
           </span>
           <input
-            class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-[15px] text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 disabled:opacity-60 dark:border-white/15 dark:bg-slate-950/60 dark:text-slate-100"
+            class={inputClass}
             name="password"
             type="password"
             autocomplete="current-password"
             maxlength={256}
             required
             disabled={pending() || props.disabled}
+            aria-invalid={fieldErrors().password ? "true" : undefined}
             value={password()}
-            onInput={(event) => setPassword(event.currentTarget.value)}
+            onInput={(event) => {
+              setPassword(event.currentTarget.value);
+              setFieldErrors((current) => ({ ...current, password: undefined }));
+            }}
           />
+          <Show when={fieldErrors().password}>
+            <span class="text-[13px] font-medium text-red-600 dark:text-red-400" role="alert">
+              {fieldErrors().password}
+            </span>
+          </Show>
         </label>
 
         <Show when={error()}>

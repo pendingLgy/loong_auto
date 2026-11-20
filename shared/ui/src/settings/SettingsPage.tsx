@@ -19,6 +19,8 @@ export interface SettingsPageProps {
   locale?: Locale;
   /** 默认选中的设置分组，默认「服务器连接」。 */
   defaultSection?: SettingsSectionKey;
+  /** 点击右上角返回按钮。 */
+  onBack?: () => void;
   /** 切换设置分组时回调。 */
   onSectionChange?: (key: SettingsSectionKey) => void;
   /** 服务器连接页面专属配置。 */
@@ -50,13 +52,24 @@ export const SettingsPage: Component<SettingsPageProps> = (props) => {
 
   return (
     <section class={`grid gap-4 ${props.class ?? ""}`}>
-      <header>
-        <h1 class="m-0 text-xl font-semibold tracking-tight">
-          {translate(props.locale ?? DEFAULT_LOCALE, "settings.title", "设置")}
-        </h1>
-        <p class="m-0 mt-1 text-sm text-slate-500 dark:text-slate-400">
-          {translate(props.locale ?? DEFAULT_LOCALE, "settings.description", "管理服务器连接与账号信息")}
-        </p>
+      <header class="flex items-start justify-between gap-3">
+        <div class="grid min-w-0 gap-1">
+          <h1 class="m-0 text-xl font-semibold tracking-tight">
+            {translate(props.locale ?? DEFAULT_LOCALE, "settings.title", "设置")}
+          </h1>
+          <p class="m-0 text-sm text-slate-500 dark:text-slate-400">
+            {translate(props.locale ?? DEFAULT_LOCALE, "settings.description", "管理服务器连接与账号信息")}
+          </p>
+        </div>
+        <Show when={props.onBack}>
+          <button
+            type="button"
+            onClick={() => props.onBack?.()}
+            class="shrink-0 rounded-md px-2.5 py-1.5 text-sm text-slate-600 outline-none transition hover:bg-slate-900/5 hover:text-slate-800 focus-visible:ring-2 focus-visible:ring-sky-500/40 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-slate-100"
+          >
+            {translate(props.locale ?? DEFAULT_LOCALE, "settings.back", "返回")}
+          </button>
+        </Show>
       </header>
 
       <div class="grid gap-4 md:grid-cols-[12rem_minmax(0,1fr)]">

@@ -6,7 +6,7 @@
 shared/ui/
 ├── index.html          # 预览入口
 ├── index.ts            # 包出口
-├── package.json        # exports: "." / "./login" / "./server-config" / "./layout" / "./chat" / "./model-picker" / "./icon" / "./nav" / "./settings" / "./task" / "./i18n"
+├── package.json        # exports: "." / "./login" / "./server-config" / "./layout" / "./chat" / "./model-picker" / "./home-tabs" / "./dialog" / "./message" / "./icon" / "./nav" / "./settings" / "./task" / "./i18n"
 ├── preview/            # 组件画廊（不参与生产构建）
 │   ├── main.tsx        # 左侧导航 + 右侧渲染，搜索、分组折叠
 │   ├── cases/          # 每个组件一个用例文件
@@ -21,6 +21,16 @@ shared/ui/
 │   │   └── index.ts
 │   ├── layout/
 │   │   ├── ThreePaneLayout.tsx
+│   │   └── index.ts
+│   ├── home-tabs/
+│   │   ├── HomeTabs.tsx          # 首页顶部标签导航
+│   │   └── index.ts
+│   ├── dialog/
+│   │   ├── Dialog.tsx            # 通用对话框
+│   │   └── index.ts
+│   ├── message/
+│   │   ├── Message.tsx           # 静态消息提示
+│   │   ├── Toast.tsx             # 自动关闭的浮动提示
 │   │   └── index.ts
 │   ├── assets/
 │   │   └── icons/                # 每个图标一个 .svg

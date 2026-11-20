@@ -32,7 +32,7 @@ class LocalAccessMiddleware:
                 security_token = request.headers.get("x-security-token", "")
                 if security_token != request.app.state.security_token:
                     body = Response.fail(request, code=status.HTTP_403_FORBIDDEN,
-                                         msg="未配置 Security Token")
+                                         msg="Security Token错误")
                     response = JSONResponse(status_code=status.HTTP_403_FORBIDDEN,
                                             content=body.model_dump(mode="json"))
                     await response(scope, receive, send)

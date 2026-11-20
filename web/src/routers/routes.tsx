@@ -1,12 +1,8 @@
 import { Route, Router } from "@solidjs/router";
-import type { JSX } from "solid-js";
-
-import { HomeIndex } from "../pages/home/HomeIndex";
-import { HomePage } from "../pages/home/HomePage";
-import { WebLoginPage } from "../pages/login/WebLoginPage";
+import { HomeTabsView } from "../pages/home-tabs/HomeTabsView";
 import { WebServerConfigPage } from "../pages/server-config/WebServerConfigPage";
 import { WebSettingsPage } from "../pages/settings/WebSettingsPage";
-import { GuestOnly, RequireAuth, RequireServerConfig, SetupOnly } from "./guards";
+import { RequireServerConfig, SetupOnly } from "./guards";
 
 function SetupScreen() {
   return (
@@ -16,38 +12,29 @@ function SetupScreen() {
   );
 }
 
-function LoginScreen() {
+function HomeTabsViewScreen() {
   return (
     <RequireServerConfig>
-      <GuestOnly>
-        <WebLoginPage />
-      </GuestOnly>
+      <HomeTabsView />
     </RequireServerConfig>
   );
 }
 
-function HomeScreen(props: { children?: JSX.Element }) {
+function SettingsScreen() {
   return (
-    <RequireAuth>
-      <HomePage>{props.children}</HomePage>
-    </RequireAuth>
+    <RequireServerConfig>
+      <WebSettingsPage />
+    </RequireServerConfig>
   );
 }
 
-function SettingsScreen() {
-  return <WebSettingsPage />;
-}
-
-/** Web 路由表：先配置服务器，再登录，最后进入 Home。 */
+/** Web 路由表：先配置服务器，根路由渲染 HomeTabsView。 */
 export function AppRouter() {
   return (
     <Router>
       <Route path="/setup" component={SetupScreen} />
-      <Route path="/login" component={LoginScreen} />
-      <Route path="/" component={HomeScreen}>
-        <Route path="/" component={HomeIndex} />
-        <Route path="settings" component={SettingsScreen} />
-      </Route>
+      <Route path="/" component={HomeTabsViewScreen} />
+      <Route path="/settings" component={SettingsScreen} />
     </Router>
   );
 }

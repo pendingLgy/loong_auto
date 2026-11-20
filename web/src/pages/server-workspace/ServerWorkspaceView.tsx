@@ -4,9 +4,10 @@ import { useNavigate } from "@solidjs/router";
 
 import { ThreePaneLayout, type LayoutState } from "@loong/ui/layout";
 import { SideNav, type SideNavKey, type SideNavUserData, type Workspace } from "@loong/ui/nav";
-import { serverConfig } from "../../storage/server_config";
+import { serverConfig, servers } from "../../storage/server_config";
 import { getLayoutState, saveLayoutState } from "../../storage/settings";
-import { clearUser, currentUser, userSession } from "../../storage/user";
+import { currentUser } from "../../storage/user";
+import { HomeIndex } from "./HomeIndex";
 import { HomeViewContext } from "./home-context";
 
 const INITIAL_WORKSPACES: Workspace[] = [
@@ -20,13 +21,17 @@ const INITIAL_WORKSPACES: Workspace[] = [
 let nextId = 1;
 const createId = (prefix: string) => `${prefix}-${Date.now()}-${nextId++}`;
 
-export interface HomePageProps {
-  /** 嵌套路由渲染在中栏的内容。 */
+export interface ServerWorkspaceViewProps {
+  /** 指定服务器 id；省略时使用当前激活服务器。 */
+  serverId?: string;
+  /** 中栏内容；为空时渲染 HomeIndex。 */
   children?: JSX.Element;
+  /** 组件高度，默认 100%。 */
+  height?: number | string;
 }
 
-/** 登录后的首页：左中右布局，布局状态保存到 storage/settings.ts，下次打开优先读取。 */
-export function HomePage(props: HomePageProps) {
+/** 服务器工作区：左中右布局，布局状态保存到 storage/settings.ts。 */
+export function ServerWorkspaceView(props: ServerWorkspaceViewProps) {
   const navigate = useNavigate();
   const [layout, setLayout] = createSignal<LayoutState>(getLayoutState());
   const [active, setActive] = createSignal<SideNavKey>("newChat");
@@ -34,6 +39,9 @@ export function HomePage(props: HomePageProps) {
   const [activeConversationId, setActiveConversationId] = createSignal(
     INITIAL_WORKSPACES[0].conversations[0].id,
   );
+
+  const currentServer = () =>
+    servers().find((server) => server.id === props.serverId) ?? serverConfig();
 
   const userData = (): SideNavUserData | undefined => {
     const info = currentUser();
@@ -83,23 +91,7 @@ export function HomePage(props: HomePageProps) {
       onChange={onLayoutChange}
       minLeftWidth={260}
       minRightWidth={300}
-      toolbar={
-        <div class="flex min-w-0 items-center justify-between gap-3">
-          <span class="truncate text-sm font-medium">Home</span>
-          <div class="flex min-w-0 items-center gap-2">
-            <span class="truncate text-xs text-slate-500 dark:text-slate-400">
-              {userSession()?.user.username ?? ""}
-            </span>
-            <button
-              type="button"
-              onClick={() => clearUser()}
-              class="shrink-0 rounded-md px-2 py-1 text-xs text-slate-600 transition hover:bg-slate-900/5 dark:text-slate-300 dark:hover:bg-white/10"
-            >
-              退出
-            </button>
-          </div>
-        </div>
-      }
+      height={props.height ?? "100%"}
       left={
         <SideNav
           height="100%"
@@ -130,7 +122,7 @@ export function HomePage(props: HomePageProps) {
         <div class="grid gap-2 p-3">
           <h2 class="m-0 text-xs font-semibold uppercase tracking-wider text-slate-500">详情</h2>
           <p class="m-0 text-sm text-slate-600 dark:text-slate-300">
-            服务器：{serverConfig()?.serverUrl ?? "未配置"}
+            服务器：{currentServer()?.serverUrl ?? "未配置"}
           </p>
           <p class="m-0 text-sm text-slate-600 dark:text-slate-300">
             选中左侧条目后，这里展示对应的工具与审批信息。
@@ -138,7 +130,7 @@ export function HomePage(props: HomePageProps) {
         </div>
       }
     >
-      {props.children}
+      {props.children ?? <HomeIndex />}
     </ThreePaneLayout>
     </HomeViewContext.Provider>
   );

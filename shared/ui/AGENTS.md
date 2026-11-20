@@ -32,12 +32,12 @@
 
 - 主色只有一组（sky → blue 渐变），不要引入第二套品牌色。
 - 中性色统一用 `slate`，不要混用 `gray` / `zinc`。
-- 语义色只用于语义：错误用 `red`，成功/警告当前未定义，新增前先补规范。
+- 语义色只用于语义：错误用 `red`，成功用 `emerald`，警告用 `amber`，信息用 `slate`；新增语义色前先补规范。
 
 ### 间距与圆角
 
 - 页面容器：`p-6`；卡片：`p-7`，内部 `gap-[18px]`。
-- 字段组：`gap-2`；字段与按钮之间不额外插空元素，错误提示占一个 grid 行。
+- 字段组：`gap-2`；字段错误占该字段组最后一行，不在字段与按钮之间额外插入空元素。
 - 圆角：卡片 `rounded-2xl`，输入框/按钮 `rounded-xl`，提示块 `rounded-lg`，胶囊导航 `rounded-full`。
 - 阴影：卡片 `shadow-2xl shadow-slate-900/10`，深色 `dark:shadow-black/50`。
 - 宽度：表单卡片 `w-full max-w-sm`；不要写死像素宽度。
@@ -61,7 +61,7 @@
 
 - 每个可交互元素必须有 `hover`、`focus-visible`（或 `focus:` + ring）、`disabled` 三种状态。
 - 提交中：`disabled` + `cursor-progress`，容器加 `aria-busy`。
-- 错误提示：`role="alert"` + `aria-live="assertive"`，位置在字段之后、主按钮之前。
+- 错误提示：字段错误显示在对应输入框下方；提交失败等全局错误位于字段之后、主按钮之前，均使用 `role="alert"` + `aria-live="assertive"`。
 - 过渡统一 `transition`（默认 150ms），不做长动画，不写 `animate-*` 循环动画。
 - 响应式采用 mobile-first：默认单列，`md:` 起分栏。
 
@@ -71,6 +71,31 @@
 - 图标按钮必须有 `aria-label`；装饰性元素加 `aria-hidden`。
 - 导航当前项用 `aria-current`，折叠项用 `aria-expanded`。
 - 文本与背景对比度不低于 4.5:1；错误色不得只靠颜色区分，必须同时有文案。
+
+## 表单规范
+
+### 字段结构
+
+- 每个字段用 `<label class="grid gap-2">` 包裹，内部依次为可见标签、输入控件、字段错误。
+- 标签使用 `text-[13px] text-slate-600 dark:text-slate-300`，必须是可见文本，不用 placeholder 代替。
+- 输入框统一 `w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-[15px] text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 disabled:opacity-60 dark:border-white/15 dark:bg-slate-950/60 dark:text-slate-100`。
+- 为输入框提供 `name`、`autocomplete`、`spellcheck`；密码使用 `type="password"`，URL 使用 `type="url"`。
+
+### 校验与错误
+
+- 校验在提交时执行；每个字段独立保存错误，修改该字段时清除对应错误。
+- 字段错误显示在对应输入框下方，使用 `text-[13px] font-medium text-red-600 dark:text-red-400`，并加 `role="alert"`。
+- 错误输入框设置 `aria-invalid="true"`，样式使用 `aria-invalid:border-red-500`、`aria-invalid:focus:border-red-500`、`aria-invalid:focus:ring-red-500/30`，不能只靠颜色区分。
+- 不要把多个字段错误合并成一条全局提示；全局错误只用于提交失败等跨字段错误，位置在字段之后、主按钮之前，使用 `role="alert"` + `aria-live="assertive"`。
+- 使用自定义校验时给 `<form>` 加 `novalidate`，避免浏览器原生校验提示抢先拦截提交。
+- 提交中：输入框与按钮 `disabled`，表单 `aria-busy="true"`，主按钮切换为进行中文案（如「保存中…」）并使用 `cursor-progress`。
+- 校验顺序为必填 → 格式 → 业务校验；一次提交展示全部字段错误，不要只提示第一个字段。
+
+### 表单布局
+
+- 表单卡片 `w-full max-w-sm`；字段组 `gap-2`。
+- 操作按钮右对齐、`gap-2`；主按钮在最右。
+- 错误信息占用字段组内一行，保持不变的高度结构，不在字段与按钮之间插入额外空元素。
 
 ## CSS 样式规范（重点）
 

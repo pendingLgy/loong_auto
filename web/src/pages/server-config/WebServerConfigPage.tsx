@@ -1,6 +1,8 @@
 import { Effect } from "effect";
 import type { Component } from "solid-js";
 
+import { useNavigate } from "@solidjs/router";
+
 import { assertLocalGateway, createLocalClient } from "@loong/client";
 import { DEFAULT_LOCALE, translate, type Locale } from "@loong/ui/i18n";
 import { ServerConfigPage, type ServerConfigValues } from "@loong/ui/server-config";
@@ -19,11 +21,13 @@ export interface WebServerConfigPageProps {
  * 3. 校验通过后写入 `storage/server_config.ts`，由路由守卫跳转。
  */
 export const WebServerConfigPage: Component<WebServerConfigPageProps> = (props) => {
+  const navigate = useNavigate();
   const locale = () => props.locale ?? DEFAULT_LOCALE;
 
   return (
     <ServerConfigPage
       locale={locale()}
+      onSuccess={() => navigate("/")}
       initialValue={serverConfig() ?? undefined}
       validate={({ serverUrl }) => {
         try {
@@ -43,7 +47,7 @@ export const WebServerConfigPage: Component<WebServerConfigPageProps> = (props) 
           security_token: values.token,
         });
         await Effect.runPromise(client.health.security_token());
-        saveServerConfig(values);
+        saveServerConfig({ ...values, connected: true, checkedAt: new Date().toISOString() });
       }}
     />
   );

@@ -3,6 +3,8 @@ import { createSignal, onCleanup, Show, type Component, type JSX } from "solid-j
 import { DEFAULT_LOCALE, translate, type Locale } from "../i18n";
 
 export interface ServerConfigValues {
+  /** 服务器名称，便于区分多个服务器。 */
+  name?: string;
   serverUrl: string;
   token: string;
 }
@@ -37,10 +39,12 @@ function isHttpUrl(value: string): boolean {
  * `translate(locale, key, fallback)` 获取，具体保存逻辑由 `onSubmit` 注入。
  */
 export const ServerConfigPage: Component<ServerConfigPageProps> = (props) => {
+  const [name, setName] = createSignal(props.initialValue?.name ?? "");
   const [serverUrl, setServerUrl] = createSignal(props.initialValue?.serverUrl ?? "");
   const [token, setToken] = createSignal(props.initialValue?.token ?? "");
   const [pending, setPending] = createSignal(false);
   const [error, setError] = createSignal("");
+  const [fieldErrors, setFieldErrors] = createSignal<{ name?: string; serverUrl?: string; token?: string }>({});
 
   const locale = () => props.locale ?? DEFAULT_LOCALE;
 
@@ -54,29 +58,36 @@ export const ServerConfigPage: Component<ServerConfigPageProps> = (props) => {
     if (pending() || props.disabled) return;
 
     const values: ServerConfigValues = {
+      name: name().trim() || undefined,
       serverUrl: serverUrl().trim(),
       token: token(),
     };
 
-    if (!values.serverUrl) {
-      setError(translate(locale(), "serverConfig.errors.serverUrlRequired", "请输入服务器地址"));
-      return;
+    const nextErrors: { name?: string; serverUrl?: string; token?: string } = {};
+    if (!values.name) {
+      nextErrors.name = translate(locale(), "serverConfig.errors.nameRequired", "请输入服务器名称");
     }
-    if (!isHttpUrl(values.serverUrl)) {
-      setError(translate(locale(), "serverConfig.errors.serverUrlInvalid",
-        "服务器地址必须是 http/https URL"));
-      return;
+    if (!values.serverUrl) {
+      nextErrors.serverUrl = translate(locale(), "serverConfig.errors.serverUrlRequired", "请输入服务器地址");
+    } else if (!isHttpUrl(values.serverUrl)) {
+      nextErrors.serverUrl = translate(locale(), "serverConfig.errors.serverUrlInvalid",
+        "服务器地址必须是 http/https URL");
     }
     if (!values.token) {
-      setError(translate(locale(), "serverConfig.errors.tokenRequired", "请输入 Token"));
+      nextErrors.token = translate(locale(), "serverConfig.errors.tokenRequired", "请输入 Token");
+    }
+    if (nextErrors.name || nextErrors.serverUrl || nextErrors.token) {
+      setFieldErrors(nextErrors);
       return;
     }
+
     const validationError = props.validate?.(values);
     if (validationError) {
       setError(validationError);
       return;
     }
 
+    setFieldErrors({});
     setError("");
     setPending(true);
 
@@ -95,10 +106,13 @@ export const ServerConfigPage: Component<ServerConfigPageProps> = (props) => {
       });
   };
 
+const inputClass = "w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-[15px] text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 disabled:opacity-60 aria-invalid:border-red-500 aria-invalid:focus:border-red-500 aria-invalid:focus:ring-red-500/30 dark:border-white/15 dark:bg-slate-950/60 dark:text-slate-100";
+
   return (
     <main class="grid min-h-screen place-items-center bg-linear-to-br from-sky-50 via-white to-slate-100 p-6 text-slate-900 dark:from-slate-900 dark:via-slate-950 dark:to-black dark:text-slate-100">
       <form
         class="grid w-full max-w-sm gap-[18px] rounded-2xl border border-slate-200 bg-white/90 p-7 shadow-2xl shadow-slate-900/10 backdrop-blur dark:border-white/10 dark:bg-slate-900/80 dark:shadow-black/50"
+        novalidate
         onSubmit={handleSubmit}
         aria-label={translate(locale(), "serverConfig.title", "配置服务器")}
         aria-busy={pending()}
@@ -114,10 +128,37 @@ export const ServerConfigPage: Component<ServerConfigPageProps> = (props) => {
 
         <label class="grid gap-2">
           <span class="text-[13px] text-slate-600 dark:text-slate-300">
+            {translate(locale(), "serverConfig.name", "服务器名称")}
+          </span>
+          <input
+            class={inputClass}
+            name="name"
+            type="text"
+            autocomplete="off"
+            spellcheck={false}
+            placeholder={translate(locale(), "serverConfig.namePlaceholder", "例如：本地开发")}
+            required
+            disabled={pending() || props.disabled}
+            aria-invalid={fieldErrors().name ? "true" : undefined}
+            value={name()}
+            onInput={(event) => {
+              setName(event.currentTarget.value);
+              setFieldErrors((current) => ({ ...current, name: undefined }));
+            }}
+          />
+          <Show when={fieldErrors().name}>
+            <span class="text-[13px] font-medium text-red-600 dark:text-red-400" role="alert">
+              {fieldErrors().name}
+            </span>
+          </Show>
+        </label>
+
+        <label class="grid gap-2">
+          <span class="text-[13px] text-slate-600 dark:text-slate-300">
             {translate(locale(), "serverConfig.serverUrl", "服务器地址")}
           </span>
           <input
-            class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-[15px] text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 disabled:opacity-60 dark:border-white/15 dark:bg-slate-950/60 dark:text-slate-100"
+            class={inputClass}
             name="serverUrl"
             type="url"
             inputmode="url"
@@ -128,9 +169,18 @@ export const ServerConfigPage: Component<ServerConfigPageProps> = (props) => {
             required
             autofocus={props.autofocus}
             disabled={pending() || props.disabled}
+            aria-invalid={fieldErrors().serverUrl ? "true" : undefined}
             value={serverUrl()}
-            onInput={(event) => setServerUrl(event.currentTarget.value)}
+            onInput={(event) => {
+              setServerUrl(event.currentTarget.value);
+              setFieldErrors((current) => ({ ...current, serverUrl: undefined }));
+            }}
           />
+          <Show when={fieldErrors().serverUrl}>
+            <span class="text-[13px] font-medium text-red-600 dark:text-red-400" role="alert">
+              {fieldErrors().serverUrl}
+            </span>
+          </Show>
         </label>
 
         <label class="grid gap-2">
@@ -138,7 +188,7 @@ export const ServerConfigPage: Component<ServerConfigPageProps> = (props) => {
             {translate(locale(), "serverConfig.token", "Token")}
           </span>
           <input
-            class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-[15px] text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 disabled:opacity-60 dark:border-white/15 dark:bg-slate-950/60 dark:text-slate-100"
+            class={inputClass}
             name="token"
             type="password"
             autocomplete="off"
@@ -146,9 +196,18 @@ export const ServerConfigPage: Component<ServerConfigPageProps> = (props) => {
             placeholder={translate(locale(), "serverConfig.tokenPlaceholder", "粘贴访问 Token")}
             required
             disabled={pending() || props.disabled}
+            aria-invalid={fieldErrors().token ? "true" : undefined}
             value={token()}
-            onInput={(event) => setToken(event.currentTarget.value)}
+            onInput={(event) => {
+              setToken(event.currentTarget.value);
+              setFieldErrors((current) => ({ ...current, token: undefined }));
+            }}
           />
+          <Show when={fieldErrors().token}>
+            <span class="text-[13px] font-medium text-red-600 dark:text-red-400" role="alert">
+              {fieldErrors().token}
+            </span>
+          </Show>
         </label>
 
         <Show when={error()}>

@@ -16,12 +16,6 @@ function LayoutCase(props: { locale?: Locale; initial?: LayoutState }) {
           locale={locale()}
           value={state()}
           onChange={(next) => setSaved(next)}
-          toolbar={
-            <div class="flex min-w-0 items-center justify-between gap-2">
-              <span class="truncate text-sm font-medium">会话 · 布局演示</span>
-              <span class="shrink-0 text-xs text-slate-500">顶部导航栏</span>
-            </div>
-          }
           left={
             <div class="grid gap-1 p-3">
               <p class="m-0 text-xs font-semibold uppercase tracking-wider text-slate-500">Navigation</p>
@@ -40,7 +34,7 @@ function LayoutCase(props: { locale?: Locale; initial?: LayoutState }) {
           <div class="grid gap-2 p-6">
             <h2 class="m-0 text-lg font-semibold">中栏内容</h2>
             <p class="m-0 text-sm text-slate-500 dark:text-slate-400">
-              拖动中间分隔条调整左右宽度；点击中栏导航栏两端的箭头折叠对应侧栏；
+              拖动中间分隔条调整左右宽度；点击中栏顶部的折叠 / 展开按钮切换对应侧栏；
               松开拖动或切换折叠后会触发 onChange。
             </p>
           </div>

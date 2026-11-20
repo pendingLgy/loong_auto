@@ -21,29 +21,33 @@
 
 ## 路由与守卫
 
-路由顺序固定为：**先服务器配置，再登录，最后业务页**。
+路由顺序为：**先服务器配置，配置完成后进入 HomeTabsView**。登录校验已移除。
 
 ```text
-/setup  未配置时展示；已配置 → /
-/login  未配置 → /setup；已登录 → /
-/       未配置 → /setup；未登录 → /login；否则 HomePage
+/setup     未配置时展示；已配置 → /
+/          未配置 → /setup；否则 HomeTabsView
+/settings  未配置 → /setup；否则 WebSettingsPage
 ```
 
-- 守卫使用 `RequireServerConfig`、`RequireAuth`、`GuestOnly`、`SetupOnly`，不要在每个页面里重复写重定向逻辑。
-- 新增业务路由必须包在 `RequireAuth` 下；新增公开页要明确是否需要 `GuestOnly`。
+- 守卫使用 `RequireServerConfig`、`SetupOnly`；`RequireAuth`、`GuestOnly` 不再参与路由。
+- 新增业务路由必须包在 `RequireServerConfig` 下；不要重新引入登录强制跳转，除非需求明确。
 - 路由使用 history 模式；生产静态托管必须把未知路径回退到 `index.html`（网关静态托管尚未实现）。
 
 ## 存储约定
 
 | 内容 | 位置 | Key |
 |---|---|---|
-| 服务器配置（地址、security_token，健康检查通过后写入） | `localStorage` | `loong.web.server-config` |
+| 服务器配置列表（id、名称、地址、security_token、连通状态 `connected`、检查时间 `checkedAt`） | `localStorage` | `loong.web.server-config` |
 | 登录用户数据（access/refresh token、用户信息） | `localStorage` | `loong.web.user` |
 | 页面设置（三栏布局宽度、折叠状态） | `localStorage` | `loong.web.settings` |
+| 主题（light / dark，通过 `<html class="dark">` 切换） | `localStorage` | `loong.web.theme` |
+| 已固定标签 key 列表 | `localStorage` | `loong.web.pinned-tabs` |
+| 上次激活的标签 key | `localStorage` | `loong.web.active-tab` |
 
 - 密码永不落盘；Token 只通过 `storage` 模块与 `createApiClient` 流转。
 - 读取已存数据时必须校验字段类型，损坏数据按"未配置/未登录"处理。
 - 清除用户数据用 `clearUser()`；清除服务器配置用 `clearServerConfig()`，不要手写 `removeItem`。
+- 当前选中的服务器 `activeId` 只保存在内存中，不写入 storage。
 
 ## API 调用
 
@@ -65,8 +69,9 @@ await Effect.runPromise(client.auth.login({ username, password, platform: "web" 
 - 文案：共享组件（`@loong/ui`）自带 i18n，页面只需传 `locale`，不要给组件传文案 props；页面自身文案保持简洁，可复用 `@loong/ui/i18n`。
 - 样式：只写 Tailwind 工具类；禁止 `<style>`、`style={...}` 内联样式与组件级 CSS 文件；颜色、间距、圆角、状态、`dark:` 规则遵循
   [shared/ui/AGENTS.md](../shared/ui/AGENTS.md) 的 UI 设计与 CSS 规范。
-- 深浅色跟随系统（Tailwind 默认）；不要在 `web` 引入第二套主题机制。
+- 深浅色默认跟随系统，并可通过 `storage/theme.ts` 手动切换；主题通过 `<html class="dark">` 与 Tailwind `dark:` 变体生效，不要引入第二套主题机制。
 - 页面根布局优先用 `ThreePaneLayout`，避免自己实现可折叠/可拖动分栏。
+- 表单校验与错误展示遵循 [shared/ui/AGENTS.md](../shared/ui/AGENTS.md) 的「表单规范」：字段错误显示在输入框下方，使用 `aria-invalid` 与 `role="alert"`。
 
 ## 验证
 
@@ -80,6 +85,6 @@ bun run --filter '@loong/web' dev   # http://127.0.0.1:5173
 ```
 
 - 改动路由、存储或 API 调用后至少保证 `typecheck` 与 `build:web` 通过。
-- 手工验证顺序：清空 `localStorage` → 应进入 `/setup`；保存配置 → 进入 `/login`；登录成功 → 进入 `/`；退出 → 回到 `/login`。
+- 手工验证顺序：清空 `localStorage` → 应进入 `/setup`；保存配置 → 进入 `/`（HomeTabsView）；`/settings` 可正常打开；当前流程不要求登录。
 - 生产构建为静态资源，路由回退未实现前不要宣称可直接由网关托管。
 - 不在本目录引入测试框架；集成测试放在 `local/tests` 或后续专门的 e2e 目录。
