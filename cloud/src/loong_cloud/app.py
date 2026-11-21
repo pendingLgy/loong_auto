@@ -1,12 +1,13 @@
 import argparse
+import sys
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from time import monotonic
 
+from agent.supply.supplier import ModelSupplier, load_supplier
 from exception_handler import register_exception_handlers
 from fastapi import FastAPI
-from loong_contracts.utils.datetime_util import utcnow
 
 from loong_cloud.api import router
 from loong_cloud.cache import CacheProxy
@@ -19,29 +20,46 @@ from loong_cloud.middleware.loading_middleware import loading_middleware
 from loong_cloud.schema import load_tables
 
 
-def _get_path() -> str:
+def _parse_cli_args() -> tuple[str, str]:
     parser = argparse.ArgumentParser(description="Loong Cloud 服务启动工具")
 
     parser.add_argument(
-        "-p", "--path",
+        "-p",
+        "--path",
         type=Path,
-        required=True,  # 如果设为 True，不传 --path 会直接报错；如果想有默认值，可以去掉 required 并改用 default
+        required=True,
         help="指定全局配置文件的路径",
+    )
+    parser.add_argument(
+        "--supplier",  # 建议用 --supplier 或 --supplier-path；若用 -sp，argparse 会按 -s -p 拆成两个单字母短选项
+        type=Path,
+        required=True,
+        help="指定模型供应商文件的路径",
     )
 
     args = parser.parse_args()
 
     if not args.path.exists():
-        print(f"错误: 配置文件路径不存在 -> {args.path.resolve()}")
+        print(f"错误: 配置文件路径不存在 -> {args.path.resolve()}", file=sys.stderr)
         SystemExit(1)
 
-    return args.path
+    if not args.supplier.exists():
+        print(f"错误: 模型供应商文件路径不存在 -> {args.supplier.resolve()}", file=sys.stderr)
+        SystemExit(1)
+
+    return str(args.path.resolve()), str(args.supplier.resolve())
 
 
 def create_app() -> FastAPI:
-    config_path = _get_path()
+    config_path,supplier_path = _parse_cli_args()
+
+    supplier: ModelSupplier = load_supplier(supplier_path)
+    if not supplier.providers:
+        print("错误: 模型供应商为空")
+        SystemExit(1)
 
     global_config = GlobalConfig.load(config_path)
+
     configure_logging(global_config.log_level)
     load_tables(global_config.db_config.table_prefix)
 
@@ -77,8 +95,8 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Loong Cloud", version="0.1.0", lifespan=lifespan,
                   docs_url="/api/docs", redoc_url="/api/redoc", openapi_url="/api/openapi.json",
                   swagger_ui_oauth2_redirect_url="/api/docs/oauth2-redirect")
-    app.state.started_at = utcnow()
-    app.state.started_monotonic = monotonic()
+
+    app.state.supplier = supplier
 
     container = ApplicationContainer(
         global_config=global_config,

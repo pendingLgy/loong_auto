@@ -6,6 +6,7 @@ from contextlib import aclosing, suppress
 from dataclasses import dataclass, field
 
 import anyio
+from agent.supply.supplier import ModelSupplier
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -162,6 +163,7 @@ def _session_key(request: Request, session_id: str) -> tuple[str, str, str]:
 
 async def _run_dialogue(
     channel: EventSession,
+    supplier: ModelSupplier,
     client_id: str,
     session_id: str,
     messages: list[Message],
@@ -169,7 +171,7 @@ async def _run_dialogue(
     tools: list[ToolDefinition],
 ) -> None:
     try:
-        async with ModelExecutor() as executor:
+        async with ModelExecutor(supplier=supplier) as executor:
             loop = AgentLoop(executor, config, tools, DEFAULT_LOCAL_TOOLS, session_id=session_id,client_id=client_id)
             async with aclosing(loop.run_sse(messages)) as stream:
                 async for frame in stream:
@@ -282,6 +284,8 @@ async def submit_message(
 ):
     """保存消息后启动对话任务，结果通过已建立的 SSE 连接推送。"""
 
+    supplier = request.app.state.supplier
+
     channel = _sessions(request).get(_session_key(request, client_id))
     if channel is None or not channel.connected:
         raise HTTPException(status_code=409, detail="请先建立当前会话的 SSE 连接")
@@ -314,7 +318,7 @@ async def submit_message(
             model=body.llm.model,
         )
         channel.task = asyncio.create_task(
-            _run_dialogue(channel, client_id, session_id, messages, config, tools),
+            _run_dialogue(channel, supplier, client_id, session_id, messages, config, tools),
             name=f"dialogue:{session_id}",
         )
     except BaseException:

@@ -9,6 +9,7 @@ from loong_contracts.agent.models import Message, ModelRequest, ToolDefinition
 from loong_contracts.common.llm_message_constant import GlobalMessageRole
 
 from loong_cloud.agent import ModelExecutor
+from loong_cloud.agent.supply.supplier import load_supplier
 from loong_cloud.config.config_model import ModelConfig
 
 
@@ -19,10 +20,14 @@ def deepseek_api_key():
     values = dotenv_values(path, interpolate=False) if path.is_file() else {}
     return (values.get('DEEPSEEK_API_KEY') or '').strip()
 
+@pytest.fixture(scope='module')
+def supplier_model(settings):
+    supplier_path = settings("SUPPLIER_CONFIG_PATH")
+    return load_supplier(supplier_path)
 
 class TestExecutor:
 
-    async def test_deepseek_live_local_and_remote_tools(self, deepseek_api_key):
+    async def test_deepseek_live_local_and_remote_tools(self, deepseek_api_key, supplier_model):
         """读取公共测试配置调用真实模型，工具执行结果使用模拟数据。"""
         if not deepseek_api_key:
             pytest.skip('请在 cloud/.env.api_key 中配置 DEEPSEEK_API_KEY')
@@ -37,7 +42,7 @@ class TestExecutor:
                             content='请必须分别调用 read_file 读取 main.py、search_docs 搜索 asyncio 文档。两项都必须调用，收到两项结果后简短总结，不要重复调用已完成的工具。')]
         seen = set()
 
-        async with ModelExecutor() as executor:
+        async with ModelExecutor(supplier=supplier_model) as executor:
             async with asyncio.timeout(180):
                 for _ in range(4):
                     message = await executor.complete(
@@ -60,13 +65,13 @@ class TestExecutor:
         print("\n")
         print(json.dumps([msg.model_dump(mode='json') for msg in messages], ensure_ascii=False))
 
-    async def test_deepseek_live_call(self, deepseek_api_key):
+    async def test_deepseek_live_call(self, deepseek_api_key,supplier_model):
         """读取 cloud/.env.api_key，将密钥通过 ModelConfig 传给 DeepSeek。"""
         if not deepseek_api_key:
             pytest.skip('请在 cloud/.env.api_key 中配置 DEEPSEEK_API_KEY')
         config = ModelConfig(provider='deepseek', model='deepseek-chat', temperature=0, api_key=deepseek_api_key)
         request = ModelRequest(messages=[Message(role=GlobalMessageRole.USER, content='请只回复 OK')], max_tokens=16)
-        async with ModelExecutor() as executor:
+        async with ModelExecutor(supplier=supplier_model) as executor:
             response = await executor.complete(config, request)
 
         response_dict = response.model_dump(mode='json', exclude_none=True)
@@ -77,14 +82,14 @@ class TestExecutor:
         assert response.role == 'assistant'
 
 
-    async def test_deepseek_live_stream(self, deepseek_api_key):
+    async def test_deepseek_live_stream(self, deepseek_api_key,supplier_model):
         """验证流式调用返回增量 Message，并以最终 Message 收束。"""
         if not deepseek_api_key:
             pytest.skip('请在 cloud/.env.api_key 中配置 DEEPSEEK_API_KEY')
         config = ModelConfig(provider='deepseek', model='deepseek-chat', temperature=0, api_key=deepseek_api_key)
         request = ModelRequest(messages=[Message(role=GlobalMessageRole.USER, content='请只回复 OK')], max_tokens=16)
         events = []
-        async with ModelExecutor() as executor:
+        async with ModelExecutor(supplier=supplier_model) as executor:
             async with asyncio.timeout(180):
                 async for message in executor.stream(config, request):
                     print('\nevents:\n' + json.dumps(message.model_dump(mode='json'),ensure_ascii=False))
@@ -94,14 +99,14 @@ class TestExecutor:
 
 
 
-    async def test_deepseek_multipe_chunk_live_stream(self, deepseek_api_key):
+    async def test_deepseek_multipe_chunk_live_stream(self, deepseek_api_key, supplier_model):
         """验证流式调用返回增量 Message，并以最终 Message 收束。"""
         if not deepseek_api_key:
             pytest.skip('请在 cloud/.env.api_key 中配置 DEEPSEEK_API_KEY')
         config = ModelConfig(provider='deepseek', model='deepseek-chat', temperature=0, api_key=deepseek_api_key)
         request = ModelRequest(messages=[Message(role=GlobalMessageRole.USER, content='给我一份markdown语法demo')], max_tokens=393216)
         events = []
-        async with ModelExecutor() as executor:
+        async with ModelExecutor(supplier=supplier_model) as executor:
             async with asyncio.timeout(180):
                 async for message in executor.stream(config, request):
                     print('\nevents:\n' + json.dumps(message.model_dump(mode='json'), indent=4,ensure_ascii=False))
@@ -109,7 +114,7 @@ class TestExecutor:
 
         # print('stream events:\n' + json.dumps([event.model_dump(mode='json') for event in events], indent=4, ensure_ascii=False))
 
-    async def test_deepseek_live_local_and_remote_tools_stream(self, deepseek_api_key):
+    async def test_deepseek_live_local_and_remote_tools_stream(self, deepseek_api_key, supplier_model):
         """验证流式工具调用返回增量 Message，并以最终 Message 收束。"""
 
         if not deepseek_api_key:
@@ -127,7 +132,7 @@ class TestExecutor:
 
         request = ModelRequest(messages=messages, tools=tools, max_tokens=512)
         events = []
-        async with ModelExecutor() as executor:
+        async with ModelExecutor(supplier=supplier_model) as executor:
             async with asyncio.timeout(180):
                 async for message in executor.stream(config, request):
                     events.append(message)

@@ -1,0 +1,35 @@
+# 供应商下全部模型共用 adapter；执行器自动加载。
+# view: 是否返回给客户端；enable: 是否启用（禁用后执行器不可调用）。
+providers:
+  openai:
+    base_url: https://api.openai.com/v1
+    timeout: 60
+    models:
+      gpt-4o-mini: {
+        view: true,
+        enable: true
+      }
+    adapter: openai
+  anthropic:
+    base_url: https://api.anthropic.com/v1
+    timeout: 60
+    models:
+      claude-sonnet-4-5: {
+        view: true,
+        enable: true
+      }
+    adapter: anthropic
+  deepseek:
+    base_url: https://api.deepseek.com/v1
+    timeout: 60
+    models:
+      deepseek-chat: {
+        view: false,
+        enable: true
+      }
+      deepseek-flash: {
+        view: false,
+        enable: true,
+        reasoning_effort: [ 'default','none','low','high','max' ]
+      }
+    adapter: deepseek

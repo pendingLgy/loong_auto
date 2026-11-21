@@ -21,11 +21,10 @@ class ModelAdapter(ABC):
     def __init__(self, config: ModelConfig, client: httpx.AsyncClient | None = None,
                  provider_config: ProviderConnection | None = None):
         self.config = config
-        defaults = {"openai": "https://api.openai.com/v1", "anthropic": "https://api.anthropic.com/v1",
-                    "deepseek": "https://api.deepseek.com/v1"}
-        if provider_config is None and config.provider not in defaults:
-            raise ValueError("供应商需要提供连接配置")
-        self.connection = provider_config or ProviderConnection(base_url=defaults[config.provider])
+
+        if provider_config is None:
+            raise ValueError("供应商未在模型目录中配置连接信息")
+        self.connection = provider_config
         self._owns_client = client is None
         self._client = client or httpx.AsyncClient(timeout=self.connection.timeout)
 

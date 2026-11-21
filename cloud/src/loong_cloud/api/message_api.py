@@ -25,6 +25,8 @@ async def chat_complete(request: Request,
                         body: AddMessageRequest,
                         message_store: MessageStore = Depends(Provide["MessageStore"])
                         ):
+    supplier = request.app.state.supplier
+
     body.session_id = session_id
     body.tenant_id = request.state.tenant_id
     body.user_id = request.state.identity.id
@@ -49,7 +51,7 @@ async def chat_complete(request: Request,
         for tool in param_tools
     ]
 
-    async with ModelExecutor() as executor:
+    async with ModelExecutor(supplier=supplier) as executor:
         event: LoopEvent = await AgentLoop(executor, config, tools, DEFAULT_LOCAL_TOOLS,
                                            session_id=session_id, client_id=client_id).run(
             llm_messages)
@@ -63,6 +65,8 @@ async def chat_sse(request: Request,
                    client_id: str,
                    session_id: str, body: AddMessageRequest,
                    message_store: MessageStore = Depends(Provide["MessageStore"])):
+    supplier = request.app.state.supplier
+
     body.session_id = session_id
     body.tenant_id = request.state.tenant_id
     body.user_id = request.state.identity.id
@@ -95,7 +99,7 @@ async def chat_sse(request: Request,
             yield error_event.to_sse()
             return
 
-        async with ModelExecutor() as executor:
+        async with ModelExecutor(supplier=supplier) as executor:
             async for frame in AgentLoop(executor, config, tools, DEFAULT_LOCAL_TOOLS,
                                          session_id=session_id, client_id=client_id).run_sse(
                 llm_messages):

@@ -1,30 +1,24 @@
 """按配置别名路由模型调用；不负责工具执行或 Agent 循环。"""
 
 from contextlib import aclosing
-from importlib.resources import files
-from pathlib import Path
 
 import httpx
-import yaml
 from loong_contracts.agent.models import Message, ModelRequest
-from pydantic import BaseModel, Field
 
-from loong_cloud.agent.adapters import ModelAdapter, create_adapter
+from loong_cloud.agent.adapters import DeepSeekAdapter, ModelAdapter, OpenAIAdapter
 from loong_cloud.agent.adapters.connection import ProviderConnection
+from loong_cloud.agent.supply.supplier import ModelSupplier
 from loong_cloud.config.config_model import ModelConfig
 
 
-class _CatalogModel(BaseModel):
-    """模型目录条目，后续可扩展模型能力。"""
-
-
-class _CatalogProvider(ProviderConnection):
-    adapter: str = Field(min_length=1)
-    models: dict[str, _CatalogModel] = Field(default_factory=dict)
-
-
-class _Catalog(BaseModel):
-    providers: dict[str, _CatalogProvider] = Field(default_factory=dict)
+def create_adapter(config: ModelConfig, client: httpx.AsyncClient | None = None,
+                   provider_config: ProviderConnection | None = None, *,
+                   adapter: str | None = None) -> ModelAdapter:
+    adapters = {"openai": OpenAIAdapter, "deepseek": DeepSeekAdapter}
+    name = adapter or config.provider
+    if name not in adapters:
+        raise ValueError("模型配置指定了不支持的适配器")
+    return adapters[name](config, client, provider_config)
 
 
 class ModelExecutor:
@@ -34,12 +28,8 @@ class ModelExecutor:
     外部传入的 HTTP 客户端由调用方关闭。
     """
 
-    def __init__(self, client: httpx.AsyncClient | None = None,
-                 catalog_path: str | Path | None = None):
-        content = (Path(catalog_path).read_text(encoding="utf-8") if catalog_path is not None
-                   else files("loong_cloud.agent.adapters").joinpath(
-            "default_models.yaml").read_text(encoding="utf-8"))
-        self._catalog = _Catalog.model_validate(yaml.safe_load(content))
+    def __init__(self, supplier: ModelSupplier, client: httpx.AsyncClient | None = None):
+        self._supplier = supplier
         self._client = client
         self._owns_client = client is None
         self._adapters: dict[str, ModelAdapter] = {}
@@ -56,14 +46,17 @@ class ModelExecutor:
     def _get_adapter(self, config: ModelConfig) -> ModelAdapter:
         if self._closed:
             raise RuntimeError("模型执行器已关闭")
-        provider = self._catalog.providers.get(config.provider)
+        provider = self._supplier.provider(config.provider)
         if provider is None:
             raise ValueError("供应商未在模型目录中")
         model = provider.models.get(config.model)
         if model is None:
             raise ValueError("模型未在该供应商目录中")
-        values = provider.model_dump(include={"base_url", "timeout"})
-        connection = ProviderConnection.model_validate(values)
+        if not model.enable:
+            raise ValueError("模型未启用")
+        connection = self._supplier.connection(config.provider)
+        if connection is None:
+            raise ValueError("供应商未在模型目录中配置连接信息")
         key = config.provider
         if self._client is None:
             self._client = httpx.AsyncClient()

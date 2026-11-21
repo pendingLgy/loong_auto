@@ -66,7 +66,7 @@ cloud/
 
 ## 模型与工具循环
 
-- 模型协议适配器位于 `agent/adapters`，供应商目录位于 `default_models.yaml`。根据调用时的 provider/model 查目录，同一供应商下模型共用供应商级 adapter；不新增 `config_provider.py`。
+- 模型协议适配器位于 `agent/adapters`，供应商目录位于 `default_models.yaml`，由 `adapters/catalog.py` 解析为 `ModelCatalog` / `CatalogProvider` 实例；`view` 控制是否返回给客户端，`enable` 控制是否允许执行器调用。根据调用时的 provider/model 查目录，同一供应商下模型共用供应商级 adapter；不新增 `config_provider.py`。
 - `ModelExecutor.complete(config, request)` 返回 `Message`，`stream(config, request)` 返回流式 `Message`。模型配置按调用传入，适配器按供应商复用；不要沿用旧的 `execute(model_name, request)` 或 `GlobalConfig.models` 别名接口说明。
 - `Message` 保存原始响应、状态、结束原因和 token 用量；流事件格式以当前模型定义为准，不再约定旧的 text_delta/tool_call/done 包装。
 - API 密钥以 `SecretStr` 随本次配置传入，不写入共享客户端默认请求头，不缓存到供应商目录或 SSE 会话元数据；日志不得输出密钥。

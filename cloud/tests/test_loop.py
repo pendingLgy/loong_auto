@@ -14,6 +14,7 @@ from loong_contracts.utils import uuid_util
 
 from loong_cloud.agent import AgentLoop, LoopEvent, ModelExecutor
 from loong_cloud.agent.message_handler import build_tool_call_message
+from loong_cloud.agent.supply.supplier import load_supplier
 from loong_cloud.config.config_model import ModelConfig
 
 
@@ -33,15 +34,20 @@ def config(deepseek_api_key):
                        api_key=deepseek_api_key)
 
 
+@pytest.fixture(scope='module')
+def supplier_model(settings):
+    supplier_path = settings("SUPPLIER_CONFIG_PATH")
+    return load_supplier(supplier_path)
+
 class TestLoopSSE:
 
-    async def test_live_sse_completed_message(self, config):
+    async def test_live_sse_completed_message(self, config, supplier_model):
         async def execute_local(call):
             pytest.fail("没有注册工具，不应执行工具")
 
         client_id = "client-" + uuid4().hex
         session_id = "session-" + uuid4().hex
-        async with ModelExecutor() as executor:
+        async with ModelExecutor(supplier=supplier_model) as executor:
             async with asyncio.timeout(120):
                 events = []
                 async for frame in AgentLoop(executor, config, [],
@@ -55,7 +61,7 @@ class TestLoopSSE:
                           flush=True)
                     events.append(data)
 
-    async def test_live_sse_remote_tool_next_request(self, config):
+    async def test_live_sse_remote_tool_next_request(self, config, supplier_model):
         async def execute_local(call):
             pytest.fail("远程工具不应进入本地执行函数")
 
@@ -70,7 +76,7 @@ class TestLoopSSE:
 
         tools = [
             ToolDefinition(name="get_client_info", location="remote", description="获取客户端信息")]
-        async with ModelExecutor() as executor:
+        async with ModelExecutor(supplier=supplier_model) as executor:
             async with asyncio.timeout(180):
                 frames = []
                 async for frame in AgentLoop(executor, config, tools,
@@ -107,7 +113,7 @@ class TestLoopSSE:
                           flush=True)
                     final_frames.append(data)
 
-    async def test_live_sse_remote_local_tool_next_request(self, config, tmp_path):
+    async def test_live_sse_remote_local_tool_next_request(self, config, tmp_path, supplier_model):
         path = tmp_path / "example2.txt"
         path.write_text("LOONG_LOOP_LOCAL_OK", encoding="utf-8")
 
@@ -139,7 +145,7 @@ class TestLoopSSE:
         client_id = "client-" + uuid4().hex
         session_id = "session-" + uuid4().hex
 
-        async with ModelExecutor() as executor:
+        async with ModelExecutor(supplier=supplier_model) as executor:
             async with asyncio.timeout(180):
                 frames = []
                 async for frame in AgentLoop(executor, config, tools,
@@ -175,14 +181,14 @@ class TestLoopSSE:
 
 
 class TestLoopRun:
-    async def test_live_completed_message(self, config):
+    async def test_live_completed_message(self, config, supplier_model):
         async def execute_local(call):
             pytest.fail("没有注册工具，不应执行工具")
 
         client_id = "client-" + uuid4().hex
         session_id = "session-" + uuid4().hex
 
-        async with ModelExecutor() as executor:
+        async with ModelExecutor(supplier=supplier_model) as executor:
             async with asyncio.timeout(120):
                 event = await AgentLoop(executor, config, [], {"read_test_file": execute_local},
                                         client_id, session_id).run([
@@ -193,7 +199,7 @@ class TestLoopRun:
         response_dict = event.model_dump(mode='json', exclude_none=True)
         print(f"response:\n{json.dumps(response_dict, ensure_ascii=False)}")
 
-    async def test_live_local_tool(self, config, tmp_path):
+    async def test_live_local_tool(self, config, tmp_path, supplier_model):
         path = tmp_path / "example.txt"
         path.write_text("LOONG_LOOP_LOCAL_OK", encoding="utf-8")
         executed = []
@@ -209,7 +215,7 @@ class TestLoopRun:
 
         tools = [
             ToolDefinition(name="read_test_file", location="local", description="读取测试文件")]
-        async with ModelExecutor() as executor:
+        async with ModelExecutor(supplier=supplier_model) as executor:
             async with asyncio.timeout(120):
                 event = await AgentLoop(executor, config, tools, {"read_test_file": execute_local},
                                         client_id, session_id).run([
@@ -221,7 +227,7 @@ class TestLoopRun:
         response_dict = event.model_dump(mode='json', exclude_none=True)
         print(f"response:\n{json.dumps(response_dict, ensure_ascii=False)}")
 
-    async def test_live_remote_tool_next_request(self, config):
+    async def test_live_remote_tool_next_request(self, config, supplier_model):
         async def execute_local(call):
             pytest.fail("远程工具不应进入本地执行函数")
 
@@ -243,7 +249,7 @@ class TestLoopRun:
         client_id = "client-" + uuid4().hex
         session_id = "session-" + uuid4().hex
 
-        async with ModelExecutor() as executor:
+        async with ModelExecutor(supplier=supplier_model) as executor:
             async with asyncio.timeout(180):
                 event = await AgentLoop(executor, config, tools, {"read_test_file": execute_local},
                                         client_id, session_id).run(messages)
@@ -271,7 +277,7 @@ class TestLoopRun:
         response_dict2 = final.model_dump(mode='json', exclude_none=True)
         print(f"response2:\n{json.dumps(response_dict2, ensure_ascii=False)}")
 
-    async def test_multiple_live_remote_tool_next_request(self, config, tmp_path):
+    async def test_multiple_live_remote_tool_next_request(self, config, tmp_path, supplier_model):
         path = tmp_path / "example.txt"
         path.write_text("LOONG_LOOP_LOCAL_OK", encoding="utf-8")
 
@@ -303,7 +309,7 @@ class TestLoopRun:
         client_id = "client-" + uuid4().hex
         session_id = "session-" + uuid4().hex
 
-        async with ModelExecutor() as executor:
+        async with ModelExecutor(supplier=supplier_model) as executor:
             async with asyncio.timeout(180):
                 event = await AgentLoop(executor, config, tools, {"read_test_file": execute_local},
                                         client_id, session_id).run(messages)
