@@ -45,7 +45,6 @@ async def submit_message(request: Request, session_id: str, body: AddMessageRequ
                     request_date=result.request_date)
 
     except httpx.HTTPStatusError as e:
-        logger.error(e)
         raise CloudHttpError(status=e.response.status_code, message=e.response.text,headers=e.response.headers)
 
     return result

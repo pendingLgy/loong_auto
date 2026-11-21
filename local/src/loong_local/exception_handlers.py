@@ -2,9 +2,12 @@
 
 从 app.py 抽离，保证应用装配只负责依赖组装；新增异常类型时在此注册。
 """
+import json
+
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from httpx import HTTPStatusError
+from loguru import logger
 from loong_contracts.utils import Response
 from loong_contracts.utils.datetime_util import utcnow
 from loong_contracts.utils.uuid_util import uuid_str
@@ -63,11 +66,19 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(CloudHttpError)
     async def cloud_http_error(request: Request, exc: CloudHttpError):
-        log_exception(exc, f"Cloud HTTP 状态异常, path:{request.url.path}",
-                      status_code=exc.status, **_log_context(request))
+        logger.warning(
+            "Cloud HTTP 状态异常:{}, path:{}, msg:{}",
+            exc.status,
+            request.url.path,
+            exc.message,
+            request_id=exc.headers.get("X-Request-ID"),
+            request_data=exc.headers.get("X-Request-Date"),
+        )
 
+        raw = str(exc.message)
+        obj = json.loads(raw)
 
-        return _error_response(request, exc.status, str(exc.message), exc.response.headers)
+        return _error_response(request, exc.status, obj.get("msg",raw), exc.headers)
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(request: Request, exc: RequestValidationError):

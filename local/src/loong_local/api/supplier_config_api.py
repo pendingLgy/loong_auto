@@ -73,7 +73,6 @@ async def list_supplier_configs(
             return Response.fail(request, msg="暂无供应商提供")
 
     except httpx.HTTPStatusError as e:
-        logger.error(e)
         raise CloudHttpError(status=e.response.status_code, message=e.response.text,
                              headers=e.response.headers)
 
