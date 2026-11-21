@@ -1,7 +1,7 @@
 import { Show, createSignal } from "solid-js";
 
 import { translate, type Locale } from "../../src/i18n";
-import { LoginPage } from "../../src/login";
+import { LoginDialog, LoginPage } from "../../src/login";
 import type { PreviewCase } from "../types";
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -36,7 +36,44 @@ function LoginCase(props: { mode: "success" | "error" | "slow"; locale?: Locale 
   );
 }
 
+const loginDialogCases: PreviewCase[] = [
+  {
+    id: "login-dialog-zh",
+    group: "LoginDialog",
+    title: "登录弹窗（带注册）",
+    render: () => (
+      <div class="relative h-[520px] rounded-xl border border-slate-200 dark:border-white/10">
+        <LoginDialog
+          open
+          serverName="本地开发"
+          overlayClass="absolute inset-0"
+          onLogin={async () => undefined}
+          onRegister={async () => undefined}
+        />
+      </div>
+    ),
+  },
+  {
+    id: "login-dialog-en",
+    group: "LoginDialog",
+    title: "英文（locale=en-US）",
+    render: () => (
+      <div class="relative h-[520px] rounded-xl border border-slate-200 dark:border-white/10">
+        <LoginDialog
+          open
+          locale="en-US"
+          serverName="Local dev"
+          overlayClass="absolute inset-0"
+          onLogin={async () => undefined}
+          onRegister={async () => undefined}
+        />
+      </div>
+    ),
+  },
+];
+
 export const loginCases: PreviewCase[] = [
+  ...loginDialogCases,
   {
     id: "login-zh",
     group: "LoginPage",

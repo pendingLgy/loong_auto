@@ -5,6 +5,15 @@
  * 字典只维护其它语言，并用 `Record<MessageKey, string>` 强制 key 对齐。
  */
 export const enUS = {
+  "login.dialog.title": "Sign in",
+  "login.register.title": "Create account",
+  "login.register.name": "Display name (optional)",
+  "login.register.confirmPassword": "Confirm password",
+  "login.register.submit": "Register and sign in",
+  "login.register.pending": "Registering…",
+  "login.register.link": "No account? Register",
+  "login.register.back": "Already have an account? Sign in",
+  "login.register.errors.passwordMismatch": "Passwords do not match",
   "login.title": "Sign in to Loong",
   "login.description": "Use your Loong account to continue",
   "login.username": "Username",
@@ -60,6 +69,7 @@ export const enUS = {
   "homeTabs.unpin": "Unpin",
   "homeTabs.scrollLeft": "Scroll left",
   "homeTabs.scrollRight": "Scroll right",
+  "homeTabs.logout": "Log out",
   "homeTabs.serverInfo": "Server info",
   "homeTabs.darkMode": "Switch to dark mode",
   "homeTabs.lightMode": "Switch to light mode",

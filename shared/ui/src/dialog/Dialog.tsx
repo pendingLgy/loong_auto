@@ -28,6 +28,8 @@ export interface DialogProps {
   closable?: boolean;
   /** 点击遮罩是否关闭，默认 true。 */
   closeOnOverlay?: boolean;
+  /** 遮罩定位类名，默认 fixed inset-0；传入 absolute inset-0 可限制在父容器内。 */
+  overlayClass?: string;
   /** 宽度，默认 md。 */
   size?: DialogSize;
   /** 无可见标题时提供的无障碍名称。 */
@@ -58,7 +60,7 @@ export const Dialog: Component<DialogProps> = (props) => {
   return (
     <Show when={props.open}>
       <div
-        class="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-4"
+        class={`${props.overlayClass ?? "fixed inset-0"} z-50 grid place-items-center bg-slate-900/40 p-4`}
         role="presentation"
         onClick={() => {
           if (props.closeOnOverlay !== false) props.onClose?.();

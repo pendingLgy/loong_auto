@@ -5,6 +5,8 @@ import { useNavigate } from "@solidjs/router";
 import { Effect } from "effect";
 
 import { createLocalClient } from "@loong/client";
+
+import { createApiClient } from "../../api";
 import { DEFAULT_LOCALE } from "@loong/ui/i18n";
 import { Toast, type MessageType } from "@loong/ui/message";
 import { SettingsPage, type ConfiguredServer } from "@loong/ui/settings";
@@ -15,6 +17,7 @@ import {
   setActiveServer,
   updateServerStatus,
 } from "../../storage/server_config";
+import { clearUser, currentUser } from "../../storage/user";
 
 interface ToastState {
   type: MessageType;
@@ -41,6 +44,18 @@ export function WebSettingsPage() {
   };
 
   const serverLabel = (server: ConfiguredServer) => server.name?.trim() || server.serverUrl;
+
+  const logout = async () => {
+    try {
+      // 服务端注销失败也要清除本地缓存，避免残留无效令牌。
+      await Effect.runPromise(createApiClient().auth.logout());
+    } catch {
+      // 忽略注销请求异常。
+    } finally {
+      clearUser();
+      navigate("/");
+    }
+  };
 
   const findServer = (server: ConfiguredServer) =>
     server.id
@@ -78,6 +93,11 @@ export function WebSettingsPage() {
             if (target) setActiveServer(target.id);
           },
           onTestServer: testServer,
+        }}
+        account={{
+          userName: currentUser()?.name ?? currentUser()?.username,
+          username: currentUser()?.username,
+          onLogout: logout,
         }}
       />
 

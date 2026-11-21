@@ -1,7 +1,7 @@
-import { For, Show, createEffect, createSignal, onCleanup, onMount, type Component } from "solid-js";
+import {type Component, createEffect, createSignal, For, onCleanup, onMount, Show} from "solid-js";
 
-import { BackIcon, MoonIcon, PinIcon, PlusIcon, ServerIcon, SunIcon } from "../icon";
-import { DEFAULT_LOCALE, translate, type Locale } from "../i18n";
+import {BackIcon, LogoutIcon, MoonIcon, PinIcon, PlusIcon, ServerIcon, SunIcon} from "../icon";
+import {DEFAULT_LOCALE, type Locale, translate} from "../i18n";
 
 /** 顶部标签页数据。 */
 export interface HomeTab {
@@ -32,6 +32,8 @@ export interface HomeTabsProps {
   onUnpin?: (key: string) => void;
   /** 点击服务器信息按钮。 */
   onServerInfo?: () => void;
+  /** 点击「退出登录」。 */
+  onLogout?: () => void;
   /** 当前是否深色主题，用于切换按钮图标。 */
   dark?: boolean;
   /** 点击主题切换按钮。 */
@@ -209,30 +211,41 @@ export const HomeTabs: Component<HomeTabsProps> = (props) => {
         </Show>
       </div>
 
-      <div class="flex w-20 shrink-0 items-center justify-end gap-1">
-      <button
-        type="button"
-        onClick={() => props.onServerInfo?.()}
-        aria-label={translate(locale(), "homeTabs.serverInfo", "服务器信息")}
-        title={translate(locale(), "homeTabs.serverInfo", "服务器信息")}
-        class="grid h-8 w-8 shrink-0 place-items-center rounded-md text-slate-500 outline-none transition hover:bg-slate-900/5 hover:text-slate-800 focus-visible:ring-2 focus-visible:ring-sky-500/40 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-200"
-      >
-        <ServerIcon class="h-4 w-4" />
-      </button>
+      <div class="flex w-28 shrink-0 items-center justify-end gap-1">
 
-      <button
-        type="button"
-        onClick={() => props.onToggleTheme?.()}
-        aria-label={props.dark
-          ? translate(locale(), "homeTabs.lightMode", "切换到浅色模式")
-          : translate(locale(), "homeTabs.darkMode", "切换到深色模式")}
-        title={props.dark
-          ? translate(locale(), "homeTabs.lightMode", "切换到浅色模式")
-          : translate(locale(), "homeTabs.darkMode", "切换到深色模式")}
-        class="grid h-8 w-8 shrink-0 place-items-center rounded-md text-slate-500 outline-none transition hover:bg-slate-900/5 hover:text-slate-800 focus-visible:ring-2 focus-visible:ring-sky-500/40 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-200"
-      >
-        {props.dark ? <SunIcon class="h-4 w-4" /> : <MoonIcon class="h-4 w-4" />}
-      </button>
+        <button
+          type="button"
+          onClick={() => props.onToggleTheme?.()}
+          aria-label={props.dark
+            ? translate(locale(), "homeTabs.lightMode", "切换到浅色模式")
+            : translate(locale(), "homeTabs.darkMode", "切换到深色模式")}
+          title={props.dark
+            ? translate(locale(), "homeTabs.lightMode", "切换到浅色模式")
+            : translate(locale(), "homeTabs.darkMode", "切换到深色模式")}
+          class="grid h-8 w-8 shrink-0 place-items-center rounded-md text-slate-500 outline-none transition hover:bg-slate-900/5 hover:text-slate-800 focus-visible:ring-2 focus-visible:ring-sky-500/40 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-200"
+        >
+          {props.dark ? <SunIcon class="h-4 w-4"/> : <MoonIcon class="h-4 w-4"/>}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => props.onServerInfo?.()}
+          aria-label={translate(locale(), "homeTabs.serverInfo", "服务器信息")}
+          title={translate(locale(), "homeTabs.serverInfo", "服务器信息")}
+          class="grid h-8 w-8 shrink-0 place-items-center rounded-md text-slate-500 outline-none transition hover:bg-slate-900/5 hover:text-slate-800 focus-visible:ring-2 focus-visible:ring-sky-500/40 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-200"
+        >
+          <ServerIcon class="h-4 w-4" />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => props.onLogout?.()}
+          aria-label={translate(locale(), "homeTabs.logout", "退出登录")}
+          title={translate(locale(), "homeTabs.logout", "退出登录")}
+          class="grid h-8 w-8 shrink-0 place-items-center rounded-md text-slate-500 outline-none transition hover:bg-red-500/10 hover:text-red-600 focus-visible:ring-2 focus-visible:ring-red-500/40 dark:text-slate-400 dark:hover:bg-red-500/15 dark:hover:text-red-400"
+        >
+          <LogoutIcon class="h-4 w-4"/>
+        </button>
 
       </div>
     </div>

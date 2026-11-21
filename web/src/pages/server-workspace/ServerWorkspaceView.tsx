@@ -1,20 +1,20 @@
-import { createSignal, type JSX } from "solid-js";
+import {createSignal, type JSX} from "solid-js";
 
-import { useNavigate } from "@solidjs/router";
+import {useNavigate} from "@solidjs/router";
 
-import { ThreePaneLayout, type LayoutState } from "@loong/ui/layout";
-import { SideNav, type SideNavKey, type SideNavUserData, type Workspace } from "@loong/ui/nav";
-import { serverConfig, servers } from "../../storage/server_config";
-import { getLayoutState, saveLayoutState } from "../../storage/settings";
-import { currentUser } from "../../storage/user";
-import { HomeIndex } from "./HomeIndex";
-import { HomeViewContext } from "./home-context";
+import {type LayoutState, ThreePaneLayout} from "@loong/ui/layout";
+import {SideNav, type SideNavKey, type SideNavUserData, type Workspace} from "@loong/ui/nav";
+import {serverConfig, servers} from "../../storage/server_config";
+import {getLayoutState, saveLayoutState} from "../../storage/settings";
+import {currentUser} from "../../storage/user";
+import {HomeIndex} from "./HomeIndex";
+import {HomeViewContext} from "./home-context";
 
 const INITIAL_WORKSPACES: Workspace[] = [
   {
     id: "workspace-default",
     name: "默认工作区",
-    conversations: [{ id: "conversation-1", title: "新的对话" }],
+    conversations: [{id: "conversation-1", title: "新的对话"}],
   },
 ];
 
@@ -45,7 +45,7 @@ export function ServerWorkspaceView(props: ServerWorkspaceViewProps) {
 
   const userData = (): SideNavUserData | undefined => {
     const info = currentUser();
-    return info ? { name: info.name ?? info.username, username: info.username } : undefined;
+    return info ? {name: info.name ?? info.username, username: info.username} : undefined;
   };
 
   const addConversation = (workspaceId: string) => {
@@ -53,7 +53,7 @@ export function ServerWorkspaceView(props: ServerWorkspaceViewProps) {
     setWorkspaces((list) =>
       list.map((workspace) =>
         workspace.id === workspaceId
-          ? { ...workspace, conversations: [...workspace.conversations, { id, title: "新的对话" }] }
+          ? {...workspace, conversations: [...workspace.conversations, {id, title: "新的对话"}]}
           : workspace,
       ),
     );
@@ -65,7 +65,7 @@ export function ServerWorkspaceView(props: ServerWorkspaceViewProps) {
   const createWorkspace = () => {
     setWorkspaces((list) => [
       ...list,
-      { id: createId("workspace"), name: "新的工作区", conversations: [] },
+      {id: createId("workspace"), name: "新的工作区", conversations: []},
     ]);
   };
 
@@ -85,53 +85,53 @@ export function ServerWorkspaceView(props: ServerWorkspaceViewProps) {
   };
 
   return (
-    <HomeViewContext.Provider value={{ active, activeConversationId }}>
+    <HomeViewContext.Provider value={{active, activeConversationId}}>
       <ThreePaneLayout
-      value={layout()}
-      onChange={onLayoutChange}
-      minLeftWidth={260}
-      minRightWidth={300}
-      height={props.height ?? "100%"}
-      left={
-        <SideNav
-          height="100%"
-          minHeight={0}
-          active={active()}
-          onSelect={setActive}
-          onNewChat={newChat}
-          onAutomation={() => {
-            setActive("automation");
-            navigate("/");
-          }}
-          workspaces={workspaces()}
-          activeConversationId={activeConversationId()}
-          onSelectConversation={(_, conversationId) => {
-            setActiveConversationId(conversationId);
-            navigate("/");
-          }}
-          onSearch={() => undefined}
-          onCreateWorkspace={createWorkspace}
-          onMoreWorkspace={() => undefined}
-          onCreateConversation={addConversation}
-          user={userData()}
-          onUserClick={() => undefined}
-          onSettings={() => navigate("/settings")}
-        />
-      }
-      right={
-        <div class="grid gap-2 p-3">
-          <h2 class="m-0 text-xs font-semibold uppercase tracking-wider text-slate-500">详情</h2>
-          <p class="m-0 text-sm text-slate-600 dark:text-slate-300">
-            服务器：{currentServer()?.serverUrl ?? "未配置"}
-          </p>
-          <p class="m-0 text-sm text-slate-600 dark:text-slate-300">
-            选中左侧条目后，这里展示对应的工具与审批信息。
-          </p>
-        </div>
-      }
-    >
-      {props.children ?? <HomeIndex />}
-    </ThreePaneLayout>
+        value={layout()}
+        onChange={onLayoutChange}
+        minLeftWidth={260}
+        minRightWidth={300}
+        height={props.height ?? "100%"}
+        left={
+          <SideNav
+            height="100%"
+            minHeight={0}
+            active={active()}
+            onSelect={setActive}
+            onNewChat={newChat}
+            onAutomation={() => {
+              setActive("automation");
+              navigate("/");
+            }}
+            workspaces={workspaces()}
+            activeConversationId={activeConversationId()}
+            onSelectConversation={(_, conversationId) => {
+              setActiveConversationId(conversationId);
+              navigate("/");
+            }}
+            onSearch={() => undefined}
+            onCreateWorkspace={createWorkspace}
+            onMoreWorkspace={() => undefined}
+            onCreateConversation={addConversation}
+            user={userData()}
+            onUserClick={() => undefined}
+            onSettings={() => navigate("/settings")}
+          />
+        }
+        right={
+          <div class="grid gap-2 p-3">
+            <h2 class="m-0 text-xs font-semibold uppercase tracking-wider text-slate-500">详情</h2>
+            <p class="m-0 text-sm text-slate-600 dark:text-slate-300">
+              服务器：{currentServer()?.serverUrl ?? "未配置"}
+            </p>
+            <p class="m-0 text-sm text-slate-600 dark:text-slate-300">
+              选中左侧条目后，这里展示对应的工具与审批信息。
+            </p>
+          </div>
+        }
+      >
+        {props.children ?? <HomeIndex/>}
+      </ThreePaneLayout>
     </HomeViewContext.Provider>
   );
 }

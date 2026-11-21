@@ -18,6 +18,7 @@ import navAutomationIcon from "../assets/icons/NavAutomationIcon.svg?raw";
 import navChatIcon from "../assets/icons/NavChatIcon.svg?raw";
 import panelCollapseIcon from "../assets/icons/PanelCollapseIcon.svg?raw";
 import panelExpandIcon from "../assets/icons/PanelExpandIcon.svg?raw";
+import logoutIcon from "../assets/icons/LogoutIcon.svg?raw";
 import pinIcon from "../assets/icons/PinIcon.svg?raw";
 import plusIcon from "../assets/icons/PlusIcon.svg?raw";
 import searchIcon from "../assets/icons/SearchIcon.svg?raw";
@@ -59,6 +60,10 @@ export function PanelCollapseIcon(props: IconProps = {}): Node {
 
 export function PanelExpandIcon(props: IconProps = {}): Node {
   return createIcon(panelExpandIcon, `inline-block align-middle ${props.class ?? "h-3.5 w-3.5"}`);
+}
+
+export function LogoutIcon(props: IconProps = {}): Node {
+  return createIcon(logoutIcon, `inline-block align-middle ${props.class ?? "h-3.5 w-3.5"}`);
 }
 
 export function PinIcon(props: IconProps = {}): Node {

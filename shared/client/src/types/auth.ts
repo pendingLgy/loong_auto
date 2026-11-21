@@ -9,6 +9,13 @@ export interface LoginRequest {
   platform: LoginPlatform;
 }
 
+/** 注册请求参数。 */
+export interface RegisterRequest {
+  username: string;
+  password: string;
+  name?: string;
+}
+
 /** 登录用户信息。 */
 export interface UserInfo {
   id: string;

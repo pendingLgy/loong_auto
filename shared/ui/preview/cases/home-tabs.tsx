@@ -40,6 +40,7 @@ function HomeTabsCase(props: { tabs?: HomeTab[] }) {
           onUnpin={(key) => setLastAction(`取消固定：${key}`)}
           onPinnedChange={(keys) => setLastAction(`固定列表：${keys.join(", ")}`)}
           onServerInfo={() => setLastAction("服务器信息")}
+          onLogout={() => setLastAction("退出")}
           dark={dark()}
           onToggleTheme={() => {
             setDark((value) => !value);

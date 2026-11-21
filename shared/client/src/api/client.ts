@@ -10,7 +10,7 @@ import { SessionConfigApi } from "./session-config";
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
 
 /** 默认转发前缀：本地网关 `/api/common` 会把请求代理到云端 `/api/*`。 */
-export const DEFAULT_PREFIX = "/api/common";
+export const DEFAULT_PREFIX = "";
 
 /** 登录接口路径（相对 `prefix`）。 */
 export const LOGIN_PATH = "/api/auth/login";

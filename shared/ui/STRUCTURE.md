@@ -15,6 +15,7 @@ shared/ui/
 ├── src/
 │   ├── login/
 │   │   ├── LoginPage.tsx
+│   │   ├── LoginDialog.tsx
 │   │   └── index.ts
 │   ├── server-config/
 │   │   ├── ServerConfigPage.tsx

@@ -7,6 +7,7 @@ import type {
   LoginResponse,
   RawLoginPayload,
   RawUserPayload,
+  RegisterRequest,
   UserInfo,
 } from "../types";
 import { ClientError } from "../types/errors";
@@ -74,19 +75,26 @@ export class AuthApi {
   constructor(private readonly options: AuthApiOptions) {}
 
   login(request: LoginRequest): Effect.Effect<LoginResponse, ClientError> {
-    return requestJson<RawLoginPayload>(this.options, "/api/auth/login", {
+    return requestJson<RawLoginPayload>(this.options, "/api/cloud/common/api/auth/login", {
       method: "POST",
       body: request,
     }).pipe(Effect.map((payload) => toLoginResponse(payload, this.options.locale)));
   }
 
+  register(request: RegisterRequest): Effect.Effect<UserInfo, ClientError> {
+    return requestJson<RawUserPayload>(this.options, "/api/cloud/common/api/auth/register", {
+      method: "POST",
+      body: request,
+    }).pipe(Effect.map((payload) => toUserInfo(payload)));
+  }
+
   me(): Effect.Effect<UserInfo, ClientError> {
-    return requestJson<RawUserPayload>(this.options, "/api/auth/me")
+    return requestJson<RawUserPayload>(this.options, "/api/cloud/common/api/auth/me")
       .pipe(Effect.map((payload) => toUserInfo(payload)));
   }
 
   logout(): Effect.Effect<void, ClientError> {
-    return requestJson<unknown>(this.options, "/api/auth/logout", { method: "POST" })
+    return requestJson<unknown>(this.options, "/api/cloud/common/api/auth/logout", { method: "POST" })
       .pipe(Effect.map(() => undefined));
   }
 }

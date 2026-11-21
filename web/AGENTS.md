@@ -21,7 +21,7 @@
 
 ## 路由与守卫
 
-路由顺序为：**先服务器配置，配置完成后进入 HomeTabsView**。登录校验已移除。
+路由顺序为：**先服务器配置，配置完成后进入 HomeTabsView**。登录不通过路由守卫跳转，而由 HomeTabsView 弹窗强制完成。
 
 ```text
 /setup     未配置时展示；已配置 → /
@@ -30,7 +30,7 @@
 ```
 
 - 守卫使用 `RequireServerConfig`、`SetupOnly`；`RequireAuth`、`GuestOnly` 不再参与路由。
-- 新增业务路由必须包在 `RequireServerConfig` 下；不要重新引入登录强制跳转，除非需求明确。
+- 新增业务路由必须包在 `RequireServerConfig` 下；不要重新引入 `/login` 路由跳转，登录由 HomeTabsView 的 `LoginView` 处理。
 - 路由使用 history 模式；生产静态托管必须把未知路径回退到 `index.html`（网关静态托管尚未实现）。
 
 ## 存储约定
@@ -38,7 +38,7 @@
 | 内容 | 位置 | Key |
 |---|---|---|
 | 服务器配置列表（id、名称、地址、security_token、连通状态 `connected`、检查时间 `checkedAt`） | `localStorage` | `loong.web.server-config` |
-| 登录用户数据（access/refresh token、用户信息） | `localStorage` | `loong.web.user` |
+| 登录用户数据（access/refresh token、用户信息，按服务器 ID 分开） | `localStorage` | `loong.web.user:<serverId>` |
 | 页面设置（三栏布局宽度、折叠状态） | `localStorage` | `loong.web.settings` |
 | 主题（light / dark，通过 `<html class="dark">` 切换） | `localStorage` | `loong.web.theme` |
 | 已固定标签 key 列表 | `localStorage` | `loong.web.pinned-tabs` |
@@ -48,6 +48,7 @@
 - 读取已存数据时必须校验字段类型，损坏数据按"未配置/未登录"处理。
 - 清除用户数据用 `clearUser()`；清除服务器配置用 `clearServerConfig()`，不要手写 `removeItem`。
 - 当前选中的服务器 `activeId` 只保存在内存中，不写入 storage。
+- 登录信息按服务器 ID 隔离；`HomeTabsView` 在未登录时强制弹出登录框，登录成功前不可关闭。
 
 ## API 调用
 
@@ -62,7 +63,7 @@ await Effect.runPromise(client.auth.login({ username, password, platform: "web" 
 - `createApiClient` 负责 origin（服务器配置优先）、`locale` 与访问令牌，不要在页面里手工拼 URL 或认证头。
 - 只从 `@loong/client`、`@loong/client/api`、`@loong/client/http`、`@loong/client/types`、`@loong/client/i18n` 导入，
   不直接引用其 `src/` 内部文件。
-- 401 统一是 `UnauthorizedError`：业务请求遇到时清理会话并交给守卫跳转登录页；登录接口的 401 属于凭证错误，直接展示 `message`。
+- 401 统一是 `UnauthorizedError`：业务请求遇到时清理当前服务器会话，HomeTabsView 会重新弹出登录框；登录接口的 401 属于凭证错误，直接展示 `message`。
 
 ## UI 与样式
 
@@ -85,6 +86,6 @@ bun run --filter '@loong/web' dev   # http://127.0.0.1:5173
 ```
 
 - 改动路由、存储或 API 调用后至少保证 `typecheck` 与 `build:web` 通过。
-- 手工验证顺序：清空 `localStorage` → 应进入 `/setup`；保存配置 → 进入 `/`（HomeTabsView）；`/settings` 可正常打开；当前流程不要求登录。
+- 手工验证顺序：清空 `localStorage` → 应进入 `/setup`；保存配置 → 进入 `/`（HomeTabsView）并弹出登录框；登录成功后才能关闭弹框；切换服务器会使用对应服务器的登录态。
 - 生产构建为静态资源，路由回退未实现前不要宣称可直接由网关托管。
 - 不在本目录引入测试框架；集成测试放在 `local/tests` 或后续专门的 e2e 目录。

@@ -32,7 +32,7 @@ export const SettingsAccountSection: Component<SettingsAccountSectionProps> = (p
         <button
           type="button"
           onClick={() => props.onLogout?.()}
-          class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-900/5 disabled:opacity-60 dark:border-white/15 dark:text-slate-200 dark:hover:bg-white/5"
+          class="rounded-xl border border-red-300 px-4 py-2 text-sm font-medium text-red-600 outline-none transition hover:bg-red-500/10 focus-visible:ring-2 focus-visible:ring-red-500/40 disabled:opacity-60 dark:border-red-500/30 dark:text-red-400 dark:hover:bg-red-500/15"
         >
           {translate(locale(), "settings.account.logout", "退出登录")}
         </button>
