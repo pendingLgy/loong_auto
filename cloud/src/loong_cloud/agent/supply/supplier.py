@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import yaml
+from loguru import logger
 from pydantic import BaseModel, Field
 
 from loong_cloud.agent.adapters.connection import ProviderConnection
@@ -59,5 +60,7 @@ def _read_supplier(path: str | Path) -> str:
 def load_supplier(path: str | Path) -> ModelSupplier:
     """从 YAML 文件或包内默认目录加载模型目录。"""
     raw = yaml.safe_load(_read_supplier(path))
-    return ModelSupplier.model_validate(raw or {})
+    supplier = ModelSupplier.model_validate(raw or {})
+    logger.info(f"loading supplier from {path}, data:{supplier.model_dump_json(ensure_ascii=False)}")
+    return supplier
 

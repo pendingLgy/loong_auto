@@ -28,7 +28,7 @@ providers:
         enable: true
       }
       deepseek-flash: {
-        view: false,
+        view: true,
         enable: true,
         reasoning_effort: [ 'default','none','low','high','max' ]
       }

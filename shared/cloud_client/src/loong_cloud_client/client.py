@@ -18,6 +18,7 @@ from loong_contracts.request.working_directory import (
 from loong_contracts.response.base import BasePageResponse, BaseResponse
 from loong_contracts.response.login import LoginResponse, UserInfoResponse
 from loong_contracts.response.session import SessionSimpleResponse
+from loong_contracts.response.supplier import SupplierResponse
 from loong_contracts.response.workspace import WorkspaceResponse
 from pydantic import BaseModel, SecretStr, TypeAdapter
 
@@ -51,6 +52,7 @@ class CloudClient:
         self.events = EventsAPI(self, prefix)
         self.workspaces = WorkspacesAPI(self, prefix)
         self.sessions = SessionsAPI(self, prefix)
+        self.supplier = SupplierAPI(self, prefix)
         self.prefix = prefix
 
     def build_token(self, token: str):
@@ -239,4 +241,16 @@ class SessionsAPI:
             f"{self.prefix}/api/sessions/{_segment(session_id)}",
             BaseResponse[SessionSimpleResponse],
             body=body,
+        )
+
+
+class SupplierAPI:
+    def __init__(self, client, prefix: str = ""):
+        self.client:CloudClient = client
+        self.prefix = prefix
+
+    async def get(self) -> BaseResponse[SupplierResponse]:
+        """获取按 view 过滤后的模型供应商目录。"""
+        return await self.client.request(
+            "GET", f"{self.prefix}/api/supplier", BaseResponse[SupplierResponse]
         )

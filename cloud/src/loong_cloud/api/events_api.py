@@ -6,7 +6,6 @@ from contextlib import aclosing, suppress
 from dataclasses import dataclass, field
 
 import anyio
-from agent.supply.supplier import ModelSupplier
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -20,6 +19,7 @@ from starlette.types import Message as ASGIMessage
 from starlette.types import Receive, Scope, Send
 
 from loong_cloud.agent import AgentLoop, ModelExecutor
+from loong_cloud.agent.supply.supplier import ModelSupplier
 from loong_cloud.agent.tools import DEFAULT_LOCAL_TOOLS
 from loong_cloud.config.config_model import ModelConfig
 from loong_cloud.core.logging import log_exception
