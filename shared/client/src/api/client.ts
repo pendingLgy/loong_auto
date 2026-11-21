@@ -6,6 +6,7 @@ import { DEFAULT_LOCALE, translate, type Locale } from "../i18n";
 import { AuthApi } from "./auth";
 import { HealthApi } from "./health";
 import { SessionConfigApi } from "./session-config";
+import { SupplierConfigApi } from "./supplier-config";
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
 
@@ -35,6 +36,7 @@ export interface LocalClient {
   auth: AuthApi;
   health: HealthApi;
   sessionConfig: SessionConfigApi;
+  supplierConfig: SupplierConfigApi;
 }
 
 /** 只允许本机网关，拒绝把账号密码发往任意远程地址。 */
@@ -84,6 +86,14 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
       security_token: options.security_token,
     }),
     sessionConfig: new SessionConfigApi({
+      baseUrl,
+      prefix,
+      token: options.token,
+      locale,
+      fetch: options.fetch,
+      security_token: options.security_token,
+    }),
+    supplierConfig: new SupplierConfigApi({
       baseUrl,
       prefix,
       token: options.token,

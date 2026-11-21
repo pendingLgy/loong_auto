@@ -2,4 +2,5 @@
 export * from "./common";
 export * from "./auth";
 export * from "./session-config";
+export * from "./supplier-config";
 export * from "./errors";

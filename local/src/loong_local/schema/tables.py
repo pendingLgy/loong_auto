@@ -1,5 +1,6 @@
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     Column,
     DateTime,
     Index,
@@ -58,3 +59,37 @@ def get_session_configs_table(metadata: MetaData, prefix: str = "") -> Table:
     )
 
     return session_configs_table
+
+
+def get_supplier_config_table(metadata: MetaData, prefix: str = "") -> Table:
+    """供应商 API Key 配置。"""
+    supplier_config_table = Table(
+        f"{prefix}supplier_config",
+        metadata,
+        Column("id", Integer, autoincrement=True, primary_key=True),
+        Column("provider", String(64), nullable=False, comment="模型供应商"),
+        Column("base_url", String(512), nullable=True, comment="供应商 API Base URL"),
+        Column("api_key", Text, nullable=False, comment="供应商 API Key"),
+        Column("created_at", DateTime, default=None, nullable=True, comment="创建时间"),
+        Column("updated_at", DateTime, default=None, nullable=True, comment="更新时间"),
+        UniqueConstraint("provider", name=f"{prefix}uq_supplier_config_provider"),
+        sqlite_autoincrement=True,
+    )
+    return supplier_config_table
+
+
+def get_supplier_model_option_table(metadata: MetaData, prefix: str = "") -> Table:
+    """供应商下各模型的启用配置。"""
+    supplier_model_option_table = Table(
+        f"{prefix}supplier_model_option",
+        metadata,
+        Column("id", Integer, autoincrement=True, primary_key=True),
+        Column("provider", String(64), nullable=False, comment="模型供应商"),
+        Column("model", String(128), nullable=False, comment="模型名称"),
+        Column("enabled", Boolean, nullable=False, default=True, comment="模型是否启用"),
+        Column("created_at", DateTime, default=None, nullable=True, comment="创建时间"),
+        Column("updated_at", DateTime, default=None, nullable=True, comment="更新时间"),
+        UniqueConstraint("provider", "model", name=f"{prefix}uq_supplier_model_option_provider_model"),
+        sqlite_autoincrement=True,
+    )
+    return supplier_model_option_table

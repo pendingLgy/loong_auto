@@ -6,9 +6,14 @@ from fastapi import APIRouter, Request
 from loguru import logger
 from starlette.responses import Response
 
+from loong_local.commons.rebuild_header import rebuild_cloud_request_header
 from loong_local.core.context import SSEContext
+from loong_local.core.exceptions import CloudHttpError
 
 router = APIRouter(prefix="/common", tags=["公共接口转发"])
+
+
+
 
 @router.api_route("/{target:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"])
 async def proxy_common(request: Request, target: str):
@@ -18,7 +23,7 @@ async def proxy_common(request: Request, target: str):
     cloud_client = context.cloud_client
 
     headers = httpx.Headers(request.headers)
-    headers.update(context.headers())
+    rebuild_cloud_request_header(headers, context.headers())
 
     outgoing = cloud_client.build_request(request.method, quote(target),
                                           headers=headers, content=request.stream())
@@ -44,6 +49,9 @@ async def proxy_common(request: Request, target: str):
         response.headers["X-Local-Request-ID"] = context.local_request_id
 
         return response
+    except httpx.HTTPStatusError as e:
+        logger.error(e)
+        raise CloudHttpError(status=e.response.status_code, message=e.response.text,headers=e.response.headers)
 
     finally:
         # 8. 确保无论成功还是异常，都关闭 upstream 响应连接

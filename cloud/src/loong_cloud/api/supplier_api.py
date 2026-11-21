@@ -27,6 +27,7 @@ def _visible_supplier(supplier: ModelSupplier) -> SupplierResponse:
             providers[name] = SupplierProviderResponse(
                 base_url=provider.base_url,
                 timeout=provider.timeout,
+                popular=provider.popular,
                 adapter=provider.adapter,
                 models=models,
             )

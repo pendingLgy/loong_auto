@@ -63,7 +63,7 @@ await Effect.runPromise(client.auth.login({ username, password, platform: "web" 
 - `createApiClient` 负责 origin（服务器配置优先）、`locale` 与访问令牌，不要在页面里手工拼 URL 或认证头。
 - 只从 `@loong/client`、`@loong/client/api`、`@loong/client/http`、`@loong/client/types`、`@loong/client/i18n` 导入，
   不直接引用其 `src/` 内部文件。
-- 401 统一是 `UnauthorizedError`：业务请求遇到时清理当前服务器会话，HomeTabsView 会重新弹出登录框；登录接口的 401 属于凭证错误，直接展示 `message`。
+- 401 统一是 `UnauthorizedError`：`createApiClient` 会使用当前服务器的 refresh token 刷新一次并重试原请求；刷新失败才清理该服务器会话，并弹出「登录已过期」提示框，3 秒后跳转 HomeTabsView，由登录弹框重新登录。登录 / 注册 / 刷新接口本身不参与自动刷新。
 
 ## UI 与样式
 

@@ -33,3 +33,19 @@ class SessionConfigUpdateRequest(BaseModel):
 
     workspace_mode: WorkspaceModelType = Field(default=WorkspaceModelType.READ_ONLY, description="放行模式")
     workspaces: list[str] = Field(default_factory=list, description="允许的工作目录列表")
+
+
+class SupplierConfigSaveRequest(BaseModel):
+    """新增或更新供应商 API Key。"""
+
+    provider: str = Field(min_length=1, max_length=64, description="模型供应商")
+    base_url: str | None = Field(default=None, max_length=512, description="供应商 API Base URL")
+    api_key: str = Field(min_length=1, description="供应商 API Key")
+
+
+class SupplierModelOptionSaveRequest(BaseModel):
+    """设置某个模型的启用状态。"""
+
+    provider: str = Field(min_length=1, max_length=64, description="模型供应商")
+    model: str = Field(min_length=1, max_length=128, description="模型名称")
+    enabled: bool = Field(default=True, description="模型是否启用")

@@ -1,4 +1,4 @@
-import { createSignal } from "solid-js";
+import { createResource, createSignal } from "solid-js";
 
 import { useNavigate } from "@solidjs/router";
 
@@ -28,6 +28,13 @@ interface ToastState {
 export function WebSettingsPage() {
   const navigate = useNavigate();
   const [toast, setToast] = createSignal<ToastState | null>(null);
+  const [supplierConfigs] = createResource(async () => {
+    try {
+      return await Effect.runPromise(createApiClient().supplierConfig.list());
+    } catch {
+      return [];
+    }
+  });
 
   const currentServerOption = () => {
     const list = servers();
@@ -55,6 +62,23 @@ export function WebSettingsPage() {
       clearUser();
       navigate("/");
     }
+  };
+
+  const providerOptions = () => {
+    const configs = supplierConfigs() ?? [];
+    const toCard = (config: (typeof configs)[number]) => ({
+      name: config.provider,
+      description: "",
+      baseUrl: config.baseUrl ?? "",
+    });
+
+    return {
+      providers: configs
+        .filter((config) => config.configFlag)
+        .map((config) => ({ name: config.provider, baseUrl: config.baseUrl ?? "" })),
+      popular: configs.filter((config) => config.popular).map(toCard),
+      allProviders: configs.map(toCard),
+    };
   };
 
   const findServer = (server: ConfiguredServer) =>
@@ -94,6 +118,7 @@ export function WebSettingsPage() {
           },
           onTestServer: testServer,
         }}
+        provider={providerOptions()}
         account={{
           userName: currentUser()?.name ?? currentUser()?.username,
           username: currentUser()?.username,

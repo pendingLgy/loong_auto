@@ -4,6 +4,7 @@
 """
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from httpx import HTTPStatusError
 from loong_contracts.utils import Response
 from loong_contracts.utils.datetime_util import utcnow
 from loong_contracts.utils.uuid_util import uuid_str
@@ -11,7 +12,8 @@ from starlette import status
 from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse
 
-from loong_local.core.exceptions import ToolExecuteError
+from loong_local.commons.rebuild_header import rebuild_cloud_response_header
+from loong_local.core.exceptions import CloudHttpError, ToolExecuteError
 from loong_local.core.logging import log_exception
 
 
@@ -27,6 +29,8 @@ def _error_response(request: Request, code: int, message: str, headers=None) -> 
     _ensure_request_context(request)
     body = Response.fail(request, code=code, msg=message)
     # 未处理异常的响应由最外层异常处理器生成，也需要携带上下文响应头。
+
+    rebuild_cloud_response_header(headers)
     response_headers = dict(headers or {})
     response_headers["X-Request-ID"] = body.request_id
     response_headers["X-Request-Date"] = body.request_date.isoformat()
@@ -48,6 +52,22 @@ def register_exception_handlers(app: FastAPI) -> None:
         log_exception(exc, f"HTTP 请求异常, path:{request.url.path}",
                       status_code=exc.status_code, **_log_context(request))
         return _error_response(request, exc.status_code, str(exc.detail), exc.headers)
+
+    @app.exception_handler(HTTPStatusError)
+    async def http_status_error(request: Request, exc: HTTPStatusError):
+        log_exception(exc, f"HTTP 状态异常, path:{request.url.path}",
+                      status_code=exc.response.status_code, **_log_context(request))
+
+
+        return _error_response(request, exc.response.status_code, str(exc.response.text), exc.response.headers)
+
+    @app.exception_handler(CloudHttpError)
+    async def cloud_http_error(request: Request, exc: CloudHttpError):
+        log_exception(exc, f"Cloud HTTP 状态异常, path:{request.url.path}",
+                      status_code=exc.status, **_log_context(request))
+
+
+        return _error_response(request, exc.status, str(exc.message), exc.response.headers)
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(request: Request, exc: RequestValidationError):

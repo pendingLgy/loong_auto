@@ -12,7 +12,7 @@ uv run --package loong-cloud loong-cloud
 
 ```powershell
 # --path指定配置文件路径
-uv run --package loong-cloud python -m loong_cloud --path=F:\workspace\code\python\loong_auto\cloud\.env 
+uv run --package loong-cloud python -m loong_cloud --path=F:\workspace\code\python\loong_auto\cloud\.env --supplier=F:\workspace\code\python\loong_auto\cloud\default_models.yaml 
 ```
 
 ## 测试

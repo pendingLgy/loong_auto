@@ -16,6 +16,11 @@ export interface RegisterRequest {
   name?: string;
 }
 
+/** 刷新令牌请求参数。 */
+export interface RefreshTokenRequest {
+  refreshToken: string;
+}
+
 /** 登录用户信息。 */
 export interface UserInfo {
   id: string;

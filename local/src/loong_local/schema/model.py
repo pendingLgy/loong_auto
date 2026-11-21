@@ -40,3 +40,52 @@ class SessionConfigModel(BaseModel):
     workspaces: list[str] = Field(default_factory=list, description="允许的工作目录列表")
     created_at: datetime | None = Field(default=None, description="创建时间")
     updated_at: datetime | None = Field(default=None, description="更新时间")
+
+
+class SupplierConfigModel(BaseModel):
+    """supplier_config 表记录（包含内部使用的原始 API Key）。"""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int | None = Field(default=None, description="数据库自增主键")
+    provider: str = Field(description="模型供应商")
+    base_url: str | None = Field(default=None, description="供应商 API Base URL")
+    api_key: str = Field(description="供应商 API Key")
+    created_at: datetime | None = Field(default=None, description="创建时间")
+    updated_at: datetime | None = Field(default=None, description="更新时间")
+
+
+class SupplierConfigResponse(BaseModel):
+    """返回给客户端的供应商配置，仅标识是否已配置 API Key。"""
+
+    id: int = Field(description="配置 ID")
+    provider: str = Field(description="模型供应商")
+    base_url: str | None = Field(default=None, description="供应商 API Base URL")
+    popular: bool = Field(default=False, description="热门供应商")
+    config_flag: bool = Field(default=False, description="是否配置api_key")
+    created_at: datetime | None = Field(default=None, description="创建时间")
+    updated_at: datetime | None = Field(default=None, description="更新时间")
+
+
+class SupplierModelOptionModel(BaseModel):
+    """supplier_model_option 表记录。"""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int | None = Field(default=None, description="数据库自增主键")
+    provider: str = Field(description="模型供应商")
+    model: str = Field(description="模型名称")
+    enabled: bool = Field(default=True, description="模型是否启用")
+    created_at: datetime | None = Field(default=None, description="创建时间")
+    updated_at: datetime | None = Field(default=None, description="更新时间")
+
+
+class SupplierModelOptionResponse(BaseModel):
+    """返回给客户端的模型启用配置。"""
+
+    id: int = Field(description="配置 ID")
+    provider: str = Field(description="模型供应商")
+    model: str = Field(description="模型名称")
+    enabled: bool = Field(default=True, description="模型是否启用")
+    created_at: datetime | None = Field(default=None, description="创建时间")
+    updated_at: datetime | None = Field(default=None, description="更新时间")

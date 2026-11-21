@@ -114,6 +114,15 @@ export function clearUser(serverId?: string): void {
   setRevision((current) => current + 1);
 }
 
+/** 刷新令牌成功后只更新 accessToken，保留 refreshToken 与用户信息。 */
+export function updateAccessToken(token: string, serverId?: string): void {
+  const id = serverId ?? activeServerId();
+  if (!id) return;
+  const current = readUser(id);
+  if (!current) return;
+  saveUser({ ...current, accessToken: token }, id);
+}
+
 export function currentUser(): UserInfo | null {
   return userSession()?.user ?? null;
 }

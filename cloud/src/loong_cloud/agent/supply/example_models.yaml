@@ -2,6 +2,7 @@
 # view: 是否返回给客户端；enable: 是否启用（禁用后执行器不可调用）。
 providers:
   openai:
+    popular: true
     base_url: https://api.openai.com/v1
     timeout: 60
     models:
@@ -11,6 +12,7 @@ providers:
       }
     adapter: openai
   anthropic:
+    popular: true
     base_url: https://api.anthropic.com/v1
     timeout: 60
     models:
@@ -20,6 +22,7 @@ providers:
       }
     adapter: anthropic
   deepseek:
+    popular: false
     base_url: https://api.deepseek.com/v1
     timeout: 60
     models:
@@ -28,7 +31,7 @@ providers:
         enable: true
       }
       deepseek-flash: {
-        view: false,
+        view: true,
         enable: true,
         reasoning_effort: [ 'default','none','low','high','max' ]
       }

@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from httpx import Headers
+
 
 class BaseError(Exception):
     """所有领域异常的基类。"""
@@ -36,3 +38,11 @@ class ApprovalNotFoundError(Exception):
 
 class ToolExecuteError(Exception):
     """工具执行异常"""
+
+class CloudHttpError(Exception):
+    """调用Cloud服务异常"""
+
+    def __init__(self, status: int, message: str, headers:Headers) -> None:
+        self.status = status
+        self.message = message
+        self.headers = headers

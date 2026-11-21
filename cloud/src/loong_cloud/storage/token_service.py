@@ -151,7 +151,7 @@ class TokenService:
 
         return UserInfoResponse.model_validate(session["user_info"])
 
-    async def refresh_access_token(self, refresh_token: str, user_store) -> LoginResponse:
+    async def refresh_access_token(self, refresh_token: str, user_store) -> str:
         """通过 refresh token 定位 refresh_key，保留其原有有效期。"""
         try:
             jti, user_id, tenant_id, type, platform, payload = self._jwt_decode(refresh_token)
@@ -167,19 +167,23 @@ class TokenService:
 
         access_key = ACCESS_TOKEN_KEY.format(user_id=user_id, jti=jti)
         refresh_key = REFRESH_TOKEN_KEY.format(user_id=user_id, jti=jti)
-        session_key = TOKEN_SESSION_KEY.format(user_id=user_id, jti=jti)
+        # session_key = TOKEN_SESSION_KEY.format(user_id=user_id, jti=jti)
 
         exists = await self.cache.exists(refresh_key)
         if not exists:
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "刷新令牌无效或已过期")
 
-        user = await user_store.get_user_info(tenant_id,user_id)
 
-        await self.remove_cache_keys(access_key, refresh_key, session_key)
+        access_token = self._encode(jti=jti, user_id=user_id, kind="access", platform=platform,
+                                    tenant_id=tenant_id,
+                                    ttl=self.config.access_ttl)
 
-        user_info = await self.issue(user, platform)
+        await self.cache.set(
+            access_key,
+            dict(token=access_token, jti=jti),
+            ttl=self.config.access_ttl)
 
-        return user_info
+        return access_token
 
     async def logout(self, access_token: str):
 

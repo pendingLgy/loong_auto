@@ -11,7 +11,7 @@ from loong_cloud.storage.user_store import UserStore
 router = APIRouter(prefix="/auth", tags=["用户认证"])
 
 
-@router.post("/refresh_token", response_model=BaseResponse[LoginResponse])
+@router.post("/refresh_token", response_model=BaseResponse[str])
 @inject
 async def refresh_token(request: Request, body: RefreshTokenRequest,
                         user_store: UserStore = Depends(Provide["UserStore"]),

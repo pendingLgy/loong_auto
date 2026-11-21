@@ -1,4 +1,5 @@
 import { Route, Router } from "@solidjs/router";
+
 import { HomeTabsView } from "../pages/home-tabs/HomeTabsView";
 import { WebServerConfigPage } from "../pages/server-config/WebServerConfigPage";
 import { WebSettingsPage } from "../pages/settings/WebSettingsPage";

@@ -1,3 +1,7 @@
+
+import { Cause, Option } from "effect";
+import { isFiberFailure } from "effect/Runtime";
+
 /** 本地网关调用错误；`status` 为 HTTP 状态码，`code` 为云端信封 code。 */
 export class ClientError extends Error {
   constructor(

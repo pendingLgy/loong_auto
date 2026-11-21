@@ -10,6 +10,7 @@ from loong_contracts.agent.models import LoopEvent, ToolCall
 from loong_contracts.common.llm_message_constant import GlobalMessageStatus
 from starlette.responses import Response, StreamingResponse
 
+from loong_local.commons.rebuild_header import rebuild_cloud_request_header
 from loong_local.core.context import SSEContext
 from loong_local.core.logging import log_exception
 from loong_local.service.pending_tool_task_service import PendingToolTaskService
@@ -39,7 +40,8 @@ async def subscribe(
 
     # 保留客户端原始请求头（含 Last-Event-ID），再补充网关身份头。
     headers = httpx.Headers(request.headers)
-    headers.update(context.headers())
+    rebuild_cloud_request_header(headers, context.headers())
+
     cloud_client.http.headers = headers
 
     # 1. 直接获取上游打开 the response 句柄

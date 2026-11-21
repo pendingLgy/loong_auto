@@ -2,12 +2,13 @@ import { Effect } from "effect";
 
 import { requestJson, type HttpClientOptions } from "../http";
 import { DEFAULT_LOCALE, translate, type Locale } from "../i18n";
-import type {
+import {
   LoginRequest,
   LoginResponse,
   RawLoginPayload,
   RawUserPayload,
-  RegisterRequest,
+  RefreshTokenRequest,
+  RegisterRequest, UnauthorizedError,
   UserInfo,
 } from "../types";
 import { ClientError } from "../types/errors";
@@ -86,6 +87,17 @@ export class AuthApi {
       method: "POST",
       body: request,
     }).pipe(Effect.map((payload) => toUserInfo(payload)));
+  }
+
+  refreshToken(request: RefreshTokenRequest): Effect.Effect<string, UnauthorizedError> {
+    return requestJson<unknown>(this.options, "/api/cloud/common/api/auth/refresh_token", {
+      method: "POST",
+      body: { refresh_token: request.refreshToken },
+    }).pipe(Effect.flatMap((payload) => typeof payload === "string" && payload
+      ? Effect.succeed(payload)
+      : Effect.fail(new UnauthorizedError(
+        translate(this.options.locale ?? DEFAULT_LOCALE, "client.errors.missingAccessToken", "刷新令牌响应缺少 access token"),
+      ))));
   }
 
   me(): Effect.Effect<UserInfo, ClientError> {

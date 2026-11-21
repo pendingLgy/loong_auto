@@ -19,6 +19,7 @@ export const enUS = {
   "client.errors.requestFailed": "Request failed",
   "client.errors.unauthorized": "Not signed in or session expired",
   "client.errors.missingTokens": "Login response is missing tokens",
+  "client.errors.missingAccessToken": "Refresh response is missing the access token",
   "client.errors.invalidSessionConfig": "Session config response is invalid",
 } as const;
 

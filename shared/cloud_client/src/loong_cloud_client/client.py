@@ -109,7 +109,7 @@ class AuthAPI:
         return await self.client.request("POST", f"{self.prefix}/api/auth/register", BaseResponse[UserInfoResponse], body=body)
 
     async def refresh_token(self, body: RefreshTokenRequest):
-        return await self.client.request("POST", f"{self.prefix}/api/auth/refresh_token", BaseResponse[LoginResponse], body=body)
+        return await self.client.request("POST", f"{self.prefix}/api/auth/refresh_token", BaseResponse[str], body=body)
 
     async def me(self):
         return await self.client.request("GET", f"{self.prefix}/api/auth/me", BaseResponse[UserInfoResponse])

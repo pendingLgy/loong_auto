@@ -43,8 +43,8 @@ async def test_auth_register_login_me_refresh_logout(http_client):
 
         refresh_body = RefreshTokenRequest(refresh_token=logged_in.data.refresh_token)
         refreshed = await cloud.auth.refresh_token(refresh_body)
-        assert isinstance(refreshed.data, LoginResponse)
-        token = refreshed.data.access_token
+        assert isinstance(refreshed.data, str)
+        token = refreshed.data
         http_client.headers["Authorization"] = f"Bearer {token}"
         assert token
         current = await cloud.auth.me()
