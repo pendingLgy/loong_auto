@@ -1,12 +1,14 @@
 from sqlalchemy import (
+    BigInteger,
     Column,
     DateTime,
     Index,
+    Integer,
     MetaData,
     String,
     Table,
     Text,
-    UniqueConstraint, Integer,
+    UniqueConstraint,
 )
 
 
@@ -44,6 +46,7 @@ def get_session_configs_table(metadata: MetaData, prefix: str = "") -> Table:
         f"{prefix}session_configs",
         metadata,
         Column("id", Integer, autoincrement=True, primary_key=True),
+        Column("workspace_id", BigInteger, comment="工作空间id"),
         Column("session_id", String(128), comment="业务会话ID"),
         Column("workspace_mode", String(32), nullable=False, default="read_only",
                comment="放行模式: read_only / workspace_write / full"),

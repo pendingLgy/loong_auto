@@ -2,7 +2,8 @@ import importlib
 import importlib.util
 import inspect
 import pkgutil
-from typing import Annotated, Sequence, get_args, get_origin, get_type_hints
+from collections.abc import Sequence
+from typing import Annotated, get_args, get_origin, get_type_hints
 
 from dependency_injector import containers, providers
 

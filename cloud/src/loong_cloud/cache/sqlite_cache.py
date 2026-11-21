@@ -10,13 +10,30 @@ from threading import Event, Thread
 from typing import Any
 
 from loguru import logger
-from sqlalchemy import Column, Float, Index, Integer, MetaData, Table, Text, URL, delete, or_, select
+from sqlalchemy import (
+    URL,
+    Column,
+    Float,
+    Index,
+    Integer,
+    MetaData,
+    Table,
+    Text,
+    delete,
+    or_,
+    select,
+)
 from sqlalchemy.dialects.sqlite import insert
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.pool import AsyncAdaptedQueuePool, NullPool, NullPool
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
+from sqlalchemy.pool import AsyncAdaptedQueuePool, NullPool
 
+from loong_cloud.cache.cache_base import BaseCache
 from loong_cloud.config.config_cache import CacheConfig
-from .cache_base import BaseCache
 
 metadata = MetaData()
 cache_entries = Table(
@@ -85,7 +102,6 @@ class SqliteCache(BaseCache):
                 self._engine = None
                 await engine.dispose()
                 raise
-
 
     def _cleanup_worker(self) -> None:
         """在线程自己的事件循环中直接调用清理方法，使用专用连接。"""

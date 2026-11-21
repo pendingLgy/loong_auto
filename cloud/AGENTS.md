@@ -78,7 +78,7 @@ cloud/
 
 ## SSE 连接与消息存储
 
-- `message_api.py` 提供直接聊天流及查询；`events_api.py` 将长连接订阅与消息提交拆开，路由分别为 `GET /api/events/chat/{client_id}/sse` 和 `POST /api/events/chat/{client_id}/messages`。
+- `message_api.py` 提供直接聊天流及查询；`events_api.py` 将长连接订阅与消息提交拆开，路由分别为 `GET /api/events/chat/{client_id}/sse` 和 `POST /api/events/chat/{client_id}/working-directories/{working_directory_id}/messages`。
 - `client_id` 标识连接，提交 body 的 `session_id` 标识业务对话，两者不能混用。连接按租户、认证用户和 client_id 隔离；身份字段取认证上下文，不信任客户端提交值。
 - 客户端先订阅再提交。一次连接可以承载多轮请求；同一连接执行期间拒绝并发提交，对话结束后 SSE 继续保持连接。
 - `EventSession` 使用有界队列和进程内状态，当前仅支持单 worker，不支持跨进程分发、持久化事件补发或断线续传。

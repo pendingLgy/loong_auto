@@ -9,5 +9,5 @@ async def test_security_token(http_client: AsyncClient):
     response.raise_for_status()
     data = response.json()
 
-    assert data.get("code") == 500
+    assert data.get("code") == 200
 

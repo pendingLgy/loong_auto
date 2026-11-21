@@ -10,18 +10,19 @@ from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from loguru import logger
-from starlette.types import Message as ASGIMessage, Receive, Scope, Send
+from loong_contracts.agent.models import LoopEvent, Message, ToolDefinition
+from loong_contracts.common.llm_message_constant import GlobalMessageRole, GlobalMessageStatus
+from loong_contracts.request.message import AddMessageRequest, LLMParamRequest
+from loong_contracts.utils import Response
+from loong_contracts.utils.datetime_util import utcnow
+from starlette.types import Message as ASGIMessage
+from starlette.types import Receive, Scope, Send
 
-from loong_cloud.core.logging import log_exception
 from loong_cloud.agent import AgentLoop, ModelExecutor
 from loong_cloud.agent.tools import DEFAULT_LOCAL_TOOLS
-from loong_contracts.utis import Response
 from loong_cloud.config.config_model import ModelConfig
+from loong_cloud.core.logging import log_exception
 from loong_cloud.storage.message_store import MessageStore
-from loong_contracts.agent.models import LoopEvent, Message, ToolDefinition
-from loong_contracts.common.llm_message_constant import GlobalMessageStatus, GlobalMessageRole
-from loong_contracts.request.message import AddMessageRequest, LLMParamRequest
-from loong_contracts.utis.datetime_util import utcnow
 
 router = APIRouter(prefix="/events", tags=["对话事件"])
 HEARTBEAT_INTERVAL_SECONDS = 15
@@ -270,7 +271,7 @@ async def chat_sse(request: Request, client_id: str,
     )
 
 
-@router.post("/chat/{client_id}/session/{session_id}/messages")
+@router.post("/chat/{client_id}/messages/{session_id}")
 @inject
 async def submit_message(
     request: Request,
@@ -280,6 +281,7 @@ async def submit_message(
     message_store: MessageStore = Depends(Provide["MessageStore"]),
 ):
     """保存消息后启动对话任务，结果通过已建立的 SSE 连接推送。"""
+
     channel = _sessions(request).get(_session_key(request, client_id))
     if channel is None or not channel.connected:
         raise HTTPException(status_code=409, detail="请先建立当前会话的 SSE 连接")
@@ -292,7 +294,6 @@ async def submit_message(
     try:
         body.tenant_id = request.state.identity.tenant_id
         body.user_id = request.state.identity.id
-        body.session_id = session_id
 
         config = ModelConfig(
             provider=body.llm.provider,

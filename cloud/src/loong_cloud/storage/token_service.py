@@ -7,14 +7,14 @@ from typing import Any
 
 import jwt
 from fastapi import HTTPException
+from loong_contracts.request.login import LoginPlatform
+from loong_contracts.response.login import LoginResponse, UserInfoResponse
 from starlette import status
 
 from loong_cloud.cache import CacheProxy
 from loong_cloud.config import GlobalConfig
 from loong_cloud.constant.cache_key import ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY, TOKEN_SESSION_KEY
 from loong_cloud.core.logging import log_exception
-from loong_contracts.request.login import LoginPlatform
-from loong_contracts.response.login import LoginResponse, UserInfoResponse
 
 
 class TokenService:

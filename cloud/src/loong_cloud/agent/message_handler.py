@@ -1,7 +1,8 @@
 """消息历史组装辅助函数。"""
 
-from loong_cloud.core.exceptions import DataError
 from loong_contracts.agent.models import Message, ToolCall
+
+from loong_cloud.core.exceptions import DataError
 
 
 def build_tool_call_message(

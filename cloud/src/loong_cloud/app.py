@@ -4,23 +4,19 @@ from datetime import datetime, timezone
 from pathlib import Path
 from time import monotonic
 
+from exception_handler import register_exception_handlers
 from fastapi import FastAPI
-from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
-from starlette import status
-from starlette.exceptions import HTTPException
+from loong_contracts.utils.datetime_util import utcnow
 
+from loong_cloud.api import router
 from loong_cloud.cache import CacheProxy
 from loong_cloud.config.config_global import GlobalConfig
-from loong_cloud.core.logging import log_exception, configure_logging
-from loong_cloud.api import router
-from loong_contracts.utis import Response
-from loong_cloud.core.container import  ApplicationContainer
+from loong_cloud.core.container import ApplicationContainer
+from loong_cloud.core.logging import configure_logging, log_exception
 from loong_cloud.db.db_proxy import AsyncDatabaseProxy
 from loong_cloud.install_setting import SERVICE_TARGETS, WIRE_TARGETS
 from loong_cloud.middleware.loading_middleware import loading_middleware
 from loong_cloud.schema import load_tables
-from loong_contracts.utis.datetime_util import utcnow
 
 
 def _get_path() -> str:
@@ -96,31 +92,5 @@ def create_app() -> FastAPI:
 
     loading_middleware(app)
 
-    def error_response(request, code, message, headers=None):
-        body = Response.fail(request, code=code, msg=message)
-        # 未处理异常的响应由最外层异常处理器生成，也需要携带上下文响应头。
-        response_headers = dict(headers or {})
-        response_headers["X-Request-ID"] = body.request_id
-        response_headers["X-Request-Date"] = body.request_date.isoformat()
-        return JSONResponse(status_code=code, content=body.model_dump(mode="json"), headers=response_headers)
-
-    @app.exception_handler(HTTPException)
-    async def http_error(request, exc):
-        log_exception(exc, f"HTTP 请求异常, path:{request.url.path}", request_id=request.state.request_id,
-                      request_date=request.state.request_date.isoformat(), status_code=exc.status_code)
-        return error_response(request, exc.status_code, str(exc.detail), exc.headers)
-
-    @app.exception_handler(RequestValidationError)
-    async def invalid_request(request, exc):
-        log_exception(exc, f"请求参数校验失败, path:{request.url.path}", request_id=request.state.request_id,
-                      request_date=request.state.request_date.isoformat(), status_code=status.HTTP_422_UNPROCESSABLE_CONTENT)
-        return error_response(request, status.HTTP_422_UNPROCESSABLE_CONTENT, "请求参数校验失败")
-
-    @app.exception_handler(Exception)
-    async def unexpected_error(request, exc):
-
-        log_exception(exc, f"服务内部异常, path:{request.url.path}", request_id=request.state.request_id,
-                      request_date=request.state.request_date.isoformat(), status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        return error_response(request, status.HTTP_500_INTERNAL_SERVER_ERROR, "服务内部错误")
-
+    register_exception_handlers(app)
     return app

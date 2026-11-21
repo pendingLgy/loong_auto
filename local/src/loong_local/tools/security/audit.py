@@ -2,7 +2,6 @@
 
 只记录路径与结论，不记录文件内容、密码、密钥等敏感数据。
 """
-from typing import Optional
 
 from loguru import logger
 
@@ -16,13 +15,13 @@ class AuditLogger:
             tool_name: str,
             operation: str,
             original_path: str,
-            resolved_path: Optional[str],
+            resolved_path: str | None,
             workspace: str,
             permission: str,
             result: str,
             security_action: str,
-            request_id: Optional[str] = None,
-            agent_id: Optional[str] = None,
+            request_id: str | None = None,
+            agent_id: str | None = None,
     ) -> None:
         logger.bind(
             audit=True,
@@ -41,7 +40,7 @@ class AuditLogger:
 
     @staticmethod
     def tool_call(*, tool_name: str, tool_id: str, result: str, security_action: str,
-                  request_id: Optional[str] = None) -> None:
+                  request_id: str | None = None) -> None:
         logger.bind(audit=True, request_id=request_id or "-", tool_name=tool_name, tool_id=tool_id,
                     result=result, security_action=security_action, operation="tool_call").info(
             "security audit tool_call tool={} tool_id={} result={} action={}",

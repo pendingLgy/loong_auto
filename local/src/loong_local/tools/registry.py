@@ -1,7 +1,8 @@
 """Loong Cloud Agent 工具注册中心（纯手动注册版）。"""
-from typing import Dict, Type, List
-from .base_tool import ABSTool
+
 from loong_contracts.agent.models import ToolDefinition
+
+from loong_local.tools.base_tool import ABSTool
 
 
 class ToolRegistry:
@@ -9,10 +10,10 @@ class ToolRegistry:
     纯手动显式注册的工具管理中心
     """
     def __init__(self):
-        self._registry: Dict[str, Type[ABSTool]] = {}
-        self._instances: Dict[str, ABSTool] = {}
+        self._registry: dict[str, type[ABSTool]] = {}
+        self._instances: dict[str, ABSTool] = {}
 
-    def register_class(self, tool_class: Type[ABSTool]) -> None:
+    def register_class(self, tool_class: type[ABSTool]) -> None:
         """显式注册工具类"""
         if not hasattr(tool_class, "tool_name") or not tool_class.tool_name:
             raise ValueError(f"工具类 {tool_class.__name__} 必须定义有效的 tool_name 类属性")
@@ -33,7 +34,7 @@ class ToolRegistry:
         self._registry[name] = tool_class
         self._instances[name] = instance
 
-    def get_tool_class(self, tool_name: str) -> Type[ABSTool]:
+    def get_tool_class(self, tool_name: str) -> type[ABSTool]:
         tool_cls = self._registry.get(tool_name)
         if not tool_cls:
             raise KeyError(f"未找到注册的工具类: {tool_name}")
@@ -47,13 +48,13 @@ class ToolRegistry:
         tool_cls = self.get_tool_class(tool_name)
         return tool_cls()
 
-    def list_tool_names(self) -> List[str]:
+    def list_tool_names(self) -> list[str]:
         return list(self._registry.keys())
 
-    def get_all_definitions(self) -> List[ToolDefinition]:
+    def get_all_definitions(self) -> list[ToolDefinition]:
         return [tool_cls.definition() for tool_cls in self._registry.values()]
 
-    def get_group_definitions(self, tool_names: List[str]) -> List[ToolDefinition]:
+    def get_group_definitions(self, tool_names: list[str]) -> list[ToolDefinition]:
         return [self.get_tool_class(name).definition() for name in tool_names]
 
     def get_group_definition(self, tool_name: str) -> ToolDefinition:

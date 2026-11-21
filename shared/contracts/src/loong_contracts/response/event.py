@@ -1,6 +1,8 @@
 """独立于云端实现的对话响应与 SSE 契约。"""
 from typing import Any, Literal
+
 from pydantic import BaseModel, Field
+
 from loong_contracts.agent.models import LoopEvent
 
 

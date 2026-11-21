@@ -1,8 +1,9 @@
 """DeepSeek 的 OpenAI 兼容 Chat Completions 接口。"""
 
+from loong_contracts.agent.models import Message, ModelRequest
+
+from loong_cloud.agent.adapters.openai import OpenAIAdapter
 from loong_cloud.config.config_model import ModelConfig
-from loong_contracts.agent.models import ModelRequest, Message
-from .openai import OpenAIAdapter
 
 
 class DeepSeekAdapter(OpenAIAdapter):

@@ -13,18 +13,28 @@ import json
 import os
 import re
 import shlex
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from loguru import logger
 
-from .base_tool import (ABSTool, BaseToolParameters, PathArgument, ToolContext,
-                        ToolSuspendedError, ToolUnauthorizedError)
-from .registry import GLOBAL_TOOL_REGISTRY, ToolRegistry
-from .security import (AuditLogger, PathGuard, PathPermission, PathSecurityAction,
-                       PathSecurityError, SandboxConfig, SandboxExecutor, ToolGuard,
-                       ToolPermissionError, ToolPermissionGuard, WorkspacePolicy)
+from loong_local.tools.base_tool import ABSTool, BaseToolParameters, PathArgument, ToolContext, ToolSuspendedError, ToolUnauthorizedError
+from loong_local.tools.registry import GLOBAL_TOOL_REGISTRY, ToolRegistry
+from loong_local.tools.security import (
+    AuditLogger,
+    PathGuard,
+    PathPermission,
+    PathSecurityAction,
+    PathSecurityError,
+    SandboxConfig,
+    SandboxExecutor,
+    ToolGuard,
+    ToolPermissionError,
+    ToolPermissionGuard,
+    WorkspacePolicy,
+)
 
 # 这些参数名后面的取值一定是路径（Shell 命令解析用）。
 _PATH_OPTIONS = frozenset({"-path", "-literalpath", "-destination", "-source", "-file"})

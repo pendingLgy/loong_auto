@@ -7,14 +7,14 @@ import secrets
 from datetime import datetime, timezone
 
 from fastapi import HTTPException
+from loong_contracts.response.login import UserInfoResponse
 from sqlalchemy import insert, select
 from sqlalchemy.exc import IntegrityError
 from starlette import status
 
-from loong_cloud.db.db_proxy import AsyncDatabaseProxy
 from loong_cloud import schema
+from loong_cloud.db.db_proxy import AsyncDatabaseProxy
 from loong_cloud.utils.snowflake import next_id
-from loong_contracts.response.login import UserInfoResponse
 
 
 def hash_password(password: str, salt: str | None = None) -> str:

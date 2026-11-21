@@ -13,8 +13,8 @@ class TenantResolveMiddleware:
 
         request = Request(scope)
 
-        host_header = request.headers.get("host", "")
-        domain = host_header.split(":")[0].lower()
+        # host_header = request.headers.get("host", "")
+        # domain = host_header.split(":")[0].lower()
 
         request.state.tenant_id = 0
         await self.app(scope, receive, send)

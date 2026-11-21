@@ -1,11 +1,11 @@
 """工具挂起任务持久化服务。"""
 import json
-from typing import Optional, Dict, Any
-
-from sqlalchemy import select, update, delete, text
+from typing import Any
 
 from loong_contracts.common.tool_constant import ToolTaskStatus
-from loong_contracts.utis.datetime_util import utcnow
+from loong_contracts.utils.datetime_util import utcnow
+from sqlalchemy import delete, select, update
+
 from loong_local import schema
 from loong_local.db import AsyncSqliteDB
 from loong_local.schema.model import PendingToolTaskModel
@@ -21,9 +21,9 @@ class PendingToolTaskService:
             tool_id: str,
             session_id: str,
             tool_name: str,
-            request_data: Dict[str, Any] | str,
+            request_data: dict[str, Any] | str,
             summary: str,
-            risk_reason: Optional[str] = None
+            risk_reason: str | None = None
     ) -> None:
         request_json = json.dumps(request_data, ensure_ascii=False)
         now = utcnow()
@@ -72,7 +72,7 @@ class PendingToolTaskService:
 
 
 
-    async def get_task(self, session_id: str, tool_id: str) -> Optional[PendingToolTaskModel]:
+    async def get_task(self, session_id: str, tool_id: str) -> PendingToolTaskModel | None:
         """
         根据 tool_id 获取挂起任务的详细数据（用于恢复执行）。
         返回包含反序列化后 request_data 的字典。

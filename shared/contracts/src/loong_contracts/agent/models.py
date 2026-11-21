@@ -2,10 +2,13 @@
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, model_validator, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from loong_contracts.common.llm_message_constant import GlobalMessageStatus, GlobalMessageRole
-from loong_contracts.utis.datetime_util import utcnow
+from loong_contracts.common.llm_message_constant import (
+    GlobalMessageRole,
+    GlobalMessageStatus,
+)
+from loong_contracts.utils.datetime_util import utcnow
 
 ToolLocation = Literal["local", "remote"]
 
@@ -25,7 +28,7 @@ class Message(BaseModel):
     model: str | None = Field(default=None, description="LLM model")
     id: str | None = Field(default=None, description="message id")
     created: int | None = Field(default=None, description="创建时间")
-    role: GlobalMessageRole = Field(default=GlobalMessageRole.ASSISTANT, description="创建时间")
+    role: GlobalMessageRole = Field(default=GlobalMessageRole.ASSISTANT, description="创建角色")
     raw: dict[str, Any] | None = Field(default=None, description="LLM 原始响应")
     finish_reason: str | None = Field(default=None, description="LLM 结束原因")
     status: GlobalMessageStatus = Field(default=GlobalMessageStatus.START, description="消息内容类型")

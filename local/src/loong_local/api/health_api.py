@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Request
-
 from loong_contracts.response import BaseResponse
-from loong_contracts.utis import Response
+from loong_contracts.utils import Response
 
 router = APIRouter(prefix="/health", tags=["健康检查"])
 

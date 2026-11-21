@@ -3,21 +3,26 @@ from typing import TypeVar
 from urllib.parse import quote
 
 import httpx
-from pydantic import BaseModel, SecretStr, TypeAdapter
-
 from loong_contracts.agent.models import LoopEvent
-from loong_contracts.request.login import LoginRequest, RegisterRequest, RefreshTokenRequest
+from loong_contracts.request.login import (
+    LoginRequest,
+    RefreshTokenRequest,
+    RegisterRequest,
+)
 from loong_contracts.request.message import AddMessageRequest
-from loong_contracts.response.base import BaseResponse, BasePageResponse
+from loong_contracts.request.session import CreateSessionRequest, UpdateSessionRequest
+from loong_contracts.request.working_directory import (
+    CreateWorkingDirectoryRequest,
+    UpdateWorkingDirectoryRequest,
+)
+from loong_contracts.response.base import BasePageResponse, BaseResponse
 from loong_contracts.response.login import LoginResponse, UserInfoResponse
+from loong_contracts.response.session import SessionSimpleResponse
+from loong_contracts.response.workspace import WorkspaceResponse
+from pydantic import BaseModel, SecretStr, TypeAdapter
 
 T = TypeVar("T")
 
-
-class CloudAPIError(Exception):
-    def __init__(self, code: int, request_id: str | None = None):
-        self.code, self.request_id = code, request_id
-        super().__init__(f"Cloud API failed: code={code}, request_id={request_id}")
 
 
 def _wire(value):
@@ -39,11 +44,13 @@ def _segment(value: str) -> str:
 
 
 class CloudClient:
-    def __init__(self, client: httpx.AsyncClient, prefix:str = ""):
+    def __init__(self, client: httpx.AsyncClient, prefix: str = ""):
         self.http = client
         self.auth = AuthAPI(self, prefix)
         self.messages = MessagesAPI(self, prefix)
         self.events = EventsAPI(self, prefix)
+        self.workspaces = WorkspacesAPI(self, prefix)
+        self.sessions = SessionsAPI(self, prefix)
         self.prefix = prefix
 
     def build_token(self, token: str):
@@ -62,8 +69,7 @@ class CloudClient:
         response = await self.send(request)
         response.raise_for_status()
         data = response.json()
-        if data.get("code") != 200:
-            raise CloudAPIError(data.get("code", 500), data.get("request_id"))
+
         return TypeAdapter(response_type).validate_python(data)
 
     async def stream_response(self, method: str, path: str, *, body=None) -> httpx.Response:
@@ -90,8 +96,8 @@ class CloudClient:
 
 
 class AuthAPI:
-    def __init__(self, client, prefix:str = ""):
-        self.client = client
+    def __init__(self, client, prefix: str = ""):
+        self.client:CloudClient = client
         self.prefix = prefix
 
     async def login(self, body: LoginRequest):
@@ -111,37 +117,126 @@ class AuthAPI:
 
 
 class MessagesAPI:
-    def __init__(self, client, prefix:str = ""):
-        self.client = client
+    def __init__(self, client, prefix: str = ""):
+        self.client:CloudClient = client
         self.prefix = prefix
 
-    async def complete(self, client_id:str, session_id: str, body: AddMessageRequest):
-        return await self.client.request("POST", f"{self.prefix}/api/messages//chat/{_segment(client_id)}/session/{_segment(session_id)}/complete",
-                                         BaseResponse[LoopEvent], body=body)
+    async def complete(self, client_id: str, workspace_id: int, session_id: str, body: AddMessageRequest):
+        """非流式对话：提交消息并同步返回一轮结果。"""
+        return await self.client.request(
+            "POST",
+            f"{self.prefix}/api/messages/chat/{_segment(client_id)}/complete/{_segment(session_id)}",
+            BaseResponse[LoopEvent],
+            body=body,
+        )
 
-    async def stream(self, client_id:str, session_id: str, body: AddMessageRequest) -> httpx.Response:
-        """返回 SSE 响应对象，由调用方管理生命周期"""
-        return await self.client.stream_response("POST", f"{self.prefix}/api/messages/chat/{_segment(client_id)}/session/{_segment(session_id)}/sse", body=body)
-
-    async def list_sessions(self, *, session_title: str = "", page=1, page_size=20):
-        return await self.client.request("GET", f"{self.prefix}/api/messages/sessions", BasePageResponse[list[dict]],
-            params={"session_title": session_title, "page": page, "page_size": page_size})
-
-    async def list_messages(self, session_id: str, *, page=1, page_size=20):
-        return await self.client.request("GET", f"{self.prefix}/api/messages/sessions/{_segment(session_id)}/messages",
-            BasePageResponse[list[dict]], params={"page": page, "page_size": page_size})
+    async def stream(self, client_id: str, session_id: str, body: AddMessageRequest) -> httpx.Response:
+        """返回 SSE 响应对象，由调用方管理生命周期。"""
+        return await self.client.stream_response(
+            "POST",
+            f"{self.prefix}/api/messages/chat/{_segment(client_id)}/sse/{_segment(session_id)}",
+            body=body,
+        )
 
 
 class EventsAPI:
-    def __init__(self, client, prefix:str = ""):
+    def __init__(self, client: CloudClient, prefix: str = ""):
         self.client:CloudClient = client
         self.prefix = prefix
 
     async def subscribe(self, client_id: str) -> httpx.Response:
-        """返回事件订阅的 SSE 响应对象，由调用方管理生命周期"""
-        return await self.client.stream_response("GET", f"{self.prefix}/api/events/chat/{_segment(client_id)}/sse")
+        """返回事件订阅的 SSE 响应对象，由调用方管理生命周期。"""
+        return await self.client.stream_response(
+            "GET", f"{self.prefix}/api/events/chat/{_segment(client_id)}/sse"
+        )
 
-    async def submit(self, client_id:str, session_id: str, body: AddMessageRequest, *,
-                     headers: httpx.Headers | dict[str, str] | list[tuple[str, str]] | None = None) -> BaseResponse[None]:
-        return await self.client.request("POST", f"{self.prefix}/api/events/chat/{_segment(client_id)}/session/{_segment(session_id)}/messages",
-                                         BaseResponse[None], body=body, headers=headers)
+    async def submit(
+        self,
+        client_id: str,
+        session_id: str,
+        body: AddMessageRequest,
+        *,
+        headers: httpx.Headers | dict[str, str] | list[tuple[str, str]] | None = None,
+    ) -> BaseResponse[None]:
+        """向已订阅的连接提交一轮消息。"""
+        return await self.client.request(
+            "POST",
+            f"{self.prefix}/api/events/chat/{_segment(client_id)}/messages/{_segment(session_id)}",
+            BaseResponse[None],
+            body=body,
+            headers=headers,
+        )
+
+
+class WorkspacesAPI:
+    def __init__(self, client, prefix: str = ""):
+        self.client:CloudClient = client
+        self.prefix = prefix
+
+    async def list(self, *, page: int = 1, page_size: int = 20):
+        return await self.client.request(
+            "GET",
+            f"{self.prefix}/api/workspace",
+            BasePageResponse[list[WorkspaceResponse]],
+            params={"page": page, "page_size": page_size},
+        )
+
+    async def create(self, body: CreateWorkingDirectoryRequest):
+        return await self.client.request(
+            "POST", f"{self.prefix}/api/workspace", BaseResponse[WorkspaceResponse], body=body
+        )
+
+    async def get(self, workspace_id: int):
+        return await self.client.request(
+            "GET", f"{self.prefix}/api/workspace/{workspace_id}", BaseResponse[WorkspaceResponse]
+        )
+
+    async def update(self, workspace_id: int, body: UpdateWorkingDirectoryRequest):
+        return await self.client.request(
+            "PUT", f"{self.prefix}/api/workspace/{workspace_id}", BaseResponse[WorkspaceResponse], body=body
+        )
+
+    async def delete(self, workspace_id: int):
+        return await self.client.request(
+            "DELETE", f"{self.prefix}/api/workspace/{workspace_id}", BaseResponse[dict]
+        )
+
+
+class SessionsAPI:
+    def __init__(self, client, prefix: str = ""):
+        self.client:CloudClient = client
+        self.prefix = prefix
+
+    async def list(self, *, workspace_id: int, page: int = 1, page_size: int = 20):
+        params = {"page": page, "page_size": page_size}
+        if workspace_id is not None:
+            params["workspace_id"] = workspace_id
+        return await self.client.request(
+            "GET",
+            f"{self.prefix}/api/sessions",
+            BasePageResponse[list[SessionSimpleResponse]],
+            params=params,
+        )
+
+    async def create(self, body: CreateSessionRequest):
+        return await self.client.request(
+            "POST", f"{self.prefix}/api/sessions", BaseResponse[SessionSimpleResponse], body=body
+        )
+
+    async def get(self, session_id: str, workspace_id: int):
+        request_params = {"workspace_id": workspace_id}
+
+        return await self.client.request(
+            "GET",
+            f"{self.prefix}/api/sessions/{_segment(session_id)}",
+            BaseResponse[SessionSimpleResponse],
+            params=request_params,
+        )
+
+    async def update(self, session_id: str, body: UpdateSessionRequest):
+        return await self.client.request(
+            "PUT",
+            f"{self.prefix}/api/sessions/{_segment(session_id)}",
+            BaseResponse[SessionSimpleResponse],
+            body=body,
+        )

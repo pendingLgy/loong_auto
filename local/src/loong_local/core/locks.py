@@ -4,7 +4,7 @@ from time import monotonic
 
 from loguru import logger
 
-from .exceptions import StorageError
+from loong_local.core.exceptions import StorageError
 
 
 class TimedLock:

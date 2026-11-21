@@ -3,6 +3,7 @@ import importlib.util
 import inspect
 import pkgutil
 from typing import Annotated, Sequence, get_args, get_origin, get_type_hints
+
 from dependency_injector import containers, providers
 
 from loong_cloud.cache import CacheProxy

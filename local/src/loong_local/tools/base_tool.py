@@ -5,15 +5,15 @@
 """
 import os
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import ClassVar, Generic, Mapping, TypeVar
-
-from pydantic import BaseModel, Field
+from typing import ClassVar, Generic, TypeVar
 
 from loong_contracts.agent.models import ToolDefinition
+from pydantic import BaseModel, Field
 
-from .security import PathPermission, SandboxExecutor, SandboxResult, WorkspacePolicy
+from loong_local.tools.security import PathPermission, SandboxExecutor, SandboxResult, WorkspacePolicy
 
 
 class BaseToolParameters(BaseModel):

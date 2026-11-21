@@ -1,17 +1,17 @@
 """HTTP Bearer 认证；白名单支持大小写敏感的 glob 路径匹配。"""
 
-from fnmatch import translate
 import re
+from fnmatch import translate
 
 from fastapi import HTTPException, Request
+from loong_contracts.response.login import UserInfoResponse
+from loong_contracts.utils import Response
 from starlette import status
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from loong_cloud.storage.token_service import TokenService
 from loong_cloud.storage.user_store import UserStore
-from loong_contracts.response.login import UserInfoResponse
-from loong_contracts.utis import Response
 
 
 class AuthenticationMiddleware:

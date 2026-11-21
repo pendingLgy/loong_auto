@@ -1,7 +1,7 @@
 """组装依赖；后台工具任务与客户端界面生命周期分离。"""
 import argparse
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from secrets import token_urlsafe
 from time import monotonic
@@ -9,21 +9,21 @@ from time import monotonic
 import httpx
 from fastapi import FastAPI
 from loguru import logger
-
 from loong_cloud_client import CloudClient
-from loong_contracts.utis.uuid_util import identifier
+from loong_contracts.utils.uuid_util import identifier
+
+from loong_local.api import router
+from loong_local.config.config_global import GlobalConfig
+from loong_local.core.container import ApplicationContainer
 from loong_local.core.logging import configure_logging, log_exception
+from loong_local.db.sqlite_db import AsyncSqliteDB
 from loong_local.exception_handlers import register_exception_handlers
-from .api import router
-from .config.config_global import GlobalConfig
-from .core.container import ApplicationContainer
-from .db.sqlite_db import AsyncSqliteDB
-from .install_setting import SERVICE_TARGETS, WIRE_TARGETS, init_tools
-from .middleware.loading_middleware import loading_middleware
-from .schema import load_tables
-from .tools.registry import GLOBAL_TOOL_REGISTRY
-from .tools.security import (PathGuard, SandboxConfig, ToolGuard, ToolPermissionGuard)
-from .tools.tool_executor import ToolExecutor
+from loong_local.install_setting import SERVICE_TARGETS, WIRE_TARGETS, init_tools
+from loong_local.middleware.loading_middleware import loading_middleware
+from loong_local.schema import load_tables
+from loong_local.tools.registry import GLOBAL_TOOL_REGISTRY
+from loong_local.tools.security import PathGuard, SandboxConfig, ToolGuard, ToolPermissionGuard
+from loong_local.tools.tool_executor import ToolExecutor
 
 
 def resolve_server_token(configured: str) -> tuple[str, str]:
@@ -64,7 +64,7 @@ def create_app() -> FastAPI:
     sqlite_db = AsyncSqliteDB(sqlite_config=global_config.db_config)
 
     def mark_started(app: FastAPI) -> None:
-        app.state.started_at = datetime.now(timezone.utc)
+        app.state.started_at = datetime.now(UTC)
         app.state.started_monotonic = monotonic()
 
     @asynccontextmanager

@@ -14,7 +14,7 @@ class CloudApplication:
     def run(self) -> None:
         from loong_cloud.app import create_app
 
-        uvicorn.run(create_app(),host=self.host, port=self.port, workers=1)
+        uvicorn.run(create_app(), host=self.host, port=self.port, workers=1)
 
 
 def main() -> None:

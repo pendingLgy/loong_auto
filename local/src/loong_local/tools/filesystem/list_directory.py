@@ -1,8 +1,8 @@
 """列出工作区内目录内容。"""
 from pydantic import BaseModel, Field
 
-from ..base_tool import ABSTool, BaseToolParameters, PathArgument, ToolContext, ToolExecutionError
-from ..security import PathPermission
+from loong_local.tools.base_tool import ABSTool, BaseToolParameters, PathArgument, ToolContext, ToolExecutionError
+from loong_local.tools.security import PathPermission
 
 
 class ListDirectoryParameters(BaseToolParameters):

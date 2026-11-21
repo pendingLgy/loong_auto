@@ -1,6 +1,6 @@
 # Bun 工程构建
 
-本文说明仓库根目录的 Bun 工作区如何安装依赖、管理版本、开发与构建。Python 侧由 uv 管理，见 [工程模块结构](docs/project-structure.md)；前端各子模块的细节见 [web/BUILD.md](web/BUILD.md)、[shared/BUILD.md](shared/BUILD.md)。
+本文说明仓库根目录的 Bun 工作区如何安装依赖、管理版本、开发与构建。Python 侧由 uv 管理，见 [工程模块结构](docs/project-structure.md)；uv 构建、依赖与 Ruff 命令见 [UV_BUILD.md](UV_BUILD.md)；前端各子模块的细节见 [web/BUILD.md](web/BUILD.md)、[shared/BUILD.md](shared/BUILD.md)。
 
 ## 环境要求
 

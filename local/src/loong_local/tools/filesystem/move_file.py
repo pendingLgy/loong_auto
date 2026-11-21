@@ -3,8 +3,8 @@ import shutil
 
 from pydantic import BaseModel, Field
 
-from ..base_tool import ABSTool, BaseToolParameters, PathArgument, ToolContext, ToolExecutionError
-from ..security import PathPermission
+from loong_local.tools.base_tool import ABSTool, BaseToolParameters, PathArgument, ToolContext, ToolExecutionError
+from loong_local.tools.security import PathPermission
 
 
 class MoveFileParameters(BaseToolParameters):

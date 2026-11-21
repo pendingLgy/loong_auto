@@ -1,9 +1,8 @@
-
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from threading import RLock
-from typing import Iterator, AsyncIterator
+from typing import AsyncIterator
 
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
@@ -17,6 +16,7 @@ class AsyncDatabaseProxy:
     """
     代理模式：业务仅通过代理获取 Session，具体连接由 SQLAlchemy 创建
     """
+
     def __init__(self, config: DatabaseConfig):
         self.config = config
         self._db: BaseDB | None = None
@@ -43,7 +43,6 @@ class AsyncDatabaseProxy:
                 self._async_session = session
 
             logger.info("db proxy started")
-
 
     async def close_db(self):
         await self._db.close()

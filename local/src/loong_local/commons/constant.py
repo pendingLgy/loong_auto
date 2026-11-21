@@ -35,3 +35,13 @@ class ToolCallSpec(BaseModel):
     requires_approval: bool
     workspace: str | None = None
     risk_reason: str | None = None
+
+
+class WorkspaceModelType(str,Enum):
+    """
+    >>>   from loong_local.tools.security import WorkspaceMode
+    """
+    READ_ONLY = "read_only"  # 仅查看
+    WORKSPACE_WRITE = "workspace_write"  # 工作区内修改，高危操作需要人工确认
+    FULL = "full"  # 完全权限，不再逐次人工确认
+

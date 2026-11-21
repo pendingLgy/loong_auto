@@ -2,11 +2,11 @@
 
 import httpx
 
+from loong_cloud.agent.adapters.base import ModelAdapter, ModelError
 from loong_cloud.agent.adapters.connection import ProviderConnection
+from loong_cloud.agent.adapters.deepseek import DeepSeekAdapter
+from loong_cloud.agent.adapters.openai import OpenAIAdapter
 from loong_cloud.config.config_model import ModelConfig
-from .base import ModelAdapter, ModelError
-from .deepseek import DeepSeekAdapter
-from .openai import OpenAIAdapter
 
 
 def create_adapter(config: ModelConfig, client: httpx.AsyncClient | None = None,

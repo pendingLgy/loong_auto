@@ -6,7 +6,7 @@ from typing import Literal
 
 import yaml
 from dotenv import dotenv_values
-from pydantic import Field, field_validator, BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class GatewayConfig(BaseModel):

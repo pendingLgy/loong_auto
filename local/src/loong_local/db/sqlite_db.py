@@ -1,13 +1,18 @@
 import asyncio
 import logging
 import os
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any, List, AsyncIterator
+from typing import Any
 
 from loguru import logger
-from sqlalchemy import Table, event
-from sqlalchemy import URL, text
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker, AsyncEngine
+from sqlalchemy import URL, Table, event, text
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from loong_local.config.config_db import DatabaseConfig, SqliteConfig
 from loong_local.core.exceptions import StorageError
@@ -106,7 +111,7 @@ class AsyncSqliteDB:
             except Exception as exc:
                 raise StorageError("建表失败" + ": " + str(exc)) from exc
 
-    async def table_miss(self) -> List[Any]:
+    async def table_miss(self) -> list[Any]:
 
         table_metadata = GLOBAL_TABLE_METADATA
 
@@ -132,16 +137,15 @@ class AsyncSqliteDB:
         """使用标准 sessionmaker 管理会话生命周期"""
 
         if write:
-            async with self.write_lock:
-                async with self.async_session() as session:
-                    try:
-                        yield session
-                        await session.commit()
-                    except Exception:
-                        await session.rollback()
-                        raise
-                    finally:
-                        await session.close()
+            async with self.write_lock, self.async_session() as session:
+                try:
+                    yield session
+                    await session.commit()
+                except Exception:
+                    await session.rollback()
+                    raise
+                finally:
+                    await session.close()
         else:
             async with self.async_session() as session:
                 try:
@@ -158,15 +162,14 @@ class AsyncSqliteDB:
         """使用标准 sessionmaker 管理会话生命周期, 许哟啊手动提交事务"""
 
         if write:
-            async with self.write_lock:
-                async with self.async_session() as session:
-                    try:
-                        yield session
-                    except Exception:
-                        await session.rollback()
-                        raise
-                    finally:
-                        await session.close()
+            async with self.write_lock, self.async_session() as session:
+                try:
+                    yield session
+                except Exception:
+                    await session.rollback()
+                    raise
+                finally:
+                    await session.close()
 
         else:
             async with self.async_session() as session:

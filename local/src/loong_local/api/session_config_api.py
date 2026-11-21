@@ -5,29 +5,17 @@
 """
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, Field
-
 from loong_contracts.response import BaseResponse
-from loong_contracts.utis import Response
-from loong_local.schema.model import SessionConfigModel, WorkspaceModeLiteral
+from loong_contracts.utils import Response
+
+from loong_local.schema.model import SessionConfigModel
+from loong_local.schema.request import SessionConfigSaveRequest, SessionConfigUpdateRequest
 from loong_local.service.session_config_service import SessionConfigService
 from loong_local.tools.security import WorkspaceMode
 
 router = APIRouter(prefix="/session-configs", tags=["会话配置"])
 
 
-class SessionConfigSaveRequest(BaseModel):
-    """创建或覆盖会话配置。"""
-
-    workspace_mode: WorkspaceModeLiteral = Field(default="read_only", description="放行模式")
-    workspaces: list[str] = Field(default_factory=list, description="允许的工作目录列表")
-
-
-class SessionConfigUpdateRequest(BaseModel):
-    """局部编辑会话配置：只提交需要修改的字段。"""
-
-    workspace_mode: WorkspaceModeLiteral | None = Field(default=None, description="放行模式")
-    workspaces: list[str] | None = Field(default=None, description="允许的工作目录列表")
 
 
 
@@ -53,7 +41,7 @@ async def save_session_config(
         session_config_service: SessionConfigService = Depends(Provide["SessionConfigService"]),
 ):
     saved = await session_config_service.save(
-        session_id, policy_model=WorkspaceMode(body.workspace_mode), workspaces=body.workspaces)
+        session_id, workspace_id=body.workspace_id, policy_model=WorkspaceMode(body.workspace_mode.value), workspaces=body.workspaces)
     return Response.ok(request, saved)
 
 
@@ -67,16 +55,13 @@ async def update_session_config(
 ):
     existing = await session_config_service.get(session_id)
     if existing is None:
-        raise HTTPException(status_code=404, detail=f"会话配置不存在：{session_id}")
-
-    if body.workspace_mode is None and body.workspaces is None:
-        raise HTTPException(status_code=400, detail="没有需要更新的字段")
+        return Response.fail(request, msg=f"会话配置不存在：{session_id}")
 
     mode = body.workspace_mode or existing.workspace_mode
     workspaces = existing.workspaces if body.workspaces is None else body.workspaces
 
     saved = await session_config_service.save(
-        session_id, policy_model=WorkspaceMode(mode), workspaces=workspaces)
+        session_id, workspace_id=0, policy_model=WorkspaceMode(mode), workspaces=workspaces)
     return Response.ok(request, saved)
 
 

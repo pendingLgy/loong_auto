@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import Dict, List, Any
+from typing import Any, Dict, List
 
-from loong_cloud.core.registry import Registry, Ref
+from loong_cloud.core.registry import Ref, Registry
 
 # 内置后端名称到类路径的映射，按需惰性导入。
 BUILTIN_DBS: Dict[str, str] = {

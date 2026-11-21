@@ -1,19 +1,20 @@
 """本地接口测试公共配置；不污染进程环境变量。"""
+import json
 import os
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+from uuid import uuid4
 
 import httpx
-
 import pytest
 from dotenv import dotenv_values, set_key
-
 from loong_cloud_client import CloudClient
 from loong_contracts.request.login import LoginRequest
-from loong_contracts.utis.uuid_util import uuid_str
+from loong_contracts.request.session import CreateSessionRequest
+from loong_contracts.request.working_directory import CreateWorkingDirectoryRequest
+from loong_contracts.response.session import SessionSimpleResponse
 
 CONFIG_PATH = Path(__file__).resolve().parents[1] / ".env.test"
-
 
 @pytest.fixture(scope="session")
 def settings():
@@ -35,11 +36,17 @@ async def http_client(settings):
         client.headers["x-security-token"] = settings("SECURITY_TOKEN")
         yield client
 
+SESSION_CONFIG_PATH = "/api/session-configs/{session_id}"
 
-@pytest.fixture(scope="function")
+PATH_CLOUD_PREFIX = "api/cloud"
+PATH_CLOUD_COMMON_PREFIX = f"{PATH_CLOUD_PREFIX}/common"
+PATH_CLOUD_MESSAGE_PREFIX = f"{PATH_CLOUD_PREFIX}/session/"+"{session_id}/message"
+PATH_CLOUD_SSE_PREFIX = f"{PATH_CLOUD_PREFIX}/sse/subscribe"
+
+@pytest.fixture()
 async def client(http_client, settings):
     """返回带默认认证头的 HTTP 客户端，令牌失效时重新登录。"""
-    auth = CloudClient(http_client,prefix="api/common").auth
+    auth = CloudClient(http_client,prefix=f"{PATH_CLOUD_COMMON_PREFIX}").auth
     token = settings("LOCAL_API_ACCESS_TOKEN").strip()
 
     if token:
@@ -72,3 +79,32 @@ async def client(http_client, settings):
     CONFIG_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
     http_client.headers["Authorization"] = f"Bearer {token}"
     yield http_client
+
+
+async def _create_workspace(client, path) -> int:
+    name = f"tpm_workspace-{uuid4().hex}"
+
+    workspaces: list[str] = [f"{path}"]
+    json_str = json.dumps(workspaces, ensure_ascii=False)
+
+    cloud = CloudClient(client,prefix=PATH_CLOUD_COMMON_PREFIX)
+    await cloud.workspaces.create(CreateWorkingDirectoryRequest(name=name, path=json_str))
+    page = await cloud.workspaces.list(page=1, page_size=100)
+    workspace = next((row for row in page.rows or [] if row.name == name), None)
+    assert workspace is not None, "工作目录创建后未查询到"
+
+    return workspace.id
+
+
+async def _create_session(client, session_id: str, workspace_id: int, label: str) -> str:
+    cloud = CloudClient(client, prefix=PATH_CLOUD_COMMON_PREFIX)
+
+    result = await cloud.sessions.create(
+        CreateSessionRequest(
+            session_id=session_id,
+            session_title=f"{label}-{uuid4().hex}",
+            workspace_id=workspace_id,
+        )
+    )
+    assert isinstance(result.data, SessionSimpleResponse)
+    return session_id

@@ -30,7 +30,6 @@ def custom_format(record):
     return fmt
 
 def configure_logging(level: str = "INFO") -> None:
-    DEFAULT_FORMAT = "{time:YYYY-MM-DD HH:mm:ss.SSS Z} | {level} | request_id={extra[request_id]} | request_date={extra[request_date]} | {message} "
 
     logger.configure(extra={"request_id": "-", "request_date": "-"})
     logger.remove()

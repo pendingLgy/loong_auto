@@ -6,7 +6,7 @@ from fastapi import APIRouter, Request
 from loguru import logger
 from starlette.responses import Response
 
-from ..core.context import SSEContext
+from loong_local.core.context import SSEContext
 
 router = APIRouter(prefix="/common", tags=["公共接口转发"])
 
@@ -26,11 +26,9 @@ async def proxy_common(request: Request, target: str):
     upstream = await cloud_client.send(outgoing, stream=False)
 
     try:
-        log = logger.bind(
-            request_id=upstream.headers.get("x-request-id", "-"),
-            request_date=upstream.headers.get("x-request-date", "-")
-        )
-        log.info("path={} status={}", request.url.path, upstream.status_code)
+        logger.info("path={} status={}", request.url.path, upstream.status_code,
+                 request_id=upstream.headers.get("x-request-id", "-"),
+                request_date=upstream.headers.get("x-request-date", "-"))
 
         content = await upstream.aread()
 

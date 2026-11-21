@@ -4,17 +4,17 @@ from dataclasses import dataclass
 
 import httpx
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Request, Depends
+from fastapi import APIRouter, Depends, Request
 from loguru import logger
-from starlette.responses import Response, StreamingResponse
-
 from loong_contracts.agent.models import LoopEvent, ToolCall
 from loong_contracts.common.llm_message_constant import GlobalMessageStatus
-from ..core.context import SSEContext
-from ..core.logging import log_exception
-from ..service.pending_tool_task_service import PendingToolTaskService
-from ..service.session_config_service import SessionConfigService
-from ..tools.tool_executor import ToolExecutor
+from starlette.responses import Response, StreamingResponse
+
+from loong_local.core.context import SSEContext
+from loong_local.core.logging import log_exception
+from loong_local.service.pending_tool_task_service import PendingToolTaskService
+from loong_local.service.session_config_service import SessionConfigService
+from loong_local.tools.tool_executor import ToolExecutor
 
 router = APIRouter(prefix="/sse", tags=["sse订阅转发"])
 
@@ -46,7 +46,7 @@ async def subscribe(
     try:
         upstream_response = await cloud_client.events.subscribe(context.client_id)
     except Exception as e:
-        return Response(content=f"Upstream connect failed: {str(e)}", status_code=502)
+        return Response(content=f"Upstream connect failed: {e!s}", status_code=502)
 
     # 定义专属的任务队列（容量可以根据需要限制，比如 1000）
     task_queue: asyncio.Queue = asyncio.Queue()
@@ -149,7 +149,7 @@ async def subscribe(
             try:
                 # 等待队列中剩余任务处理完毕（可设超时防死等）
                 await asyncio.wait_for(task_queue.join(), timeout=3.0)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning(f"{context.client_id} SSE 关闭时部分后台持久化任务未能在超时时间内完成")
 
             # 取消 Worker 任务

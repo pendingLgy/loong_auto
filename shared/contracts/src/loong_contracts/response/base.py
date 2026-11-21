@@ -1,7 +1,7 @@
 from datetime import datetime
-from typing import Generic, TypeVar, Annotated
+from typing import Annotated, Generic, TypeVar
 
-from pydantic import PlainSerializer, BeforeValidator, BaseModel, ConfigDict
+from pydantic import BaseModel, BeforeValidator, ConfigDict, PlainSerializer
 
 
 def _parse_to_int(v) -> int:

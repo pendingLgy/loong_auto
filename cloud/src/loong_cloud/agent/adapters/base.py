@@ -1,16 +1,16 @@
 """统一异步接口与 HTTP 生命周期。"""
 
-from abc import ABC, abstractmethod
-from typing import Any
 import json
+from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
+from typing import Any
 
 import httpx
 from loguru import logger
+from loong_contracts.agent.models import Message, ModelRequest, ToolCall
 
-from loong_cloud.config.config_model import ModelConfig
 from loong_cloud.agent.adapters.connection import ProviderConnection
-from loong_contracts.agent.models import ModelRequest, ToolCall, Message
+from loong_cloud.config.config_model import ModelConfig
 
 
 class ModelError(RuntimeError):

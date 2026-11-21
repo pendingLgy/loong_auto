@@ -2,4 +2,3 @@
 
 __all__ = []
 
-from .message import *

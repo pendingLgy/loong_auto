@@ -8,6 +8,7 @@ version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
     "loong-contracts",
+    "loong-cloud-client",
     "pydantic",
     "fastapi",
     "uvicorn",
@@ -31,6 +32,22 @@ loong-cloud = "loong_cloud.startup:main"
 
 [tool.uv.sources]
 loong-contracts = { workspace = true }
+loong-cloud-client = { workspace = true }
+
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/loong_cloud"]
+
+
+[tool.ruff]
+line-length = 200
+target-version = "py312"
+# 如果你的包在 src/ 下，写 ["src"]；直接在根目录则写 ["."]
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "TID"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+# 如需连 from .xxx import ... 这种相对导入也一并禁止，可设为 "all"
+ban-relative-imports = "all"

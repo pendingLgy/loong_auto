@@ -13,9 +13,15 @@ from pydantic import BaseModel
 from loong_local.install_setting import init_tools
 from loong_local.tools.base_tool import ToolSuspendedError, ToolUnauthorizedError
 from loong_local.tools.registry import GLOBAL_TOOL_REGISTRY
-from loong_local.tools.security import (PathGuard, SandboxConfig, ToolGuard,
-                                        ToolPermissionError, ToolPermissionGuard,
-                                        WorkspaceMode, WorkspacePolicy)
+from loong_local.tools.security import (
+    PathGuard,
+    SandboxConfig,
+    ToolGuard,
+    ToolPermissionError,
+    ToolPermissionGuard,
+    WorkspaceMode,
+    WorkspacePolicy,
+)
 from loong_local.tools.tool_executor import ToolCallRequest, ToolExecutor
 
 READ_ONLY_COMMAND = "Get-ChildItem" if os.name == "nt" else "ls"

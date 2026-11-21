@@ -3,6 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+
 class ServiceStatus(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

@@ -3,8 +3,9 @@ from starlette.middleware.cors import CORSMiddleware
 
 from loong_local.config.config_global import GlobalConfig
 from loong_local.core.container import ApplicationContainer
-from loong_local.middleware import SessionMiddleware, LocalAccessMiddleware
+from loong_local.middleware.access import LocalAccessMiddleware
 from loong_local.middleware.request import RequestMiddleware
+from loong_local.middleware.session import SessionMiddleware
 
 
 def loading_middleware(app: FastAPI):

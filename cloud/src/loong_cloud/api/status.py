@@ -3,9 +3,9 @@
 from time import monotonic
 
 from fastapi import APIRouter, Request
-from loong_contracts.utis import Response
 from loong_contracts.response import BaseResponse
 from loong_contracts.response.status import HealthStatus, ServiceStatus
+from loong_contracts.utils import Response
 
 router = APIRouter(prefix="/status", tags=["服务状态"])
 

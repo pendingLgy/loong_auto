@@ -2,10 +2,11 @@
 
 import httpx
 from fastapi import APIRouter, Request
-
-from loong_contracts.request import AddMessageRequest
+from loguru import logger
+from loong_contracts.request.message import AddMessageRequest
 from loong_contracts.response import BaseResponse
-from ..core.context import SSEContext
+
+from loong_local.core.context import SSEContext
 
 router = APIRouter(prefix="/session", tags=["消息提交接口转发"])
 
@@ -23,6 +24,14 @@ async def submit_message(request: Request, session_id: str, body: AddMessageRequ
         headers.pop(name, None)
     headers.update(context.headers())
 
-    result: BaseResponse = await cloud_client.events.submit(context.client_id, session_id, body=body, headers=headers)
+    try:
+        result: BaseResponse = await cloud_client.events.submit(context.client_id, session_id, body=body, headers=headers)
+        logger.info("path={} status={}", request.url.path, result.code,
+                    request_id=result.request_id,
+                    request_date=result.request_date)
+
+    except httpx.HTTPStatusError as e:
+        logger.error(e)
+        raise e
 
     return result

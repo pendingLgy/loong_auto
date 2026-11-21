@@ -6,8 +6,8 @@ from typing import Any, Literal
 from dotenv import dotenv_values
 from pydantic import BaseModel, ConfigDict, Field
 
-from .config_db import DatabaseConfig
-from .config_gateway import GatewayConfig
+from loong_local.config.config_db import DatabaseConfig
+from loong_local.config.config_gateway import GatewayConfig
 
 ENV_PREFIX = "LOONG_"
 ENV_NESTED_DELIMITER = "__"

@@ -2,15 +2,17 @@
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from .config_db import PoolConfig
+from loong_cloud.config.config_db import PoolConfig
 
 
 class SqliteCacheConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    database: str = Field(default="loong-cache.db", min_length=1, description="SQLite 缓存文件路径，仅支持文件模式")
+    database: str = Field(default="loong-cache.db", min_length=1,
+                          description="SQLite 缓存文件路径，仅支持文件模式")
     timeout: float = Field(default=30.0, gt=0, description="SQLite 写锁等待时间（秒）")
-    cleanup_interval: float = Field(default=5.0, gt=0, allow_inf_nan=False, description="后台清理过期缓存的间隔（秒）")
+    cleanup_interval: float = Field(default=5.0, gt=0, allow_inf_nan=False,
+                                    description="后台清理过期缓存的间隔（秒）")
 
     pool: PoolConfig = Field(default_factory=PoolConfig, description="连接池配置")
 
@@ -27,4 +29,5 @@ class CacheConfig(BaseModel):
 
     prefix: str = Field(default="loong", description="cache key prefix")
     cache_type: str = Field(default="sqlite", min_length=1, description="已注册的缓存后端名称")
-    sqlite: SqliteCacheConfig = Field(default_factory=SqliteCacheConfig, description="SQLite 缓存配置")
+    sqlite: SqliteCacheConfig = Field(default_factory=SqliteCacheConfig,
+                                      description="SQLite 缓存配置")

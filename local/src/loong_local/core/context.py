@@ -1,12 +1,9 @@
 """上下文只绑定到单次 Request；凭证不持久化。"""
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 
 from httpx import Headers
-
 from loong_cloud_client import CloudClient
-from loong_local.tools.security import WorkspacePolicy
 
 if TYPE_CHECKING:
     from loong_local.tools.tool_executor import ToolExecutor

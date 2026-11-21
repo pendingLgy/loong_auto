@@ -21,15 +21,15 @@ from uuid import uuid4
 
 import httpx
 import pytest
+from conftest import PATH_CLOUD_MESSAGE_PREFIX, PATH_CLOUD_SSE_PREFIX, SESSION_CONFIG_PATH, _create_session, _create_workspace
+from loong_contracts.agent.models import Message
+from loong_contracts.common.llm_message_constant import (
+    GlobalMessageRole,
+    GlobalMessageStatus,
+)
+from loong_contracts.request.message import AddMessageRequest, LLMParamRequest
 from pydantic import SecretStr
 
-from loong_contracts.agent.models import Message
-from loong_contracts.common.llm_message_constant import GlobalMessageRole, GlobalMessageStatus
-from loong_contracts.request.message import AddMessageRequest, LLMParamRequest
-
-SUBSCRIBE_PATH = "/api/sse/subscribe"
-MESSAGE_PATH = "/api/session/{session_id}/message"
-SESSION_CONFIG_PATH = "/api/session-configs/{session_id}"
 EVENT_TIMEOUT_SECONDS = 120
 
 # 云端空闲心跳间隔为 15 秒，等待时间与间隔校验都留出余量，避免偶发抖动导致误判。
@@ -39,11 +39,16 @@ HEARTBEAT_MIN_INTERVAL_SECONDS = 10
 HEARTBEAT_MAX_INTERVAL_SECONDS = 35
 
 
-async def ensure_session_config(client, session_id: str, workspace, *, mode: str = "full") -> None:
+
+async def ensure_session_config(client, session_id: str, workspace_id:int, path, *, mode: str = "full") -> None:
     """调用 session_config_api 登记本次会话的放行策略与工作目录。"""
+
     created = await client.put(SESSION_CONFIG_PATH.format(session_id=session_id),
-                               json={"workspace_mode": mode,
-                                     "workspaces": [str(workspace)]})
+                               json={
+                                   "workspace_mode": mode,
+                                   "workspace_id": workspace_id,
+                                   "workspaces": [str(path)]
+                               })
     assert created.status_code == 200, created.text
     client.headers["x-session-id"] = session_id
 
@@ -83,9 +88,11 @@ class SSEStream:
 async def test_subscribe_streams_heartbeat_when_idle(client, tmp_path):
     """连接空闲时云端按固定间隔推送 heartbeat，local 原样转发且连接保持打开。"""
     session_id = f"sse_heartbeat_{uuid4().hex}"
-    await ensure_session_config(client, session_id, tmp_path)
 
-    response = await client.send(client.build_request("GET", SUBSCRIBE_PATH), stream=True)
+    workspace_id = await _create_workspace(client, str(tmp_path))
+    await ensure_session_config(client, session_id, workspace_id, tmp_path)
+
+    response = await client.send(client.build_request("GET", PATH_CLOUD_SSE_PREFIX), stream=True)
     try:
         assert response.status_code == 200, await response.aread()
         assert response.headers["content-type"].startswith("text/event-stream")
@@ -124,12 +131,16 @@ async def test_subscribe_then_submit_message(client, settings, tmp_path):
         pytest.skip("未配置 DEEPSEEK_API_KEY，跳过真实模型测试")
 
     session_id = f"sse_test_{uuid4().hex}"
-    await ensure_session_config(client, session_id, tmp_path)
+
+    workspace_id = await _create_workspace(client,str(tmp_path))
+    await _create_session(client,session_id,workspace_id,"session-test")
+
+    await ensure_session_config(client, session_id, workspace_id,tmp_path)
 
     provider = settings("SSE_TEST_PROVIDER", "deepseek")
     model = settings("SSE_TEST_MODEL", "deepseek-chat")
 
-    response = await client.send(client.build_request("GET", SUBSCRIBE_PATH), stream=True)
+    response = await client.send(client.build_request("GET", PATH_CLOUD_SSE_PREFIX), stream=True)
     try:
         assert response.status_code == 200, await response.aread()
         assert response.headers["content-type"].startswith("text/event-stream")
@@ -145,6 +156,7 @@ async def test_subscribe_then_submit_message(client, settings, tmp_path):
             tenant_id=0,
             user_id=0,
             session_id=session_id,
+            workspace_id=workspace_id,
             session_title="SSE 订阅测试",
             llm=LLMParamRequest(provider=provider, model=model, temperature=0,
                                 api_key=SecretStr(api_key)),
@@ -155,7 +167,7 @@ async def test_subscribe_then_submit_message(client, settings, tmp_path):
         # SecretStr 默认脱敏，只在本次提交时显式取出密钥。
         payload["llm"]["api_key"] = api_key
 
-        submitted = await client.post(MESSAGE_PATH.format(session_id=session_id), json=payload)
+        submitted = await client.post(PATH_CLOUD_MESSAGE_PREFIX.format(session_id=session_id), json=payload)
         assert submitted.status_code == 200
         accepted = submitted.json()
         assert accepted["code"] == 200

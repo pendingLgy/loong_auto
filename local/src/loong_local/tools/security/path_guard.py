@@ -9,12 +9,13 @@ RESOLVE_NO_SYMLINKS，或容器、独立低权限用户、只读挂载等隔离�
 """
 import json
 import os
+from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum
-from pathlib import Path, PurePosixPath, PureWindowsPath
-from typing import Sequence, Union
+from pathlib import Path, PureWindowsPath
+from typing import Union
 
-from .audit import AuditLogger
+from loong_local.tools.security.audit import AuditLogger
 
 PathLike = Union[str, Path]
 

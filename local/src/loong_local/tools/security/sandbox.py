@@ -5,9 +5,9 @@
 """
 import asyncio
 import os
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence
 
 from loguru import logger
 
@@ -88,7 +88,7 @@ class SandboxExecutor:
         timed_out = False
         try:
             stdout, stderr = await asyncio.wait_for(asyncio.shield(task), limit)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             timed_out = True
             if process.returncode is None:
                 process.kill()

@@ -3,10 +3,11 @@
 import json
 from contextlib import aclosing
 
-from loong_cloud.config.config_model import ModelConfig
-from loong_contracts.common.llm_message_constant import GlobalMessageRole, GlobalMessageStatus
-from .base import ModelAdapter, ModelError
 from loong_contracts.agent.models import Message, ModelRequest
+from loong_contracts.common.llm_message_constant import GlobalMessageRole, GlobalMessageStatus
+
+from loong_cloud.agent.adapters.base import ModelAdapter, ModelError
+from loong_cloud.config.config_model import ModelConfig
 
 
 class OpenAIAdapter(ModelAdapter):
@@ -39,12 +40,14 @@ class OpenAIAdapter(ModelAdapter):
                         text.append(content)
 
                         yield Message(id=response_id, created=created, model=model,
-                                      role=GlobalMessageRole.ASSISTANT, status=GlobalMessageStatus.RUNNING, finish_reason=finish,
+                                      role=GlobalMessageRole.ASSISTANT,
+                                      status=GlobalMessageStatus.RUNNING, finish_reason=finish,
                                       content=content, raw=data)
 
                         for part in delta.get("tool_calls", []):
                             index = part.get("index", 0)
-                            call = pending.setdefault(index, {"id": "", "name": "", "arguments": ""})
+                            call = pending.setdefault(index,
+                                                      {"id": "", "name": "", "arguments": ""})
                             call["id"] += part.get("id") or ""
                             function = part.get("function") or {}
                             call["name"] += function.get("name") or ""
@@ -57,11 +60,14 @@ class OpenAIAdapter(ModelAdapter):
                         token_usage = {
                             "input_tokens": usage.get("prompt_tokens", 0),
                             "output_tokens": usage.get("completion_tokens", 0),
-                            "total_tokens": usage.get("total_tokens", usage.get("prompt_tokens", 0) + usage.get("completion_tokens", 0)),
+                            "total_tokens": usage.get("total_tokens",
+                                                      usage.get("prompt_tokens", 0) + usage.get(
+                                                          "completion_tokens", 0)),
                         }
                         emitted = True
                         yield Message(id=response_id, created=created, model=model,
-                                      role=GlobalMessageRole.ASSISTANT, status=GlobalMessageStatus.STOP if not calls else GlobalMessageStatus.TOOL_CALLING,
+                                      role=GlobalMessageRole.ASSISTANT,
+                                      status=GlobalMessageStatus.STOP if not calls else GlobalMessageStatus.TOOL_CALLING,
                                       raw=data,
                                       finish_reason=finish, content="".join(text), tool_calls=calls,
                                       **token_usage)
@@ -122,7 +128,8 @@ class OpenAIAdapter(ModelAdapter):
                 input_tokens=usage.get("prompt_tokens", 0),
                 output_tokens=usage.get("completion_tokens", 0),
                 total_tokens=usage.get("total_tokens",
-                                       usage.get("prompt_tokens", 0) + usage.get("completion_tokens", 0)),
+                                       usage.get("prompt_tokens", 0) + usage.get(
+                                           "completion_tokens", 0)),
             )
 
             return Message(model=data.get("model", config.model),

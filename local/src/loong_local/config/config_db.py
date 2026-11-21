@@ -1,6 +1,5 @@
 """数据库分类配置与连接池配置；配置表示不输出凭证。"""
 
-from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 

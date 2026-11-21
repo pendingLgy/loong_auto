@@ -9,9 +9,17 @@ from pathlib import Path
 
 import pytest
 
-from loong_local.tools.security import (PathGuard, PathPermission, PathSecurityAction,
-                                        PathSecurityError, SandboxExecutor, ToolPermissionError,
-                                        ToolPermissionGuard, WorkspaceMode, WorkspacePolicy)
+from loong_local.tools.security import (
+    PathGuard,
+    PathPermission,
+    PathSecurityAction,
+    PathSecurityError,
+    SandboxExecutor,
+    ToolPermissionError,
+    ToolPermissionGuard,
+    WorkspaceMode,
+    WorkspacePolicy,
+)
 
 
 @pytest.fixture

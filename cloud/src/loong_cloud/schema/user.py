@@ -1,6 +1,15 @@
 from typing import Any
 
-from sqlalchemy import Table, Column, BigInteger, String, DateTime, SmallInteger, Index, func, MetaData
+from sqlalchemy import (
+    BigInteger,
+    Column,
+    DateTime,
+    Index,
+    MetaData,
+    SmallInteger,
+    String,
+    Table,
+)
 
 
 def user_table(table_metadata: MetaData, prefix: str = "") -> Any:
@@ -23,8 +32,10 @@ def user_table(table_metadata: MetaData, prefix: str = "") -> Any:
         Column("password_hash", String(256), nullable=True, comment="密码哈希"),
 
         # --- 状态与控制 ---
-        Column("status", SmallInteger, nullable=False, default=1, comment="状态: 0-禁用, 1-正常, 2-锁定"),
-        Column("is_deleted", SmallInteger, nullable=False, default=0, comment="软删除标志: 0-未删除, 1-已删除"),
+        Column("status", SmallInteger, nullable=False, default=1,
+               comment="状态: 0-禁用, 1-正常, 2-锁定"),
+        Column("is_deleted", SmallInteger, nullable=False, default=0,
+               comment="软删除标志: 0-未删除, 1-已删除"),
 
         # --- 审计字段 ---
         Column("created_at", DateTime(timezone=True), nullable=False, comment="创建时间"),

@@ -1,8 +1,7 @@
-from typing import List
 
 from pydantic import BaseModel, Field, SecretStr
 
-from loong_contracts.agent.models import ToolDefinition, Message
+from loong_contracts.agent.models import Message, ToolDefinition
 from loong_contracts.response.base import BigIntId
 
 
@@ -16,8 +15,9 @@ class LLMParamRequest(BaseModel):
 class AddMessageRequest(BaseModel):
     tenant_id: BigIntId
     user_id: BigIntId
+    workspace_id: BigIntId
     session_id: str
     session_title: str
     llm: LLMParamRequest
-    tools: List[ToolDefinition]
-    messages: List[Message]
+    tools: list[ToolDefinition]
+    messages: list[Message]

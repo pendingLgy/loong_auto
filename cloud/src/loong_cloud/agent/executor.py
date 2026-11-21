@@ -6,12 +6,12 @@ from pathlib import Path
 
 import httpx
 import yaml
+from loong_contracts.agent.models import Message, ModelRequest
 from pydantic import BaseModel, Field
 
+from loong_cloud.agent.adapters import ModelAdapter, create_adapter
 from loong_cloud.agent.adapters.connection import ProviderConnection
 from loong_cloud.config.config_model import ModelConfig
-from .adapters import ModelAdapter, create_adapter
-from loong_contracts.agent.models import ModelRequest, Message
 
 
 class _CatalogModel(BaseModel):
@@ -37,7 +37,8 @@ class ModelExecutor:
     def __init__(self, client: httpx.AsyncClient | None = None,
                  catalog_path: str | Path | None = None):
         content = (Path(catalog_path).read_text(encoding="utf-8") if catalog_path is not None
-                   else files("loong_cloud.agent.adapters").joinpath("default_models.yaml").read_text(encoding="utf-8"))
+                   else files("loong_cloud.agent.adapters").joinpath(
+            "default_models.yaml").read_text(encoding="utf-8"))
         self._catalog = _Catalog.model_validate(yaml.safe_load(content))
         self._client = client
         self._owns_client = client is None

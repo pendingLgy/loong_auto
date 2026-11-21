@@ -8,7 +8,7 @@ import platform
 
 from pydantic import BaseModel, Field
 
-from ..base_tool import ABSTool, BaseToolParameters, ToolContext, default_shell
+from loong_local.tools.base_tool import ABSTool, BaseToolParameters, ToolContext, default_shell
 
 
 class ShellParameters(BaseToolParameters):

@@ -5,7 +5,7 @@
 """
 from dataclasses import dataclass, field
 
-from .path_guard import PathPermission
+from loong_local.tools.security.path_guard import PathPermission
 
 
 class ToolPermissionError(Exception):

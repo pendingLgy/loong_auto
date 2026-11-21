@@ -3,13 +3,13 @@
 路径与沙箱由 ToolExecutor / PathGuard 负责；这里只做工具层面的准入。
 """
 
-from typing import Iterable, Optional
+from collections.abc import Iterable
 
-from .permission_guard import ToolPermissionError
+from loong_local.tools.security.permission_guard import ToolPermissionError
 
 
 class ToolGuard:
-    def __init__(self, allowed_tools: Optional[Iterable[str]] = None) -> None:
+    def __init__(self, allowed_tools: Iterable[str] | None = None) -> None:
         self.allowed_tools = None if allowed_tools is None else frozenset(allowed_tools)
 
     def check_tool(self, tool_name: str) -> None:

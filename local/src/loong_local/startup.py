@@ -1,7 +1,7 @@
 """本地服务启动类。"""
 import uvicorn
 
-from .app import create_app
+from loong_local.app import create_app
 
 
 class LocalApplication:

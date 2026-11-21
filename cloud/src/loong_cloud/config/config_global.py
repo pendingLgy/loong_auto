@@ -6,9 +6,9 @@ from typing import Any, Literal
 from dotenv import dotenv_values
 from pydantic import BaseModel, ConfigDict, Field
 
-from .config_db import DatabaseConfig
-from .config_token import TokenConfig
-from .config_cache import CacheConfig
+from loong_cloud.config.config_cache import CacheConfig
+from loong_cloud.config.config_db import DatabaseConfig
+from loong_cloud.config.config_token import TokenConfig
 
 ENV_PREFIX = "LOONG_"
 ENV_NESTED_DELIMITER = "__"
@@ -17,7 +17,8 @@ ENV_NESTED_DELIMITER = "__"
 class GlobalConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(default="INFO", description="日志level")
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(default="INFO",
+                                                                                description="日志level")
 
     white_list_urls: list[str] = Field(default_factory=list, description="URL 白名单")
 
@@ -82,7 +83,8 @@ def load_global_config(path: str | Path) -> GlobalConfig:
     return GlobalConfig.model_validate(data)
 
 
-def loading_config(path: str | Path | None = None, *, include_environment: bool = True) -> dict[str, Any]:
+def loading_config(path: str | Path | None = None, *, include_environment: bool = True) -> dict[
+    str, Any]:
     """无 path 时仅读取环境；显式传入文件必须存在，支持 .env[.*] 和 YAML。"""
     values: dict[str, Any] = {}
     if path is not None:
@@ -95,13 +97,14 @@ def loading_config(path: str | Path | None = None, *, include_environment: bool 
             with file.open(encoding="utf-8") as stream:
                 content = yaml.safe_load(stream)
             if content is not None and (
-                    not isinstance(content, dict) or any(not isinstance(key, str) for key in content)
+                not isinstance(content, dict) or any(not isinstance(key, str) for key in content)
             ):
                 raise ValueError("YAML 配置必须为字符串键组成的映射")
             values.update(content or {})
         elif file.name == ".env" or file.name.startswith(".env.") or file.suffix.lower() == ".env":
-            values.update({key: value for key, value in dotenv_values(file, interpolate=False).items()
-                           if value is not None})
+            values.update(
+                {key: value for key, value in dotenv_values(file, interpolate=False).items()
+                 if value is not None})
         else:
             raise ValueError("不支持的配置文件格式，仅支持 .env、.yaml、.yml")
     if include_environment:

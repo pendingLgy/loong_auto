@@ -33,10 +33,13 @@ constraint-dependencies = [
 members = ["shared/contracts", "shared/cloud_client", "local", "cloud"]
 
 [dependency-groups]
+dev = [
+    "ruff>=0.17.6",
+]
 
 [tool.pytest.ini_options]
 cache_dir = ".cache/pytest"
-addopts = "-v -s"
+#addopts = "-v -s"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["cloud/tests", "local/tests"]

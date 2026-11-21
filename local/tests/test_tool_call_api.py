@@ -19,23 +19,30 @@ from uuid import uuid4
 
 import httpx
 import pytest
+from conftest import PATH_CLOUD_MESSAGE_PREFIX, PATH_CLOUD_SSE_PREFIX, SESSION_CONFIG_PATH, _create_session, _create_workspace
+from loong_contracts.agent.models import Message
+from loong_contracts.common.llm_message_constant import (
+    GlobalMessageRole,
+    GlobalMessageStatus,
+)
+from loong_contracts.request.message import AddMessageRequest, LLMParamRequest
 from pydantic import SecretStr
 
-from loong_contracts.agent.models import Message
-from loong_contracts.common.llm_message_constant import GlobalMessageRole, GlobalMessageStatus
-from loong_contracts.request.message import AddMessageRequest, LLMParamRequest
 from loong_local.install_setting import init_tools
 from loong_local.tools.base_tool import ToolSuspendedError
 from loong_local.tools.registry import GLOBAL_TOOL_REGISTRY
-from loong_local.tools.security import (PathGuard, SandboxConfig, ToolGuard,
-                                        ToolPermissionGuard, WorkspaceMode, WorkspacePolicy)
+from loong_local.tools.security import (
+    PathGuard,
+    SandboxConfig,
+    ToolGuard,
+    ToolPermissionGuard,
+    WorkspaceMode,
+    WorkspacePolicy,
+)
 from loong_local.tools.tool_executor import ToolCallRequest, ToolExecutor
 
-SUBSCRIBE_PATH = "/api/sse/subscribe"
-MESSAGE_PATH = "/api/session/{session_id}/message"
 APPROVE_PATH = "/api/tools/{session_id}/approved/{tool_id}"
 EVENT_TIMEOUT_SECONDS = 120
-
 
 
 class SSEStream:
@@ -77,6 +84,19 @@ async def approve_pending_tool(client, session_id: str, tool_id: str) -> dict:
         await asyncio.sleep(0.1)
     pytest.fail("待审批任务未在超时时间内落库")
 
+
+async def ensure_session_config(client, session_id: str, workspace_id:int, path, *, mode: str = "full") -> None:
+    """调用 session_config_api 登记本次会话的放行策略与工作目录。"""
+
+    created = await client.put(SESSION_CONFIG_PATH.format(session_id=session_id),
+                               json={
+                                   "workspace_mode": mode,
+                                   "workspace_id": workspace_id,
+                                   "workspaces": [str(path)]
+                               })
+    assert created.status_code == 200, created.text
+
+
 async def test_subscribe_execute_tool_and_resubmit(client, settings, tmp_path):
     """订阅 SSE 后用 while 循环处理推送：触发工具调用、本地执行、再次提交并读到最终回答。"""
     api_key = settings("DEEPSEEK_API_KEY").strip()
@@ -92,11 +112,10 @@ async def test_subscribe_execute_tool_and_resubmit(client, settings, tmp_path):
     sample.write_text("tool call sample", encoding="utf-8")
 
     session_id = f"session_{uuid4().hex}"
-    # 建立连接前先登记会话配置：工作目录用 tmp_path，允许完整权限，工具无需审批。
-    created = await client.put(f"/api/session-configs/{session_id}",
-                               json={"workspace_mode": "full", "workspaces": [str(tmp_path)]})
-    assert created.status_code == 200, created.text
-    client.headers["x-session-id"] = session_id
+
+    workspace_id = await _create_workspace(client, str(tmp_path))
+    await _create_session(client, session_id, workspace_id, "session-test")
+    await ensure_session_config(client, session_id, workspace_id, tmp_path)
 
     provider = settings("SSE_TEST_PROVIDER", "deepseek")
     model = settings("SSE_TEST_MODEL", "deepseek-chat")
@@ -104,15 +123,17 @@ async def test_subscribe_execute_tool_and_resubmit(client, settings, tmp_path):
     assert tool_definition.location == "remote"
 
     # 两次提交共用同一份请求参数，只有 messages 不同。
-    common_body = dict(
+    common_body = AddMessageRequest(
         # 云端以认证身份覆盖这两个字段，这里只需满足契约校验。
         tenant_id=0,
         user_id=0,
         session_id=session_id,
+        workspace_id=workspace_id,
         session_title="工具调用测试",
         llm=LLMParamRequest(provider=provider, model=model, temperature=0,
                             api_key=SecretStr(api_key)),
         tools=[tool_definition],
+        messages=[]
     )
 
     # 循环状态：待提交消息、连接标识、工具执行标记与最终事件。
@@ -126,7 +147,7 @@ async def test_subscribe_execute_tool_and_resubmit(client, settings, tmp_path):
     tool_executed = False
     final = None
 
-    response = await client.send(client.build_request("GET", SUBSCRIBE_PATH), stream=True)
+    response = await client.send(client.build_request("GET", PATH_CLOUD_SSE_PREFIX), stream=True)
     try:
         stream = SSEStream(response)
 
@@ -142,11 +163,14 @@ async def test_subscribe_execute_tool_and_resubmit(client, settings, tmp_path):
                 continue
 
             if pending_messages:
-                body = AddMessageRequest(**common_body, messages=pending_messages)
+
+                common_body.messages = pending_messages
+                body = common_body
+
                 payload = body.model_dump(mode="json")
                 # SecretStr 默认脱敏，只在本次提交时显式取出密钥。
                 payload["llm"]["api_key"] = api_key
-                submitted = await client.post(MESSAGE_PATH.format(session_id=session_id),
+                submitted = await client.post(PATH_CLOUD_MESSAGE_PREFIX.format(session_id=session_id),
                                               json=payload)
                 assert submitted.status_code == 200
                 assert submitted.json()["code"] == 200
@@ -244,12 +268,12 @@ async def test_dangerous_tool_call_requires_manual_approval(client, settings, tm
         init_tools()
 
     session_id = f"session_{uuid4().hex}"
-    # workspace_write：写操作需要人工审批；工作目录限定在 tmp_path。
-    created = await client.put(f"/api/session-configs/{session_id}",
-                               json={"workspace_mode": "workspace_write",
-                                     "workspaces": [str(tmp_path)]})
-    assert created.status_code == 200, created.text
+
     client.headers["x-session-id"] = session_id
+
+    workspace_id = await _create_workspace(client, str(tmp_path))
+    await _create_session(client, session_id, workspace_id, "session-test")
+    await ensure_session_config(client, session_id, workspace_id, tmp_path)
 
     marker = tmp_path / "approval_marker.txt"
     command = (f"New-Item -ItemType File -Force -Path '{marker.name}'"
@@ -260,14 +284,16 @@ async def test_dangerous_tool_call_requires_manual_approval(client, settings, tm
     tool_definition = GLOBAL_TOOL_REGISTRY.get_group_definition(TOOL_NAME)
     assert tool_definition.location == "remote"
 
-    common_body = dict(
+    common_body = AddMessageRequest(
         tenant_id=0,
         user_id=0,
         session_id=session_id,
+        workspace_id=workspace_id,
         session_title="工具审批测试",
         llm=LLMParamRequest(provider=provider, model=model, temperature=0,
                             api_key=SecretStr(api_key)),
         tools=[tool_definition],
+        messages=[]
     )
 
     pending_messages = [
@@ -279,7 +305,7 @@ async def test_dangerous_tool_call_requires_manual_approval(client, settings, tm
     tool_executed = False
     final = None
 
-    response = await client.send(client.build_request("GET", SUBSCRIBE_PATH), stream=True)
+    response = await client.send(client.build_request("GET", PATH_CLOUD_SSE_PREFIX), stream=True)
     try:
         stream = SSEStream(response)
 
@@ -294,10 +320,11 @@ async def test_dangerous_tool_call_requires_manual_approval(client, settings, tm
                 continue
 
             if pending_messages:
-                body = AddMessageRequest(**common_body, messages=pending_messages)
+                common_body.messages = pending_messages
+                body = common_body
                 payload = body.model_dump(mode="json")
                 payload["llm"]["api_key"] = api_key
-                submitted = await client.post(MESSAGE_PATH.format(session_id=session_id),
+                submitted = await client.post(PATH_CLOUD_MESSAGE_PREFIX.format(session_id=session_id),
                                               json=payload)
                 assert submitted.status_code == 200
                 assert submitted.json()["code"] == 200
@@ -359,11 +386,10 @@ async def test_mixed_tool_calls_execute_in_tool_call_order(client, settings, tmp
         init_tools()
 
     session_id = f"session_{uuid4().hex}"
-    created = await client.put(f"/api/session-configs/{session_id}",
-                               json={"workspace_mode": "workspace_write",
-                                     "workspaces": [str(tmp_path)]})
-    assert created.status_code == 200, created.text
-    client.headers["x-session-id"] = session_id
+
+    workspace_id = await _create_workspace(client, str(tmp_path))
+    await _create_session(client, session_id, workspace_id, "session-test")
+    await ensure_session_config(client, session_id, workspace_id, tmp_path)
 
     sample = tmp_path / "sample.txt"
     sample.write_text("mixed tool sample", encoding="utf-8")
@@ -374,14 +400,16 @@ async def test_mixed_tool_calls_execute_in_tool_call_order(client, settings, tmp
     tool_definitions = [GLOBAL_TOOL_REGISTRY.get_group_definition(name)
                         for name in ("read_file", "write_file")]
 
-    common_body = dict(
+    common_body = AddMessageRequest(
         tenant_id=0,
         user_id=0,
         session_id=session_id,
+        workspace_id=workspace_id,
         session_title="混合工具测试",
         llm=LLMParamRequest(provider=provider, model=model, temperature=0,
                             api_key=SecretStr(api_key)),
         tools=tool_definitions,
+        messages=[]
     )
 
     pending_messages = [
@@ -402,7 +430,7 @@ async def test_mixed_tool_calls_execute_in_tool_call_order(client, settings, tmp
         sandbox_config=SandboxConfig(),
     )
 
-    response = await client.send(client.build_request("GET", SUBSCRIBE_PATH), stream=True)
+    response = await client.send(client.build_request("GET", PATH_CLOUD_SSE_PREFIX), stream=True)
     try:
         stream = SSEStream(response)
 
@@ -417,10 +445,11 @@ async def test_mixed_tool_calls_execute_in_tool_call_order(client, settings, tmp
                 continue
 
             if pending_messages:
-                body = AddMessageRequest(**common_body, messages=pending_messages)
+                common_body.messages = pending_messages
+                body = common_body
                 payload = body.model_dump(mode="json")
                 payload["llm"]["api_key"] = api_key
-                submitted = await client.post(MESSAGE_PATH.format(session_id=session_id),
+                submitted = await client.post(PATH_CLOUD_MESSAGE_PREFIX.format(session_id=session_id),
                                               json=payload)
                 assert submitted.status_code == 200
                 assert submitted.json()["code"] == 200

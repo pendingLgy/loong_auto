@@ -1,7 +1,7 @@
 """新增后端实现 BaseCache 并注册，不需要修改业务调用方。"""
-from typing import Dict, List, Any
+from typing import Any, Dict, List
 
-from loong_cloud.core.registry import Registry, Ref
+from loong_cloud.core.registry import Ref, Registry
 
 BUILTIN_CACHES: Dict[str, str] = {
     "sqlite": "loong_cloud.cache.sqlite_cache.SqliteCache",

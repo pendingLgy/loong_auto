@@ -1,11 +1,11 @@
 """会话级工具配置持久化：放行策略与允许的工作目录列表。"""
 import json
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
+from loong_contracts.utils.datetime_util import utcnow
 from sqlalchemy import delete, insert, select, update
 
-from loong_contracts.utis.datetime_util import utcnow
 from loong_local import schema
 from loong_local.db import AsyncSqliteDB
 from loong_local.schema.model import SessionConfigModel
@@ -42,6 +42,7 @@ class SessionConfigService:
             self,
             session_id: str,
             *,
+            workspace_id: int,
             policy_model: WorkspaceMode,
             workspaces: Sequence[str | Path],
     ) -> SessionConfigModel:
@@ -60,10 +61,10 @@ class SessionConfigService:
             )).mappings().first()
 
             if existing is None:
-                created_at = now
                 await session.execute(
                     insert(self.session_configs_table).values(
                         session_id=session_id,
+                        workspace_id=workspace_id,
                         workspace_mode=policy_model.value,
                         workspaces=workspaces_json,
                         created_at=now,
@@ -71,7 +72,7 @@ class SessionConfigService:
                     )
                 )
             else:
-                created_at = existing["created_at"]
+                existing["created_at"]
                 await session.execute(
                     update(self.session_configs_table)
                     .where(self.session_configs_table.c.id == existing["id"])
