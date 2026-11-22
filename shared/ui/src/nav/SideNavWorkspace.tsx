@@ -1,6 +1,6 @@
 import { For, Show, createSignal, onMount, type Component, type JSX } from "solid-js";
 
-import { ChevronIcon, MoreIcon, PlusIcon, SearchIcon, SpinnerIcon } from "../icon";
+import { ChevronIcon, EditIcon, MoreIcon, PlusIcon, SearchIcon, SpinnerIcon } from "../icon";
 import { DEFAULT_LOCALE, translate, type Locale } from "../i18n";
 
 /** 工作区下的对话。 */
@@ -41,6 +41,8 @@ export interface SideNavWorkspaceProps {
   onMoreWorkspace?: (workspaceId: string) => void;
   /** 点击工作区的「新建对话」按钮。 */
   onCreateConversation?: (workspaceId: string) => void;
+  /** 点击会话的编辑按钮。 */
+  onEditConversation?: (workspaceId: string, conversation: WorkspaceConversation) => void;
   /** 刷新工作区列表。 */
   onRefreshWorkspaces?: () => void;
   /** 刷新指定工作区的对话记录。 */
@@ -159,28 +161,47 @@ export const SideNavWorkspace: Component<SideNavWorkspaceProps> = (props) => {
               <div class="flex max-h-[300px] flex-col gap-1 overflow-y-auto overscroll-contain pt-1">
                 <For each={workspace.conversations}>
                   {(conversation) => (
-                    <button
-                      type="button"
-                      onClick={() => props.onSelectConversation?.(workspace.id, conversation.id)}
-                      aria-current={props.activeConversationId === conversation.id ? "page" : undefined}
-                      class={`flex h-9 w-full shrink-0 items-center gap-2 rounded-lg pl-6 pr-3 text-left text-[13px] outline-none transition focus-visible:ring-2 focus-visible:ring-sky-500/40 ${
+                    <div
+                      class={`group/conversation flex h-9 w-full shrink-0 items-center rounded-lg transition ${
                         props.activeConversationId === conversation.id
-                          ? "bg-blue-500/15 font-medium text-blue-700 dark:bg-blue-500/20 dark:text-blue-200"
-                          : "text-slate-500 hover:bg-slate-900/5 dark:text-slate-400 dark:hover:bg-white/5"
+                          ? "bg-blue-500/15 dark:bg-blue-500/20"
+                          : "hover:bg-slate-900/5 dark:hover:bg-white/5"
                       }`}
                     >
-                      <span class="min-w-0 flex-1 truncate">{conversation.title}</span>
-                      <Show when={props.isConversationProcessing?.(workspace.id, conversation.id)}>
-                        <span
-                          class="grid h-4 w-4 shrink-0 place-items-center text-blue-600 dark:text-blue-400"
-                          role="status"
-                          aria-label={translate(locale(), "nav.processing", "处理中")}
-                          title={translate(locale(), "nav.processing", "处理中")}
+                      <button
+                        type="button"
+                        onClick={() => props.onSelectConversation?.(workspace.id, conversation.id)}
+                        aria-current={props.activeConversationId === conversation.id ? "page" : undefined}
+                        class={`flex h-full min-w-0 flex-1 items-center gap-2 rounded-lg pl-6 pr-2 text-left text-[13px] outline-none transition focus-visible:ring-2 focus-visible:ring-sky-500/40 ${
+                          props.activeConversationId === conversation.id
+                            ? "font-medium text-blue-700 dark:text-blue-200"
+                            : "text-slate-500 dark:text-slate-400"
+                        }`}
+                      >
+                        <span class="min-w-0 flex-1 truncate">{conversation.title}</span>
+                        <Show when={props.isConversationProcessing?.(workspace.id, conversation.id)}>
+                          <span
+                            class="grid h-4 w-4 shrink-0 place-items-center text-blue-600 dark:text-blue-400"
+                            role="status"
+                            aria-label={translate(locale(), "nav.processing", "处理中")}
+                            title={translate(locale(), "nav.processing", "处理中")}
+                          >
+                            <SpinnerIcon />
+                          </span>
+                        </Show>
+                      </button>
+                      <Show when={props.onEditConversation}>
+                        <button
+                          type="button"
+                          onClick={() => props.onEditConversation?.(workspace.id, conversation)}
+                          aria-label={translate(locale(), "nav.editConversation", "编辑会话")}
+                          title={translate(locale(), "nav.editConversation", "编辑会话")}
+                          class="mr-1 grid h-7 w-7 shrink-0 place-items-center rounded text-slate-500 opacity-0 outline-none transition hover:bg-slate-900/10 hover:text-slate-700 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-sky-500/40 group-hover/conversation:opacity-100 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-200"
                         >
-                          <SpinnerIcon />
-                        </span>
+                          <EditIcon class="h-3.5 w-3.5" />
+                        </button>
                       </Show>
-                    </button>
+                    </div>
                   )}
                 </For>
               </div>

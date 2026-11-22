@@ -114,7 +114,7 @@ class SessionStore:
         workspace_id: int,
         session_id: str,
         session_title: str | None = None,
-    ) -> None:
+    ) -> SessionSimpleResponse:
         """编辑会话标题或所属工作目录。"""
 
         result = await self.get(tenant_id, user_id, session_id,workspace_id)
@@ -137,6 +137,11 @@ class SessionStore:
                         self.table.c.is_deleted == 0,
                     ).values(**values)
                 )
+
+        result = await self.get(tenant_id, user_id, session_id, workspace_id)
+        if result is None:
+            raise StorageError("创建会话失败")
+        return result
 
     async def get(self, tenant_id: int, user_id: int,
                   session_id: str, workspace_id: int) -> SessionSimpleResponse | None:

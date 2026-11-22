@@ -5,6 +5,7 @@ import {useNavigate} from "@solidjs/router";
 import type {MessageRecord} from "@loong/client";
 
 import {LlmChat, type ChatModelGroup} from "@loong/ui/chat";
+import {Dialog} from "@loong/ui/dialog";
 import type {ManagedModel, ManagedProvider, ProviderOption} from "@loong/ui/model-picker";
 import {type LayoutState, ThreePaneLayout} from "@loong/ui/layout";
 import {SideNav, type SideNavKey, type SideNavUserData, type Workspace} from "@loong/ui/nav";
@@ -89,6 +90,13 @@ export function WorkspaceView(props: WorkspaceViewProps) {
   const [managedProviders, setManagedProviders] = createSignal<ManagedProvider[]>([]);
   const pendingSessions = new Set<string>();
   const loadingSessions = new Set<string>();
+  const [editConversation, setEditConversation] = createSignal<{
+    workspaceId: string;
+    conversationId: string;
+    title: string;
+  } | null>(null);
+  const [editTitle, setEditTitle] = createSignal("");
+  const [editSaving, setEditSaving] = createSignal(false);
   const sessionCreations = new Map<string, Promise<void>>();
 
   createEffect(() => {
@@ -374,6 +382,52 @@ export function WorkspaceView(props: WorkspaceViewProps) {
     return info ? {name: info.name ?? info.username, username: info.username} : undefined;
   };
 
+  const openEditConversation = (
+    workspaceId: string,
+    conversation: {id: string; title: string},
+  ) => {
+    setEditConversation({
+      workspaceId,
+      conversationId: conversation.id,
+      title: conversation.title,
+    });
+    setEditTitle(conversation.title);
+  };
+
+  const saveConversationTitle = async () => {
+    const target = editConversation();
+    const title = editTitle().trim();
+    if (!target || !title || editSaving()) return;
+
+    setEditSaving(true);
+    try {
+      if (!pendingSessions.has(target.conversationId)) {
+        await Effect.runPromise(api().session.update(target.conversationId, {
+          sessionTitle: title,
+          workspaceId: target.workspaceId,
+        }));
+      }
+      setWorkspaces((list) => list.map((workspace) =>
+        workspace.id === target.workspaceId
+          ? {
+            ...workspace,
+            conversations: workspace.conversations.map((conversation) =>
+              conversation.id === target.conversationId
+                ? {...conversation, title}
+                : conversation),
+          }
+          : workspace,
+      ));
+      openConversationTab(target.workspaceId, target.conversationId);
+      setEditConversation(null);
+    } catch(e) {
+      console.log(e)
+      showNotice("error", "修改会话标题失败");
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
   const openConversationTab = (workspaceId: string, conversationId: string) => {
     const workspace = workspaces().find((item) => item.id === workspaceId);
     const conversation = workspace?.conversations.find((item) => item.id === conversationId);
@@ -520,6 +574,7 @@ export function WorkspaceView(props: WorkspaceViewProps) {
             onCreateWorkspace={() => void openFolderPicker()}
             onMoreWorkspace={() => undefined}
             onCreateConversation={addConversation}
+            onEditConversation={openEditConversation}
             isConversationProcessing={(_, conversationId) => isChatStreaming(conversationId)}
             user={userData()}
             onUserClick={() => undefined}
@@ -544,6 +599,53 @@ export function WorkspaceView(props: WorkspaceViewProps) {
           </For>
         </Show>
       </ThreePaneLayout>
+
+      <Dialog
+        open={editConversation() !== null}
+        onClose={() => {
+          if (!editSaving()) setEditConversation(null);
+        }}
+        size="sm"
+        header={
+          <h2 class="m-0 text-base font-semibold text-slate-800 dark:text-slate-100">
+            编辑会话
+          </h2>
+        }
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setEditConversation(null)}
+              disabled={editSaving()}
+              class="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-900/5 disabled:opacity-60 dark:border-white/15 dark:text-slate-200 dark:hover:bg-white/5"
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              onClick={() => void saveConversationTitle()}
+              disabled={editSaving() || !editTitle().trim()}
+              class="rounded-xl bg-linear-to-b from-sky-500 to-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:from-sky-400 hover:to-blue-500 disabled:cursor-progress disabled:opacity-70"
+            >
+              {editSaving() ? "保存中…" : "保存"}
+            </button>
+          </>
+        }
+      >
+        <label class="grid gap-2">
+          <span class="text-[13px] text-slate-600 dark:text-slate-300">会话标题</span>
+          <input
+            value={editTitle()}
+            onInput={(event) => setEditTitle(event.currentTarget.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") void saveConversationTitle();
+            }}
+            maxlength={256}
+            autofocus
+            class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-[15px] text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 disabled:opacity-60 dark:border-white/15 dark:bg-slate-950/60 dark:text-slate-100"
+          />
+        </label>
+      </Dialog>
     </WorkspaceViewContext.Provider>
   );
 }

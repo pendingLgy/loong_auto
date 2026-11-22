@@ -5,3 +5,41 @@
 
 /* 共享组件源码不在 Vite 根目录下，显式声明扫描范围。 */
 @source "../../shared/ui/src";
+
+
+/* 全局细滚动条：隐藏箭头，透明轨道，圆角滑块。 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(203 213 225 / 0.7) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+  background: transparent;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-button {
+  display: none;
+}
+
+*::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background: rgb(203 213 225 / 0.7);
+}
+
+.dark * {
+  scrollbar-color: rgb(71 85 105 / 0.7) transparent;
+}
+
+.dark *::-webkit-scrollbar-thumb {
+  background: rgb(71 85 105 / 0.7);
+}

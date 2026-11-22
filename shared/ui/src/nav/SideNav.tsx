@@ -30,6 +30,8 @@ export interface SideNavProps {
   onMoreWorkspace?: (workspaceId: string) => void;
   /** 点击工作区的「新建对话」按钮。 */
   onCreateConversation?: (workspaceId: string) => void;
+  /** 点击会话的编辑按钮。 */
+  onEditConversation?: (workspaceId: string, conversation: { id: string; title: string }) => void;
   /** 刷新工作区列表。 */
   onRefreshWorkspaces?: () => void;
   /** 刷新指定工作区的对话记录。 */
@@ -91,6 +93,7 @@ export const SideNav: Component<SideNavProps> = (props) => {
         onCreateWorkspace={props.onCreateWorkspace}
         onMoreWorkspace={props.onMoreWorkspace}
         onCreateConversation={props.onCreateConversation}
+        onEditConversation={props.onEditConversation}
         onRefreshWorkspaces={props.onRefreshWorkspaces}
         onRefreshConversations={props.onRefreshConversations}
         isConversationProcessing={props.isConversationProcessing}

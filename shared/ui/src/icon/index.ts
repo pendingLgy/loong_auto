@@ -19,6 +19,7 @@ import navChatIcon from "../assets/icons/NavChatIcon.svg?raw";
 import panelCollapseIcon from "../assets/icons/PanelCollapseIcon.svg?raw";
 import panelExpandIcon from "../assets/icons/PanelExpandIcon.svg?raw";
 import logoutIcon from "../assets/icons/LogoutIcon.svg?raw";
+import editIcon from "../assets/icons/EditIcon.svg?raw";
 import pinIcon from "../assets/icons/PinIcon.svg?raw";
 import unpinIcon from "../assets/icons/UnpinIcon.svg?raw";
 import plusIcon from "../assets/icons/PlusIcon.svg?raw";
@@ -69,6 +70,10 @@ export function LogoutIcon(props: IconProps = {}): Node {
 
 export function PinIcon(props: IconProps = {}): Node {
   return createIcon(pinIcon, `inline-block align-middle ${props.class ?? "h-3.5 w-3.5"}`);
+}
+
+export function EditIcon(props: IconProps = {}): Node {
+  return createIcon(editIcon, `inline-block align-middle ${props.class ?? "h-3.5 w-3.5"}`);
 }
 
 export function UnpinIcon(props: IconProps = {}): Node {

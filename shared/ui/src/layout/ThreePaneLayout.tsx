@@ -177,7 +177,7 @@ export const ThreePaneLayout: Component<ThreePaneLayoutProps> = (props) => {
       aria-label={collapseLabel(side)}
       aria-pressed={collapsed(side)}
       title={collapseLabel(side)}
-      class="grid h-8 w-8 shrink-0 place-items-center rounded-md text-slate-500 transition hover:bg-slate-900/5 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-200"
+      class="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-transparent text-slate-500 transition hover:bg-slate-900/5 hover:text-slate-800 dark:bg-transparent dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-200"
     >
       {collapsed(side)
         ? <PanelExpandIcon class={`h-4 w-4 ${side === RIGHT ? "rotate-180" : ""}`} />
@@ -187,7 +187,7 @@ export const ThreePaneLayout: Component<ThreePaneLayoutProps> = (props) => {
 
   const aside = (side: Side) => (
     <aside
-      class={`flex min-h-0 shrink-0 flex-col overflow-hidden bg-slate-100/70 dark:bg-slate-900/60 ${
+      class={`flex min-h-0 shrink-0 flex-col overflow-hidden bg-white/80 dark:bg-slate-900/70 ${
         dragging() === side ? "" : "transition-[width] duration-200 ease-out motion-reduce:transition-none"
       }`}
       style={{ width: collapsed(side) ? "0px" : `${width(side)}px` }}
@@ -226,11 +226,13 @@ export const ThreePaneLayout: Component<ThreePaneLayoutProps> = (props) => {
     >
       {aside(LEFT)}
       {divider(LEFT)}
-      <section class="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header class="flex h-11 shrink-0 items-center justify-between gap-1 px-1.5">
-          {toggleButton(LEFT)}
-          {toggleButton(RIGHT)}
-        </header>
+      <section class="relative flex min-w-0 flex-1 flex-col overflow-hidden">
+        <div class="pointer-events-none absolute left-1 top-1 z-10">
+          <div class="pointer-events-auto">{toggleButton(LEFT)}</div>
+        </div>
+        <div class="pointer-events-none absolute right-1 top-1 z-10">
+          <div class="pointer-events-auto">{toggleButton(RIGHT)}</div>
+        </div>
         <div class="min-h-0 flex-1 overflow-auto">{props.children}</div>
       </section>
       {divider(RIGHT)}

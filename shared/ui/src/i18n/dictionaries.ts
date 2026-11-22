@@ -101,6 +101,7 @@ export const enUS = {
   "chat.noMatchModels": "No matching models",
   "nav.workspaces": "Workspaces",
   "nav.emptyWorkspaces": "No workspaces yet",
+  "nav.editConversation": "Edit conversation",
   "nav.processing": "Processing",
   "nav.searchWorkspaces": "Search workspaces",
   "nav.createWorkspace": "New workspace",
