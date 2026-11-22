@@ -156,14 +156,14 @@ export const SideNavWorkspace: Component<SideNavWorkspaceProps> = (props) => {
               </div>
             </div>
             <Show when={!isCollapsed(workspace.id)}>
-              <div class="flex flex-col gap-1 pt-1">
+              <div class="flex max-h-[300px] flex-col gap-1 overflow-y-auto overscroll-contain pt-1">
                 <For each={workspace.conversations}>
                   {(conversation) => (
                     <button
                       type="button"
                       onClick={() => props.onSelectConversation?.(workspace.id, conversation.id)}
                       aria-current={props.activeConversationId === conversation.id ? "page" : undefined}
-                      class={`flex h-9 w-full items-center gap-2 rounded-lg pl-6 pr-3 text-left text-[13px] outline-none transition focus-visible:ring-2 focus-visible:ring-sky-500/40 ${
+                      class={`flex h-9 w-full shrink-0 items-center gap-2 rounded-lg pl-6 pr-3 text-left text-[13px] outline-none transition focus-visible:ring-2 focus-visible:ring-sky-500/40 ${
                         props.activeConversationId === conversation.id
                           ? "bg-blue-500/15 font-medium text-blue-700 dark:bg-blue-500/20 dark:text-blue-200"
                           : "text-slate-500 hover:bg-slate-900/5 dark:text-slate-400 dark:hover:bg-white/5"

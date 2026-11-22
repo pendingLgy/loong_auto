@@ -25,12 +25,20 @@ export function HomeView() {
   const [logoutOpen, setLogoutOpen] = createSignal(false);
   const [infoOpen, setInfoOpen] = createSignal(false);
   const [testing, setTesting] = createSignal(false);
-  const initialTabs = getWorkspaceTabs();
+  const initialTabs = isLoggedIn()
+    ? getWorkspaceTabs()
+    : {tabs: [] as WorkspaceChatTab[], activeKey: "", pinnedKeys: [] as string[]};
   const [tabs, setTabs] = createSignal<WorkspaceChatTab[]>(initialTabs.tabs);
   const [activeTab, setActiveTab] = createSignal(initialTabs.activeKey);
   const [pinnedKeys, setPinnedKeys] = createSignal<string[]>(initialTabs.pinnedKeys);
 
   createEffect(() => {
+    if (!isLoggedIn()) {
+      setTabs([]);
+      setActiveTab("");
+      setPinnedKeys([]);
+      return;
+    }
     saveWorkspaceTabs(tabs(), activeTab(), pinnedKeys());
   });
 
@@ -42,6 +50,7 @@ export function HomeView() {
     } finally {
       setTabs([]);
       setActiveTab("");
+      setPinnedKeys([]);
       clearServerWebStorage();
       // 防止 WorkspaceView 的响应式保存把工作区重新写回。
       queueMicrotask(() => {

@@ -520,6 +520,7 @@ export function WorkspaceView(props: WorkspaceViewProps) {
             onCreateWorkspace={() => void openFolderPicker()}
             onMoreWorkspace={() => undefined}
             onCreateConversation={addConversation}
+            isConversationProcessing={(_, conversationId) => isChatStreaming(conversationId)}
             user={userData()}
             onUserClick={() => undefined}
             onSettings={() => navigate("/settings")}

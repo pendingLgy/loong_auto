@@ -4,7 +4,6 @@ import type { Component } from "solid-js";
 import { LoginDialog as UiLoginDialog, type LoginCredentials, type RegisterValues } from "@loong/ui/login";
 
 import { createApiClient } from "../../api";
-import { startChatExecutor } from "../../chat/executor";
 import { saveUser } from "../../storage/user";
 
 export interface LoginViewProps {
@@ -24,7 +23,6 @@ export const LoginView: Component<LoginViewProps> = (props) => {
       }),
     );
     saveUser(session);
-    startChatExecutor();
   };
 
   const register = async (values: RegisterValues) => {
