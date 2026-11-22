@@ -3,7 +3,9 @@
 export interface SupplierConfig {
   id: string;
   provider: string;
+  alias: string | null;
   popular: boolean;
+  description: string;
   baseUrl: string | null;
   configFlag: boolean;
   createdAt: string | null;
@@ -35,8 +37,10 @@ export interface SupplierModelOptionSaveRequest {
 export interface RawSupplierConfigPayload {
   id?: unknown;
   provider?: unknown;
+  alias?: unknown;
   base_url?: unknown;
   popular?: boolean | null;
+  description?: unknown;
   config_flag?: unknown;
   created_at?: unknown;
   updated_at?: unknown;

@@ -1,15 +1,20 @@
-import { createResource, createSignal } from "solid-js";
+import { createSignal } from "solid-js";
 
 import { useNavigate } from "@solidjs/router";
 
 import { Effect } from "effect";
 
-import { createLocalClient } from "@loong/client";
+import { createLocalClient, type SupplierConfig } from "@loong/client";
 
 import { createApiClient } from "../../api";
 import { DEFAULT_LOCALE } from "@loong/ui/i18n";
 import { Toast, type MessageType } from "@loong/ui/message";
-import { SettingsPage, type ConfiguredServer } from "@loong/ui/settings";
+import {
+  SettingsPage,
+  type ConfiguredServer,
+  type ConfiguredModelProvider,
+  type ModelProviderValues,
+} from "@loong/ui/settings";
 
 import {
   activeServerId,
@@ -28,13 +33,24 @@ interface ToastState {
 export function WebSettingsPage() {
   const navigate = useNavigate();
   const [toast, setToast] = createSignal<ToastState | null>(null);
-  const [supplierConfigs] = createResource(async () => {
+  const [supplierConfigs, setSupplierConfigs] = createSignal<SupplierConfig[]>([]);
+  const [configuredSupplierConfigs, setConfiguredSupplierConfigs] = createSignal<SupplierConfig[]>([]);
+
+  const loadSupplierConfigs = async () => {
     try {
-      return await Effect.runPromise(createApiClient().supplierConfig.list());
+      const client = createApiClient();
+      const [available, configured] = await Promise.all([
+        Effect.runPromise(client.supplierConfig.list()),
+        Effect.runPromise(client.supplierConfig.listConfigured()),
+      ]);
+      setSupplierConfigs(available);
+      setConfiguredSupplierConfigs(configured);
     } catch {
-      return [];
+      setSupplierConfigs([]);
+      setConfiguredSupplierConfigs([]);
+      showToast("error", "获取供应商列表失败");
     }
-  });
+  };
 
   const currentServerOption = () => {
     const list = servers();
@@ -64,18 +80,56 @@ export function WebSettingsPage() {
     }
   };
 
+  const saveProvider = async (values: ModelProviderValues) => {
+    const client = createApiClient();
+    await Effect.runPromise(
+      client.supplierConfig.save({
+        provider: values.name,
+        apiKey: values.apiKey,
+        baseUrl: values.baseUrl,
+      }),
+    );
+    await loadSupplierConfigs();
+    showToast("success", `${values.alias.trim() || values.name} 已连接`);
+  };
+
+  const updateProviderApiKey = async (provider: ConfiguredModelProvider, apiKey: string) => {
+    await Effect.runPromise(
+      createApiClient().supplierConfig.updateApiKey(provider.name, apiKey),
+    );
+    await loadSupplierConfigs();
+    showToast("success", `${provider.alias?.trim() || provider.name} API Key 已更新`);
+  };
+
+  const renameProvider = async (provider: ConfiguredModelProvider, alias: string) => {
+    await Effect.runPromise(
+      createApiClient().supplierConfig.rename(provider.name, alias),
+    );
+    await loadSupplierConfigs();
+    showToast("success", `${alias} 已更新`);
+  };
+
+  const removeProvider = async (provider: ConfiguredModelProvider) => {
+    await Effect.runPromise(createApiClient().supplierConfig.remove(provider.name));
+    await loadSupplierConfigs();
+    showToast("success", `${provider.alias?.trim() || provider.name} 已移除`);
+  };
+
   const providerOptions = () => {
     const configs = supplierConfigs() ?? [];
+    const configured = configuredSupplierConfigs() ?? [];
     const toCard = (config: (typeof configs)[number]) => ({
       name: config.provider,
-      description: "",
+      description: config.description,
       baseUrl: config.baseUrl ?? "",
     });
 
     return {
-      providers: configs
-        .filter((config) => config.configFlag)
-        .map((config) => ({ name: config.provider, baseUrl: config.baseUrl ?? "" })),
+      providers: configured.map((config) => ({
+        name: config.provider,
+        alias: config.alias ?? undefined,
+        baseUrl: config.baseUrl ?? "",
+      })),
       popular: configs.filter((config) => config.popular).map(toCard),
       allProviders: configs.map(toCard),
     };
@@ -118,7 +172,16 @@ export function WebSettingsPage() {
           },
           onTestServer: testServer,
         }}
-        provider={providerOptions()}
+        onSectionChange={(key) => {
+          if (key === "provider") void loadSupplierConfigs();
+        }}
+        provider={{
+          ...providerOptions(),
+          onAdd: saveProvider,
+          onUpdateApiKey: updateProviderApiKey,
+          onRenameProvider: renameProvider,
+          onDeleteProvider: (provider) => void removeProvider(provider),
+        }}
         account={{
           userName: currentUser()?.name ?? currentUser()?.username,
           username: currentUser()?.username,

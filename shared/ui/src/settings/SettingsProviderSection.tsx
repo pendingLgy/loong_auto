@@ -216,7 +216,7 @@ export const SettingsProviderSection: Component<SettingsProviderSectionProps> = 
         </span>
         <Show when={isPopularProvider(provider)}>
           <span
-            class="shrink-0 text-orange-500 dark:text-orange-400"
+            class="inline-flex shrink-0 items-center text-orange-500 dark:text-orange-400"
             title={translate(locale(), "settings.provider.hot", "热门")}
             aria-label={translate(locale(), "settings.provider.hot", "热门")}
           >

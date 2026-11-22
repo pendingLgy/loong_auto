@@ -24,6 +24,7 @@ class SupplierModel(BaseModel):
 class SupplierProvider(ProviderConnection):
     """厂商连接信息与适配器名称。"""
     popular: bool = Field(default=False, description="热门供应商")
+    description: str = Field(default="", max_length=512, description="供应商描述")
     adapter: str = Field(min_length=1, description="对应适配器名称")
     models: dict[str, SupplierModel] = Field(default_factory=dict, description="厂商模型目录")
 

@@ -15,6 +15,7 @@ class SupplierProviderResponse(BaseModel):
     base_url: str
     timeout: float
     popular: bool = Field(default=False, description="热门供应商")
+    description: str = Field(default="", description="供应商描述")
     adapter: str
     models: dict[str, SupplierModelResponse] = Field(default_factory=dict)
 

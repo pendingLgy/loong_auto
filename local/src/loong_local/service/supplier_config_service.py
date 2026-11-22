@@ -50,6 +50,7 @@ class SupplierConfigService:
                 await session.execute(
                     insert(self.config_table).values(
                         provider=provider,
+                        alias=None,
                         base_url=base_url,
                         api_key=api_key,
                         created_at=now,
@@ -70,6 +71,28 @@ class SupplierConfigService:
         if saved is None:
             raise RuntimeError("供应商配置保存失败")
         return saved
+
+    async def update_api_key(self, provider: str, api_key: str) -> SupplierConfigModel | None:
+        async with self.db.session(write=True) as session:
+            result = await session.execute(
+                update(self.config_table)
+                .where(self.config_table.c.provider == provider)
+                .values(api_key=api_key, updated_at=utcnow())
+            )
+            if not result.rowcount:
+                return None
+        return await self.get_config(provider)
+
+    async def rename_config(self, provider: str, alias: str) -> SupplierConfigModel | None:
+        async with self.db.session(write=True) as session:
+            result = await session.execute(
+                update(self.config_table)
+                .where(self.config_table.c.provider == provider)
+                .values(alias=alias, updated_at=utcnow())
+            )
+            if not result.rowcount:
+                return None
+        return await self.get_config(provider)
 
     async def delete_config(self, provider: str) -> bool:
         async with self.db.session(write=True) as session:

@@ -28,8 +28,10 @@ export function toSupplierConfig(payload: RawSupplierConfigPayload): SupplierCon
   return {
     id: asText(payload.id),
     provider: asText(payload.provider),
+    alias: asNullableText(payload.alias),
     baseUrl: asNullableText(payload.base_url),
     popular: payload.popular === true,
+    description: asText(payload.description),
     configFlag: payload.config_flag === true,
     createdAt: asNullableText(payload.created_at),
     updatedAt: asNullableText(payload.updated_at),
@@ -69,6 +71,11 @@ export class SupplierConfigApi {
       .pipe(Effect.map(configList));
   }
 
+  listConfigured(): Effect.Effect<SupplierConfig[], ClientError> {
+    return requestJson<unknown>(this.options, "/api/supplier-configs/configured")
+      .pipe(Effect.map(configList));
+  }
+
   save(request: SupplierConfigSaveRequest): Effect.Effect<SupplierConfig, ClientError> {
     return requestJson<RawSupplierConfigPayload>(this.options, "/api/supplier-configs", {
       method: "PUT",
@@ -77,6 +84,20 @@ export class SupplierConfigApi {
         api_key: request.apiKey,
         base_url: request.baseUrl,
       },
+    }).pipe(Effect.map(toSupplierConfig));
+  }
+
+  updateApiKey(provider: string, apiKey: string): Effect.Effect<SupplierConfig, ClientError> {
+    return requestJson<RawSupplierConfigPayload>(this.options, "/api/supplier-configs/api-key", {
+      method: "PUT",
+      body: { provider, api_key: apiKey },
+    }).pipe(Effect.map(toSupplierConfig));
+  }
+
+  rename(provider: string, alias: string): Effect.Effect<SupplierConfig, ClientError> {
+    return requestJson<RawSupplierConfigPayload>(this.options, "/api/supplier-configs/alias", {
+      method: "PUT",
+      body: { provider, alias },
     }).pipe(Effect.map(toSupplierConfig));
   }
 

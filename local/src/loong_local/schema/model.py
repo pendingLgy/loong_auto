@@ -49,6 +49,7 @@ class SupplierConfigModel(BaseModel):
 
     id: int | None = Field(default=None, description="数据库自增主键")
     provider: str = Field(description="模型供应商")
+    alias: str | None = Field(default=None, description="供应商显示名称")
     base_url: str | None = Field(default=None, description="供应商 API Base URL")
     api_key: str = Field(description="供应商 API Key")
     created_at: datetime | None = Field(default=None, description="创建时间")
@@ -60,8 +61,10 @@ class SupplierConfigResponse(BaseModel):
 
     id: int = Field(description="配置 ID")
     provider: str = Field(description="模型供应商")
+    alias: str | None = Field(default=None, description="供应商显示名称")
     base_url: str | None = Field(default=None, description="供应商 API Base URL")
     popular: bool = Field(default=False, description="热门供应商")
+    description: str = Field(default="", description="供应商描述")
     config_flag: bool = Field(default=False, description="是否配置api_key")
     created_at: datetime | None = Field(default=None, description="创建时间")
     updated_at: datetime | None = Field(default=None, description="更新时间")

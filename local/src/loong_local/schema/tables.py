@@ -68,6 +68,7 @@ def get_supplier_config_table(metadata: MetaData, prefix: str = "") -> Table:
         metadata,
         Column("id", Integer, autoincrement=True, primary_key=True),
         Column("provider", String(64), nullable=False, comment="模型供应商"),
+        Column("alias", String(256), nullable=True, comment="供应商显示名称"),
         Column("base_url", String(512), nullable=True, comment="供应商 API Base URL"),
         Column("api_key", Text, nullable=False, comment="供应商 API Key"),
         Column("created_at", DateTime, default=None, nullable=True, comment="创建时间"),

@@ -43,6 +43,20 @@ class SupplierConfigSaveRequest(BaseModel):
     api_key: str = Field(min_length=1, description="供应商 API Key")
 
 
+class SupplierConfigApiKeyRequest(BaseModel):
+    """更新供应商 API Key。"""
+
+    provider: str = Field(min_length=1, max_length=64, description="模型供应商")
+    api_key: str = Field(min_length=1, description="供应商 API Key")
+
+
+class SupplierConfigRenameRequest(BaseModel):
+    """修改供应商显示名称。"""
+
+    provider: str = Field(min_length=1, max_length=64, description="模型供应商")
+    alias: str = Field(min_length=1, max_length=256, description="供应商显示名称")
+
+
 class SupplierModelOptionSaveRequest(BaseModel):
     """设置某个模型的启用状态。"""
 

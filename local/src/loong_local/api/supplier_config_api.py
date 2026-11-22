@@ -16,19 +16,26 @@ from loong_local.schema.model import (
     SupplierModelOptionModel,
     SupplierModelOptionResponse,
 )
-from loong_local.schema.request import SupplierConfigSaveRequest, SupplierModelOptionSaveRequest
+from loong_local.schema.request import (
+    SupplierConfigApiKeyRequest,
+    SupplierConfigRenameRequest,
+    SupplierConfigSaveRequest,
+    SupplierModelOptionSaveRequest,
+)
 from loong_local.service.supplier_config_service import SupplierConfigService
 
 router = APIRouter(prefix="/supplier-configs", tags=["供应商配置"])
 
 
-def _to_config_response(provider: str, popular: bool, cloud_base_url: str,
+def _to_config_response(provider: str, popular: bool, description: str, cloud_base_url: str,
                         config: SupplierConfigModel | None) -> SupplierConfigResponse:
     return SupplierConfigResponse(
         id=config.id if config is not None and config.id is not None else 0,
         provider=provider,
+        alias=config.alias if config is not None else None,
         base_url=config.base_url if config is not None and config.base_url else cloud_base_url,
         popular=popular,
+        description=description,
         config_flag=config is not None,
         created_at=config.created_at if config is not None else None,
         updated_at=config.updated_at if config is not None else None,
@@ -46,20 +53,15 @@ def _to_option_response(option: SupplierModelOptionModel) -> SupplierModelOption
     )
 
 
-@router.get("", response_model=BaseResponse[list[SupplierConfigResponse]])
-@inject
-async def list_supplier_configs(
+async def _supplier_config_items(
         request: Request,
-        store: SupplierConfigService = Depends(Provide["SupplierConfigService"]),
-):
+        store: SupplierConfigService,
+) -> tuple[list[SupplierConfigResponse] | None, str | None]:
     context: SSEContext = request.state.sse_context
     cloud_client = context.cloud_client
 
-    # 请求体会被重新序列化（SecretStr 脱敏字段还原、字段补全），长度与原请求不同，
-    # 不能透传 content-length，否则云端按旧长度截断请求体，报 "There was an error parsing the body"。
     headers = httpx.Headers(request.headers)
-    rebuild_cloud_request_header(headers,context.headers())
-
+    rebuild_cloud_request_header(headers, context.headers())
 
     try:
         cloud_client.http.headers = headers
@@ -68,10 +70,9 @@ async def list_supplier_configs(
                     request_id=result.request_id,
                     request_date=result.request_date)
         if result.code != 200:
-            return Response.fail(request,msg="获取供应商失败")
+            return None, "获取供应商失败"
         if result.data is None or result.data.providers is None:
-            return Response.fail(request, msg="暂无供应商提供")
-
+            return None, "暂无供应商提供"
     except httpx.HTTPStatusError as e:
         raise CloudHttpError(status=e.response.status_code, message=e.response.text,
                              headers=e.response.headers)
@@ -80,15 +81,42 @@ async def list_supplier_configs(
     configs = await store.list_configs()
     config_by_provider = {item.provider: item for item in configs}
 
-    return Response.ok(request, [
+    return [
         _to_config_response(
             provider,
             info.popular,
+            info.description,
             info.base_url,
             config_by_provider.get(provider),
         )
         for provider, info in cloud_supplier_dict.items()
-    ])
+    ], None
+
+
+@router.get("", response_model=BaseResponse[list[SupplierConfigResponse]])
+@inject
+async def list_supplier_configs(
+        request: Request,
+        store: SupplierConfigService = Depends(Provide["SupplierConfigService"]),
+):
+    """未配置的供应商列表。"""
+    items, error = await _supplier_config_items(request, store)
+    if items is None:
+        return Response.fail(request, msg=error)
+    return Response.ok(request, [item for item in items if not item.config_flag])
+
+
+@router.get("/configured", response_model=BaseResponse[list[SupplierConfigResponse]])
+@inject
+async def list_configured_supplier_configs(
+        request: Request,
+        store: SupplierConfigService = Depends(Provide["SupplierConfigService"]),
+):
+    """已配置的供应商列表。"""
+    items, error = await _supplier_config_items(request, store)
+    if items is None:
+        return Response.fail(request, msg=error)
+    return Response.ok(request, [item for item in items if item.config_flag])
 
 
 @router.put("", response_model=BaseResponse[SupplierConfigResponse])
@@ -99,7 +127,33 @@ async def save_supplier_config(
         store: SupplierConfigService = Depends(Provide["SupplierConfigService"]),
 ):
     item = await store.save_config(body.provider, body.api_key, body.base_url)
-    return Response.ok(request, _to_config_response(item.provider, False, item.base_url or "", item))
+    return Response.ok(request, _to_config_response(item.provider, False, "", item.base_url or "", item))
+
+
+@router.put("/api-key", response_model=BaseResponse[SupplierConfigResponse])
+@inject
+async def update_supplier_api_key(
+        request: Request,
+        body: SupplierConfigApiKeyRequest,
+        store: SupplierConfigService = Depends(Provide["SupplierConfigService"]),
+):
+    item = await store.update_api_key(body.provider, body.api_key)
+    if item is None:
+        return Response.fail(request, code=404, msg=f"供应商配置不存在：{body.provider}")
+    return Response.ok(request, _to_config_response(item.provider, False, "", item.base_url or "", item))
+
+
+@router.put("/alias", response_model=BaseResponse[SupplierConfigResponse])
+@inject
+async def rename_supplier(
+        request: Request,
+        body: SupplierConfigRenameRequest,
+        store: SupplierConfigService = Depends(Provide["SupplierConfigService"]),
+):
+    item = await store.rename_config(body.provider, body.alias)
+    if item is None:
+        return Response.fail(request, code=404, msg=f"供应商配置不存在：{body.provider}")
+    return Response.ok(request, _to_config_response(item.provider, False, "", item.base_url or "", item))
 
 
 @router.delete("", response_model=BaseResponse[bool])

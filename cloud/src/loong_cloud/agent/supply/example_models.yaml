@@ -5,6 +5,7 @@ providers:
     popular: true
     base_url: https://api.openai.com/v1
     timeout: 60
+    description: 'GPT 系列模型'
     models:
       gpt-4o-mini: {
         view: true,
@@ -15,6 +16,7 @@ providers:
     popular: true
     base_url: https://api.anthropic.com/v1
     timeout: 60
+    description: 'Claude 系列模型'
     models:
       claude-sonnet-4-5: {
         view: true,
@@ -25,6 +27,7 @@ providers:
     popular: false
     base_url: https://api.deepseek.com/v1
     timeout: 60
+    description: "Deepseek 系列模型"
     models:
       deepseek-chat: {
         view: false,
