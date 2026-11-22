@@ -383,3 +383,21 @@ export function stopChatExecutor(): void {
   connection?.controller.abort();
   connection = undefined;
 }
+
+
+/** 清除执行器的连接、队列与内存标记。 */
+export function clearChatExecutor(): void {
+  connection?.controller.abort();
+  connection = undefined;
+  queues.clear();
+  busySessions.clear();
+  createdSessions.clear();
+  sessionWorkspaceIds.clear();
+  queuesLoaded = false;
+  try {
+    window.localStorage.removeItem(QUEUE_STORAGE_KEY);
+  } catch {
+    // 忽略存储异常。
+  }
+  touch();
+}

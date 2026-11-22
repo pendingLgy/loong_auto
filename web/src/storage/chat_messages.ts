@@ -241,3 +241,19 @@ export function useTypewriterMessages(
   onCleanup(stopTimer);
   return display;
 }
+
+
+/** 清除全部本地聊天消息。 */
+export function clearAllChatMessages(): void {
+  stores.clear();
+  try {
+    for (let index = window.localStorage.length - 1; index >= 0; index -= 1) {
+      const key = window.localStorage.key(index);
+      if (key?.startsWith(`${STORAGE_KEY_PREFIX}:`)) {
+        window.localStorage.removeItem(key);
+      }
+    }
+  } catch {
+    // 忽略存储异常。
+  }
+}

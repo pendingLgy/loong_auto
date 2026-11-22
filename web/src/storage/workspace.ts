@@ -104,3 +104,13 @@ export function saveWorkspaceState(state: WorkspaceState): void {
     // 存储不可用时仅保留内存状态。
   }
 }
+
+
+/** 清除工作区界面状态。 */
+export function clearWorkspaceState(): void {
+  try {
+    window.localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // 忽略存储异常。
+  }
+}

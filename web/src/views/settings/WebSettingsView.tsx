@@ -21,9 +21,9 @@ import {
 } from "@loong/ui/settings";
 
 import { serverConfig, updateServerStatus } from "../../storage/server_config";
-import { stopChatExecutor } from "../../chat/executor";
+import { clearUserWebStorage} from "../../storage/reset";
 import { showNotice } from "../../storage/app_notice";
-import { clearUser, currentUser } from "../../storage/user";
+import { currentUser } from "../../storage/user";
 
 /** 设置页：`/settings` 嵌套路由，管理中栏的服务器 / 供应商 / 模型 / 账号。 */
 export function WebSettingsView() {
@@ -64,8 +64,7 @@ export function WebSettingsView() {
     } catch {
       // 忽略注销请求异常。
     } finally {
-      stopChatExecutor();
-      clearUser();
+      clearUserWebStorage();
       navigate("/");
     }
   };

@@ -7,11 +7,13 @@ import { Dialog } from "@loong/ui/dialog";
 import { DEFAULT_LOCALE } from "@loong/ui/i18n";
 import { HomeTabs } from "@loong/ui/home-tabs";
 import { createApiClient } from "../../api";
-import { stopChatExecutor } from "../../chat/executor";
+import { clearServerWebStorage} from "../../storage/reset";
+import { clearWorkspaceState } from "../../storage/workspace";
+import { clearWorkspaceTabs } from "../../storage/workspace_tabs";
 import { showNotice } from "../../storage/app_notice";
 import { isServerConfigured, serverConfig, updateServerStatus } from "../../storage/server_config";
 import { theme, toggleTheme } from "../../storage/theme";
-import { clearUser, isLoggedIn } from "../../storage/user";
+import { isLoggedIn } from "../../storage/user";
 import { WorkspaceView } from "../workspace/WorkspaceView";
 import { getWorkspaceTabs, saveWorkspaceTabs } from "../../storage/workspace_tabs";
 import type { WorkspaceChatTab } from "../workspace/types";
@@ -36,11 +38,14 @@ export function HomeView() {
     } catch {
       // 注销失败也清除本地登录缓存。
     } finally {
-      stopChatExecutor();
-      clearUser();
       setTabs([]);
       setActiveTab("");
-      saveWorkspaceTabs([], "");
+      clearServerWebStorage();
+      // 防止 WorkspaceView 的响应式保存把工作区重新写回。
+      queueMicrotask(() => {
+        clearWorkspaceState();
+        clearWorkspaceTabs();
+      });
     }
   };
 
@@ -189,7 +194,7 @@ export function HomeView() {
         size="sm"
         header={
           <h2 class="m-0 text-base font-semibold text-slate-800 dark:text-slate-100">
-            退出登录
+            退出服务器
           </h2>
         }
         footer={
@@ -215,7 +220,7 @@ export function HomeView() {
         }
       >
         <p class="m-0 text-sm text-slate-500 dark:text-slate-400">
-          确认退出当前账号？服务器配置会保留，可重新登录。
+          确认退出当前服务器？
         </p>
       </Dialog>
     </div>

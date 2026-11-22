@@ -51,6 +51,7 @@
 - 只允许配置一个服务器；保存服务器配置使用 `saveServerConfig()`，清除使用 `clearServerConfig()`。
 - 登录信息使用唯一 key；清除登录使用 `clearUser()`。
 - 工作区状态、聊天消息与待发送队列不再带服务器 ID，session 是唯一隔离维度。
+- 退出账号必须调用 `clearAllWebStorage()`，清空登录、工作区、标签、聊天、队列与主题数据，但保留 `loong.web.server-config`；只有显式清除服务器时才调用 `clearServerConfig()`。
 
 ## API 调用
 

@@ -67,8 +67,22 @@ export function getWorkspaceTabs(): WorkspaceTabsState {
 /** 保存已打开的标签与激活标签。 */
 export function saveWorkspaceTabs(tabs: WorkspaceChatTab[], activeKey: string): void {
   try {
+    if (tabs.length === 0 && !activeKey) {
+      window.localStorage.removeItem(STORAGE_KEY);
+      return;
+    }
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ tabs, activeKey }));
   } catch {
     // 存储不可用时仅保留内存状态。
+  }
+}
+
+
+/** 清除已打开的标签。 */
+export function clearWorkspaceTabs(): void {
+  try {
+    window.localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // 忽略存储异常。
   }
 }
