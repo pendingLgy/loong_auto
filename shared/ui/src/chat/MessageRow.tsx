@@ -85,9 +85,12 @@ export const MessageRow: Component<MessageRowProps> = (props) => {
     <Show
       when={!isSystem()}
       fallback={
-        <p class="m-0 px-2 text-center text-[12px] text-slate-400 dark:text-slate-500">
-          {props.message.content}
-        </p>
+        <div class="grid gap-1.5">
+          <p class="m-0 px-2 text-center text-[12px] text-slate-400 dark:text-slate-500">
+            {props.message.content}
+          </p>
+          <div class="h-6" aria-hidden="true" />
+        </div>
       }
     >
       <Show
@@ -99,7 +102,7 @@ export const MessageRow: Component<MessageRowProps> = (props) => {
               locale={props.locale}
               onRendered={props.onRendered}
             />
-            <div class="flex items-center gap-2">
+            <div class="flex h-6 items-center gap-2">
               {copyButton()}
               {timeText()}
             </div>
@@ -110,7 +113,7 @@ export const MessageRow: Component<MessageRowProps> = (props) => {
           <div class="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl bg-slate-100 px-3 py-2 text-sm text-slate-800 dark:bg-slate-800 dark:text-slate-100">
             {props.message.content}
           </div>
-          <div class="flex items-center gap-2">
+          <div class="flex h-6 items-center gap-2">
             {timeText()}
             {copyButton()}
           </div>

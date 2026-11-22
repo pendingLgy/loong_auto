@@ -82,6 +82,7 @@ export const LlmChat: Component<LlmChatProps> = (props) => {
     },
     getScrollElement: () => scroller ?? null,
     estimateSize: () => 64,
+    gap: 24, // 统一控制每条消息行之间的间距（如 24px）
     overscan: 8,
   });
 
@@ -149,6 +150,40 @@ export const LlmChat: Component<LlmChatProps> = (props) => {
   });
 
 
+  const handlePaste = (event: ClipboardEvent) => {
+    event.preventDefault();
+
+    const clipboardData = event.clipboardData;
+    const plainText = clipboardData?.getData("text/plain") ?? "";
+    if (!plainText) return;
+
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) {
+      // 兜底：若没有选区，直接追加到末尾
+      input?.append(document.createTextNode(plainText));
+      syncContent();
+      return;
+    }
+
+    const range = selection.getRangeAt(0);
+    // 仅当选区位于当前输入框内时才操作，避免误改外部节点
+    if (input && !input.contains(range.commonAncestorContainer)) {
+      return;
+    }
+
+    range.deleteContents();
+    const textNode = document.createTextNode(plainText);
+    range.insertNode(textNode);
+
+    // 将光标移动到刚插入文本的末尾
+    const nextRange = document.createRange();
+    nextRange.setStartAfter(textNode);
+    nextRange.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(nextRange);
+
+    syncContent();
+  };
 
   const syncContent = () => {
     if (!input) return;
@@ -188,8 +223,9 @@ export const LlmChat: Component<LlmChatProps> = (props) => {
         aria-label={translate(locale(), "chat.placeholder", "发送消息…")}
         aria-disabled={props.disabled}
         data-placeholder={translate(locale(), "chat.placeholder", "发送消息…")}
-        class="max-h-32 min-h-8 overflow-y-auto whitespace-pre-wrap break-words bg-transparent px-2 py-1 text-sm text-slate-900 outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-slate-400 aria-disabled:opacity-60 dark:text-slate-100 dark:empty:before:text-slate-500"
+        class="max-h-32 min-h-12 overflow-y-auto whitespace-pre-wrap break-words bg-transparent px-2 py-1 text-sm text-slate-900 outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-slate-400 aria-disabled:opacity-60 dark:text-slate-100 dark:empty:before:text-slate-500"
         onInput={syncContent}
+        onPaste={handlePaste}
         onKeyDown={handleKeyDown}
       />
 
@@ -253,14 +289,14 @@ export const LlmChat: Component<LlmChatProps> = (props) => {
     >
       <div
         ref={scroller}
-        class={`w-full flex-1 overflow-y-auto p-4 ${messages().length > 0 ? "pb-44" : ""}`}
+        class="w-full flex-1 overflow-y-auto p-4"
         onScroll={(event) => {
           if (event.currentTarget.scrollTop <= 32) {
             props.onScrollTop?.();
           }
         }}
       >
-        <div class="mx-auto flex h-full w-full max-w-[var(--chat-max-width)] flex-col">
+        <div class={`mx-auto flex w-full max-w-[var(--chat-max-width)] flex-col ${messages().length === 0 ? "h-full" : ""}`}>
         <Show
           when={messages().length > 0}
           fallback={
@@ -278,7 +314,7 @@ export const LlmChat: Component<LlmChatProps> = (props) => {
                 <div
                   data-index={item.index}
                   ref={virtualizer.measureElement}
-                  class="absolute left-0 top-0 w-full pb-[40px]"
+                  class="absolute left-0 top-0 w-full"
                   style={{ transform: `translateY(${item.start}px)` }}
                 >
                   <MessageRow
@@ -301,6 +337,9 @@ export const LlmChat: Component<LlmChatProps> = (props) => {
               {translate(locale(), "chat.streaming", "正在生成…")}
             </div>
           </Show>
+
+            <div class="h-36 shrink-0" aria-hidden="true" />
+
         </Show>
 
         </div>
