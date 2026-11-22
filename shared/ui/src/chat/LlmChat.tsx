@@ -9,6 +9,7 @@ import type { ChatMessage } from "./types";
 import {
   ModelPicker,
   type ConnectValues,
+  type ManagedModel,
   type ManagedProvider,
   type ModelGroup,
   type ProviderOption,
@@ -36,6 +37,8 @@ export interface LlmChatProps {
   providerAlias?: string;
   /** 可选的模型，按供应商分组。 */
   modelGroups?: ModelGroup[];
+  /** 点击模型选择器。 */
+  onOpenModels?: () => void;
   /** 选择某个模型。 */
   onSelectModel?: (model: string, group: ModelGroup) => void;
   /** 可添加的供应商列表。 */
@@ -46,6 +49,8 @@ export interface LlmChatProps {
   onConnectProvider?: (provider: ProviderOption, values: ConnectValues) => Promise<void>;
   /** 保存模型启用状态。 */
   onSaveModels?: (providers: ManagedProvider[]) => Promise<void>;
+  /** 切换单个模型启用状态。 */
+  onToggleModel?: (provider: ManagedProvider, model: ManagedModel, enabled: boolean) => Promise<void>;
   /** 点击输入区下方「+」按钮。 */
   onAdd?: () => void;
   /** 最小宽度（px），默认 320。 */
@@ -169,7 +174,10 @@ export const LlmChat: Component<LlmChatProps> = (props) => {
 
         <button
           type="button"
-          onClick={() => setShowModels(true)}
+          onClick={() => {
+            props.onOpenModels?.();
+            setShowModels(true);
+          }}
           class="flex h-8 w-fit min-w-0 max-w-full items-center overflow-hidden rounded-md px-[10px] text-left text-sm text-slate-500 outline-none transition hover:bg-slate-900/5 hover:text-slate-700 focus-visible:ring-2 focus-visible:ring-sky-500/40 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-200"
         >
           <span class="truncate">{modelInfo()}</span>
@@ -208,8 +216,8 @@ export const LlmChat: Component<LlmChatProps> = (props) => {
   return (
     <section
       aria-label={translate(locale(), "chat.label", "聊天")}
-      class={`relative mx-auto flex h-full min-h-0 w-full max-w-[var(--chat-max-width)] flex-col bg-white dark:bg-slate-950 ${props.class ?? ""}`}
-      style={{ "--chat-max-width": `max(80%, ${props.minWidth ?? 320}px)` }}
+      class={`relative mx-auto flex h-full min-h-0 w-full max-w-[var(--chat-max-width)] flex-col ${props.class ?? ""}`}
+      style={{ "--chat-max-width": `max(60%, ${props.minWidth ?? 320}px)` }}
     >
       <div
         ref={scroller}
@@ -278,6 +286,7 @@ export const LlmChat: Component<LlmChatProps> = (props) => {
         managedProviders={props.managedProviders}
         onConnectProvider={props.onConnectProvider}
         onSaveModels={props.onSaveModels}
+        onToggleModel={props.onToggleModel}
       />
     </section>
   );

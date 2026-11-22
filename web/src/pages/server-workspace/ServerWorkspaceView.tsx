@@ -1,14 +1,19 @@
-import {createSignal, type JSX} from "solid-js";
+import {createSignal} from "solid-js";
 
 import {useNavigate} from "@solidjs/router";
 
+import {LlmChat, type ChatModelGroup} from "@loong/ui/chat";
+import type {ManagedModel, ManagedProvider, ProviderOption} from "@loong/ui/model-picker";
 import {type LayoutState, ThreePaneLayout} from "@loong/ui/layout";
 import {SideNav, type SideNavKey, type SideNavUserData, type Workspace} from "@loong/ui/nav";
+import {createApiClient} from "../../api";
+import {showNotice} from "../../storage/app_notice";
 import {serverConfig, servers} from "../../storage/server_config";
 import {getLayoutState, saveLayoutState} from "../../storage/settings";
 import {currentUser} from "../../storage/user";
-import {HomeIndex} from "./HomeIndex";
 import {HomeViewContext} from "./home-context";
+
+import {Effect} from "effect";
 
 const INITIAL_WORKSPACES: Workspace[] = [
   {
@@ -24,8 +29,6 @@ const createId = (prefix: string) => `${prefix}-${Date.now()}-${nextId++}`;
 export interface ServerWorkspaceViewProps {
   /** 指定服务器 id；省略时使用当前激活服务器。 */
   serverId?: string;
-  /** 中栏内容；为空时渲染 HomeIndex。 */
-  children?: JSX.Element;
   /** 组件高度，默认 100%。 */
   height?: number | string;
 }
@@ -39,9 +42,74 @@ export function ServerWorkspaceView(props: ServerWorkspaceViewProps) {
   const [activeConversationId, setActiveConversationId] = createSignal(
     INITIAL_WORKSPACES[0].conversations[0].id,
   );
+  const [modelGroups, setModelGroups] = createSignal<ChatModelGroup[]>([]);
+  const [selectedModel, setSelectedModel] = createSignal("");
+  const [selectedProvider, setSelectedProvider] = createSignal("");
+  const [availableProviders, setAvailableProviders] = createSignal<ProviderOption[]>([]);
+  const [managedProviders, setManagedProviders] = createSignal<ManagedProvider[]>([]);
 
   const currentServer = () =>
     servers().find((server) => server.id === props.serverId) ?? serverConfig();
+
+  const loadModelGroups = async () => {
+    try {
+      const client = createApiClient();
+      const [available, managed] = await Promise.all([
+        Effect.runPromise(client.supplierConfig.list()),
+        Effect.runPromise(client.supplierConfig.listModels()),
+      ]);
+
+      setAvailableProviders(available.map((provider) => ({
+        name: provider.provider,
+        description: provider.description,
+        baseUrl: provider.baseUrl ?? "",
+      })));
+
+      const groups: ManagedProvider[] = managed.map((provider) => ({
+        providerName: provider.provider,
+        providerAlias: provider.alias ?? undefined,
+        baseUrl: provider.baseUrl ?? "",
+        models: provider.models.map((model) => ({
+          id: model.model,
+          enabled: model.enabled,
+        })),
+      }));
+      setManagedProviders(groups);
+      setModelGroups(groups.map((provider) => ({
+        providerName: provider.providerName,
+        providerAlias: provider.providerAlias,
+        models: provider.models,
+      })));
+    } catch {
+      showNotice("error", "获取模型列表失败");
+    }
+  };
+
+  const connectProvider = async (provider: ProviderOption, values: { apiKey: string; baseUrl: string }) => {
+    await Effect.runPromise(
+      createApiClient().supplierConfig.save({
+        provider: provider.name,
+        apiKey: values.apiKey,
+        baseUrl: values.baseUrl,
+      }),
+    );
+    await loadModelGroups();
+  };
+
+  const toggleManagedModel = async (
+    provider: ManagedProvider,
+    model: ManagedModel,
+    enabled: boolean,
+  ) => {
+    await Effect.runPromise(
+      createApiClient().supplierConfig.saveOption({
+        provider: provider.providerName,
+        model: model.id,
+        enabled,
+      }),
+    );
+    await loadModelGroups();
+  };
 
   const userData = (): SideNavUserData | undefined => {
     const info = currentUser();
@@ -130,7 +198,20 @@ export function ServerWorkspaceView(props: ServerWorkspaceViewProps) {
           </div>
         }
       >
-        {props.children ?? <HomeIndex/>}
+        <LlmChat
+          modelGroups={modelGroups()}
+          modelName={selectedModel()}
+          providerAlias={selectedProvider()}
+          onOpenModels={() => void loadModelGroups()}
+          providers={availableProviders()}
+          managedProviders={managedProviders()}
+          onConnectProvider={connectProvider}
+          onToggleModel={toggleManagedModel}
+          onSelectModel={(model, group) => {
+            setSelectedModel(model);
+            setSelectedProvider(group.providerAlias ?? group.providerName);
+          }}
+        />
       </ThreePaneLayout>
     </HomeViewContext.Provider>
   );

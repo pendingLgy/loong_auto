@@ -70,6 +70,8 @@ export interface ModelPickerProps {
   onConnectProvider?: (provider: ProviderOption, values: ConnectValues) => Promise<void>;
   /** 保存模型启用状态。 */
   onSaveModels?: (providers: ManagedProvider[]) => Promise<void>;
+  /** 切换单个模型启用状态；提供后立即保存。 */
+  onToggleModel?: (provider: ManagedProvider, model: ManagedModel, enabled: boolean) => Promise<void>;
 }
 
 type PickerView = "select" | "providers" | "manage";
@@ -207,34 +209,47 @@ export const ModelPicker: Component<ModelPickerProps> = (props) => {
   };
 
   const toggleModel = (providerIndex: number, modelId: string) => {
+    const provider = drafts()[providerIndex];
+    const target = provider?.models.find((model) => model.id === modelId);
+    if (!provider || !target || manageSaving()) return;
+
+    const enabled = !(target.enabled ?? false);
     setDrafts((providers) =>
-      providers.map((provider, index) =>
+      providers.map((item, index) =>
         index === providerIndex
           ? {
-              ...provider,
-              models: provider.models.map((model) =>
-                model.id === modelId ? { ...model, enabled: !(model.enabled ?? false) } : model,
+              ...item,
+              models: item.models.map((model) =>
+                model.id === modelId ? { ...model, enabled } : model,
               ),
             }
-          : provider,
+          : item,
       ),
     );
-  };
 
-  const saveManage = async () => {
-    if (manageSaving() || !props.onSaveModels) return;
-    setManageError("");
+    if (!props.onToggleModel) return;
+
     setManageSaving(true);
-    try {
-      await props.onSaveModels(drafts());
-      setView("select");
-    } catch (cause) {
-      setManageError(cause instanceof Error && cause.message
-        ? cause.message
-        : translate(locale(), "chat.errorFallback", "操作失败，请稍后再试"));
-    } finally {
-      setManageSaving(false);
-    }
+    setManageError("");
+    void props.onToggleModel(provider, { ...target, enabled }, enabled)
+      .catch((cause) => {
+        setDrafts((providers) =>
+          providers.map((item, index) =>
+            index === providerIndex
+              ? {
+                  ...item,
+                  models: item.models.map((model) =>
+                    model.id === modelId ? { ...model, enabled: !enabled } : model,
+                  ),
+                }
+              : item,
+          ),
+        );
+        setManageError(cause instanceof Error && cause.message
+          ? cause.message
+          : translate(locale(), "chat.errorFallback", "操作失败，请稍后再试"));
+      })
+      .finally(() => setManageSaving(false));
   };
 
   const inputClass = "w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-[14px] text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 disabled:opacity-60 dark:border-white/15 dark:bg-slate-950/60 dark:text-slate-100";
@@ -460,21 +475,11 @@ export const ModelPicker: Component<ModelPickerProps> = (props) => {
               <div class="flex items-center justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setView("select")}
+                  onClick={() => props.onClose()}
                   disabled={manageSaving()}
                   class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-900/5 disabled:opacity-60 dark:border-white/15 dark:text-slate-200 dark:hover:bg-white/5"
                 >
-                  {translate(locale(), "chat.cancel", "取消")}
-                </button>
-                <button
-                  type="button"
-                  onClick={saveManage}
-                  disabled={manageSaving()}
-                  class="rounded-xl bg-linear-to-b from-sky-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:from-sky-400 hover:to-blue-500 disabled:cursor-progress disabled:opacity-70"
-                >
-                  {manageSaving()
-                    ? translate(locale(), "chat.saving", "保存中…")
-                    : translate(locale(), "chat.save", "保存")}
+                  {translate(locale(), "chat.close", "关闭")}
                 </button>
               </div>
             </Show>

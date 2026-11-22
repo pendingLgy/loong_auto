@@ -87,6 +87,7 @@ export const enUS = {
   "chat.baseUrl": "Base URL",
   "chat.apiKey": "API Key",
   "chat.cancel": "Cancel",
+  "chat.close": "Close",
   "chat.save": "Save",
   "chat.saving": "Saving…",
   "chat.noProviders": "No providers available",
