@@ -28,9 +28,10 @@ export function HomeView() {
   const initialTabs = getWorkspaceTabs();
   const [tabs, setTabs] = createSignal<WorkspaceChatTab[]>(initialTabs.tabs);
   const [activeTab, setActiveTab] = createSignal(initialTabs.activeKey);
+  const [pinnedKeys, setPinnedKeys] = createSignal<string[]>(initialTabs.pinnedKeys);
 
   createEffect(() => {
-    saveWorkspaceTabs(tabs(), activeTab());
+    saveWorkspaceTabs(tabs(), activeTab(), pinnedKeys());
   });
 
   const logout = async () => {
@@ -90,6 +91,7 @@ export function HomeView() {
 
     const next = current.filter((tab) => tab.key !== key);
     setTabs(next);
+    setPinnedKeys((keys) => keys.filter((item) => item !== key));
     if (activeTab() === key) {
       setActiveTab(next[Math.min(index, next.length - 1)]?.key ?? "");
     }
@@ -118,12 +120,14 @@ export function HomeView() {
   };
 
   return (
-    <div class="grid h-screen grid-rows-[auto_minmax(0,1fr)] bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+    <div class="grid h-screen grid-cols-[minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)] bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <HomeTabs
         tabs={tabs().map((tab) => ({key: tab.key, label: tab.label}))}
         active={activeTab()}
         onSelect={selectTab}
         onClose={closeTab}
+        pinnedKeys={pinnedKeys()}
+        onPinnedChange={setPinnedKeys}
         onAdd={() => undefined}
         onServerInfo={() => setInfoOpen(true)}
         onLogout={() => setLogoutOpen(true)}

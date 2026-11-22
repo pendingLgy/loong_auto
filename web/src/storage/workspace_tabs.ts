@@ -11,6 +11,7 @@ export interface WorkspaceChatTab {
 export interface WorkspaceTabsState {
   tabs: WorkspaceChatTab[];
   activeKey: string;
+  pinnedKeys: string[];
 }
 
 export function workspaceTabKey(workspaceId: string, conversationId: string): string {
@@ -19,7 +20,7 @@ export function workspaceTabKey(workspaceId: string, conversationId: string): st
 
 const STORAGE_KEY = "loong.web.workspace-tabs";
 
-const EMPTY_STATE: WorkspaceTabsState = { tabs: [], activeKey: "" };
+const EMPTY_STATE: WorkspaceTabsState = { tabs: [], activeKey: "", pinnedKeys: [] };
 
 function normalizeTab(value: unknown): WorkspaceChatTab | null {
   if (typeof value !== "object" || value === null) return null;
@@ -49,7 +50,7 @@ export function getWorkspaceTabs(): WorkspaceTabsState {
     const parsed: unknown = JSON.parse(raw);
     if (typeof parsed !== "object" || parsed === null) return EMPTY_STATE;
 
-    const data = parsed as { tabs?: unknown; activeKey?: unknown };
+    const data = parsed as { tabs?: unknown; activeKey?: unknown; pinnedKeys?: unknown };
     const tabs = Array.isArray(data.tabs)
       ? data.tabs.map(normalizeTab).filter((tab): tab is WorkspaceChatTab => tab !== null)
       : [];
@@ -57,21 +58,34 @@ export function getWorkspaceTabs(): WorkspaceTabsState {
     const activeKey = tabs.some((tab) => tab.key === requested)
       ? requested
       : tabs[0]?.key ?? "";
+    const available = new Set(tabs.map((tab) => tab.key));
+    const pinnedKeys = Array.isArray(data.pinnedKeys)
+      ? data.pinnedKeys.filter(
+        (key): key is string => typeof key === "string" && available.has(key),
+      )
+      : [];
 
-    return { tabs, activeKey };
+    return { tabs, activeKey, pinnedKeys };
   } catch {
     return EMPTY_STATE;
   }
 }
 
 /** 保存已打开的标签与激活标签。 */
-export function saveWorkspaceTabs(tabs: WorkspaceChatTab[], activeKey: string): void {
+export function saveWorkspaceTabs(
+  tabs: WorkspaceChatTab[],
+  activeKey: string,
+  pinnedKeys: string[],
+): void {
   try {
-    if (tabs.length === 0 && !activeKey) {
+    if (tabs.length === 0 && !activeKey && pinnedKeys.length === 0) {
       window.localStorage.removeItem(STORAGE_KEY);
       return;
     }
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ tabs, activeKey }));
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ tabs, activeKey, pinnedKeys }),
+    );
   } catch {
     // 存储不可用时仅保留内存状态。
   }

@@ -41,7 +41,7 @@
 | 唯一服务器配置（名称、地址、security_token、连通状态、检查时间） | `localStorage` | `loong.web.server-config` |
 | 登录用户数据（access/refresh token、用户信息） | `localStorage` | `loong.web.user` |
 | 工作区界面状态（布局、菜单、工作区/对话、当前对话、选中模型） | `localStorage` | `loong.web.workspace` |
-| 已打开的工作区/会话标签 | `localStorage` | `loong.web.workspace-tabs` |
+| 已打开的工作区/会话标签与固定标签 | `localStorage` | `loong.web.workspace-tabs` |
 | 本地聊天消息（按 session） | `localStorage` | `loong.web.chat-messages:<sessionId>` |
 | 已加载消息页码 | `localStorage` | `loong.web.chat-pages:<sessionId>` |
 | 待发送消息队列 | `localStorage` | `loong.web.chat-queue` |

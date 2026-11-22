@@ -79,7 +79,7 @@ web/
 | 唯一服务器配置 | `loong.web.server-config` |
 | 登录会话 | `loong.web.user` |
 | 工作区界面状态（布局、菜单、工作区/对话、选中模型） | `loong.web.workspace` |
-| 已打开的工作区/会话标签 | `loong.web.workspace-tabs` |
+| 已打开的工作区/会话标签与固定标签 | `loong.web.workspace-tabs` |
 | 聊天消息（按 session） | `loong.web.chat-messages:<sessionId>` |
 | 已加载消息页码 | `loong.web.chat-pages:<sessionId>` |
 | 待发送消息队列 | `loong.web.chat-queue` |
