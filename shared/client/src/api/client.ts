@@ -10,6 +10,7 @@ import { SupplierConfigApi } from "./local_supplier_config";
 import { WorkspaceApi } from "./cloud_workspace";
 import { EventsApi } from "./cloud_events";
 import { SessionApi } from "./cloud_session";
+import { MessageApi } from "./cloud_message";
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
 
@@ -42,6 +43,7 @@ export interface LocalClient {
   supplierConfig: SupplierConfigApi;
   workspace: WorkspaceApi;
   session: SessionApi;
+  message: MessageApi;
   events: EventsApi;
 }
 
@@ -116,6 +118,14 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
       security_token: options.security_token,
     }),
     session: new SessionApi({
+      baseUrl,
+      prefix,
+      token: options.token,
+      locale,
+      fetch: options.fetch,
+      security_token: options.security_token,
+    }),
+    message: new MessageApi({
       baseUrl,
       prefix,
       token: options.token,

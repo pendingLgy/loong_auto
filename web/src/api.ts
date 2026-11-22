@@ -71,7 +71,7 @@ function refreshAccessToken(
 type EffectMethod = (...args: unknown[]) => Effect.Effect<unknown, unknown>;
 
 function wrapNamespace<T extends object>(
-  key: "auth" | "sessionConfig" | "supplierConfig" | "workspace" | "session" | "events",
+  key: "auth" | "sessionConfig" | "supplierConfig" | "workspace" | "session" | "message" | "events",
   target: T,
   origin: string,
   locale: Locale | undefined,
@@ -164,6 +164,7 @@ export function createApiClient(options: { origin?: string; locale?: Locale } = 
     supplierConfig: wrapNamespace("supplierConfig", base.supplierConfig, origin, options.locale),
     workspace: wrapNamespace("workspace", base.workspace, origin, options.locale),
     session: wrapNamespace("session", base.session, origin, options.locale),
+    message: wrapNamespace("message", base.message, origin, options.locale),
     events: wrapNamespace("events", base.events, origin, options.locale),
   };
 }

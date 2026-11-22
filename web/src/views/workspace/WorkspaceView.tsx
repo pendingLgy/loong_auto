@@ -2,14 +2,25 @@ import {For, Show, createEffect, createSignal, onMount} from "solid-js";
 
 import {useNavigate} from "@solidjs/router";
 
+import type {MessageRecord} from "@loong/client";
+
 import {LlmChat, type ChatModelGroup} from "@loong/ui/chat";
 import type {ManagedModel, ManagedProvider, ProviderOption} from "@loong/ui/model-picker";
 import {type LayoutState, ThreePaneLayout} from "@loong/ui/layout";
 import {SideNav, type SideNavKey, type SideNavUserData, type Workspace} from "@loong/ui/nav";
 import {createApiClient} from "../../api";
 import {enqueueChatMessage, isChatStreaming, startChatExecutor} from "../../chat/executor";
+import {MessageStatus} from "../../chat/status";
 import {showNotice} from "../../storage/app_notice";
-import {chatMessages, useTypewriterMessages} from "../../storage/chat_messages";
+import {
+  chatMessages,
+  getChatPaging,
+  prependChatMessages,
+  replaceChatMessages,
+  saveChatPaging,
+  useTypewriterMessages,
+  type StoredChatMessage,
+} from "../../storage/chat_messages";
 import {serverConfig} from "../../storage/server_config";
 import {getWorkspaceState, saveWorkspaceState} from "../../storage/workspace";
 import {currentUser} from "../../storage/user";
@@ -21,6 +32,33 @@ import {Effect} from "effect";
 function createSessionId(): string {
   if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
   return `session-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+const MESSAGE_PAGE_SIZE = 20;
+
+function toStoredMessage(
+  record: MessageRecord,
+  sessionId: string,
+  workspaceId: string,
+): StoredChatMessage {
+  const role = record.role === "user" || record.role === "assistant" || record.role === "system"
+    ? record.role
+    : "assistant";
+  const numericCreated = record.created ? Number(record.created) : NaN;
+  const createdAt = Number.isFinite(numericCreated)
+    ? new Date(numericCreated > 1e12 ? numericCreated : numericCreated * 1000).toISOString()
+    : undefined;
+
+  return {
+    id: record.messageId ?? record.id ?? `${sessionId}-${Date.now()}`,
+    role,
+    content: record.content ?? "",
+    status: MessageStatus.STOP,
+    history: true,
+    sessionId,
+    workspaceId,
+    createdAt,
+  };
 }
 
 export interface WorkspaceViewProps {
@@ -50,6 +88,7 @@ export function WorkspaceView(props: WorkspaceViewProps) {
   const [availableProviders, setAvailableProviders] = createSignal<ProviderOption[]>([]);
   const [managedProviders, setManagedProviders] = createSignal<ManagedProvider[]>([]);
   const pendingSessions = new Set<string>();
+  const loadingSessions = new Set<string>();
   const sessionCreations = new Map<string, Promise<void>>();
 
   createEffect(() => {
@@ -68,7 +107,7 @@ export function WorkspaceView(props: WorkspaceViewProps) {
   const api = () => createApiClient();
 
   const chatSource = () => chatMessages(activeConversationId())();
-  const typedMessages = useTypewriterMessages(chatSource);
+  const typedMessages = useTypewriterMessages(chatSource, activeConversationId);
 
   const activeConversation = () => {
     const conversationId = activeConversationId();
@@ -78,6 +117,75 @@ export function WorkspaceView(props: WorkspaceViewProps) {
     }
     return null;
   };
+
+  const workspaceIdForSession = (sessionId: string) =>
+    workspaces().find((workspace) =>
+      workspace.conversations.some((conversation) => conversation.id === sessionId))?.id ?? "";
+
+  const loadConversationMessages = async (sessionId: string) => {
+    if (!sessionId || pendingSessions.has(sessionId) || loadingSessions.has(sessionId)) return;
+    if (chatMessages(sessionId)().length > 0) return;
+    // 已经拉取过首页（即使结果为空）时不再重复请求。
+    if (getChatPaging(sessionId).page > 0) return;
+
+    loadingSessions.add(sessionId);
+    try {
+      const page = await Effect.runPromise(api().message.list(sessionId, {
+        page: 1,
+        pageSize: MESSAGE_PAGE_SIZE,
+      }));
+      const workspaceId = workspaceIdForSession(sessionId);
+      const rows = page.rows.slice().reverse().map((record) =>
+        toStoredMessage(record, sessionId, workspaceId));
+      replaceChatMessages(sessionId, rows);
+      saveChatPaging(sessionId, {
+        page: 1,
+        hasMore: page.total === null
+          ? page.rows.length >= MESSAGE_PAGE_SIZE
+          : page.total > MESSAGE_PAGE_SIZE,
+      });
+    } catch {
+      showNotice("error", "获取消息列表失败");
+    } finally {
+      loadingSessions.delete(sessionId);
+    }
+  };
+
+  const loadOlderMessages = async () => {
+    const sessionId = activeConversationId();
+    if (!sessionId || loadingSessions.has(sessionId)) return;
+
+    const paging = getChatPaging(sessionId);
+    if (!paging.hasMore || paging.page <= 0) return;
+
+    loadingSessions.add(sessionId);
+    const nextPage = paging.page + 1;
+    try {
+      const page = await Effect.runPromise(api().message.list(sessionId, {
+        page: nextPage,
+        pageSize: MESSAGE_PAGE_SIZE,
+      }));
+      const workspaceId = workspaceIdForSession(sessionId);
+      const rows = page.rows.slice().reverse().map((record) =>
+        toStoredMessage(record, sessionId, workspaceId));
+      prependChatMessages(sessionId, rows);
+      saveChatPaging(sessionId, {
+        page: nextPage,
+        hasMore: page.total === null
+          ? page.rows.length >= MESSAGE_PAGE_SIZE
+          : nextPage * MESSAGE_PAGE_SIZE < page.total,
+      });
+    } catch {
+      showNotice("error", "获取历史消息失败");
+    } finally {
+      loadingSessions.delete(sessionId);
+    }
+  };
+
+  createEffect(() => {
+    const sessionId = activeConversationId();
+    if (sessionId) void loadConversationMessages(sessionId);
+  });
 
   const sendChat = async (content: string) => {
     const target = activeConversation();
@@ -370,6 +478,7 @@ export function WorkspaceView(props: WorkspaceViewProps) {
             modelName={selectedModel()}
             providerAlias={selectedProvider()}
             onOpenModels={() => void loadModelGroups()}
+            onScrollTop={() => void loadOlderMessages()}
             providers={availableProviders()}
             managedProviders={managedProviders()}
             onConnectProvider={connectProvider}

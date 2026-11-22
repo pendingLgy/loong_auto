@@ -2,12 +2,15 @@
 import time
 
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 from loong_contracts.agent.models import LoopEvent, Message, ToolDefinition
 from loong_contracts.common.llm_message_constant import GlobalMessageRole, GlobalMessageStatus
 from loong_contracts.request.message import AddMessageRequest
+from loong_contracts.response.base import BasePageResponse
+from loong_contracts.response.message import RawMessageResponse
 from loong_contracts.utils import Response, uuid_util
+from loong_contracts.utils.response import PageResponse
 
 from loong_cloud.agent import AgentLoop, ModelExecutor
 from loong_cloud.agent.tools import DEFAULT_LOCAL_TOOLS
@@ -15,6 +18,26 @@ from loong_cloud.config.config_model import ModelConfig
 from loong_cloud.storage.message_store import MessageStore
 
 router = APIRouter(prefix="/messages", tags=["消息与聊天"])
+
+
+@router.get("", response_model=BasePageResponse[list[RawMessageResponse]])
+@inject
+async def list_messages(
+        request: Request,
+        session_id: str = Query(min_length=1),
+        page: int = Query(default=1, ge=1),
+        page_size: int = Query(default=20, ge=1, le=100),
+        message_store: MessageStore = Depends(Provide["MessageStore"]),
+):
+    """分页查询指定会话的消息。"""
+    result = await message_store.list_messages(
+        request.state.tenant_id,
+        request.state.identity.id,
+        session_id,
+        page,
+        page_size,
+    )
+    return PageResponse.ok(request, result)
 
 
 @router.post("/chat/{client_id}/complete/{session_id}")

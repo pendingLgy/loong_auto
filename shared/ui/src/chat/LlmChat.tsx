@@ -53,6 +53,8 @@ export interface LlmChatProps {
   onToggleModel?: (provider: ManagedProvider, model: ManagedModel, enabled: boolean) => Promise<void>;
   /** 点击输入区下方「+」按钮。 */
   onAdd?: () => void;
+  /** 消息列表滚动到顶部附近。 */
+  onScrollTop?: () => void;
   /** 最小宽度（px），默认 320。 */
   minWidth?: number;
   class?: string;
@@ -90,12 +92,40 @@ export const LlmChat: Component<LlmChatProps> = (props) => {
     return provider || model || translate(locale(), "chat.noModel", "未选择模型");
   };
 
+  let previousCount = 0;
+  let previousFirstId: string | undefined;
+  let bottomFrame: number | undefined;
+
+  const scrollToBottom = () => {
+    if (bottomFrame !== undefined) cancelAnimationFrame(bottomFrame);
+    const apply = () => {
+      if (scroller) scroller.scrollTop = scroller.scrollHeight;
+    };
+    requestAnimationFrame(() => {
+      apply();
+      bottomFrame = requestAnimationFrame(apply);
+    });
+  };
+
+  onCleanup(() => {
+    if (bottomFrame !== undefined) cancelAnimationFrame(bottomFrame);
+  });
+
   createEffect(() => {
-    const count = messages().length;
+    const list = messages();
+    const count = list.length;
+    const firstId = list[0]?.id;
+    const prepended = previousCount > 0
+      && count > previousCount
+      && firstId !== previousFirstId;
+
+    previousCount = count;
+    previousFirstId = firstId;
     props.streaming;
-    if (count > 0 && scroller) {
-      virtualizer.scrollToIndex(count - 1, { align: "end" });
-    }
+
+    if (count === 0 || prepended) return;
+    virtualizer.scrollToIndex(count - 1, { align: "end" });
+    scrollToBottom();
   });
 
   // Markdown 是异步渲染的，渲染完成后高度会变化；这里针对具体行重新测量，
@@ -224,6 +254,11 @@ export const LlmChat: Component<LlmChatProps> = (props) => {
       <div
         ref={scroller}
         class={`w-full flex-1 overflow-y-auto p-4 ${messages().length > 0 ? "pb-44" : ""}`}
+        onScroll={(event) => {
+          if (event.currentTarget.scrollTop <= 32) {
+            props.onScrollTop?.();
+          }
+        }}
       >
         <div class="mx-auto flex h-full w-full max-w-[var(--chat-max-width)] flex-col">
         <Show

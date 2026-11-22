@@ -17,6 +17,7 @@ from loong_contracts.request.working_directory import (
 )
 from loong_contracts.response.base import BasePageResponse, BaseResponse
 from loong_contracts.response.login import LoginResponse, UserInfoResponse
+from loong_contracts.response.message import RawMessageResponse
 from loong_contracts.response.session import SessionSimpleResponse
 from loong_contracts.response.supplier import SupplierResponse
 from loong_contracts.response.workspace import WorkspaceResponse
@@ -130,6 +131,14 @@ class MessagesAPI:
             f"{self.prefix}/api/messages/chat/{_segment(client_id)}/complete/{_segment(session_id)}",
             BaseResponse[LoopEvent],
             body=body,
+        )
+
+    async def list(self, session_id: str, *, page: int = 1, page_size: int = 20) -> BasePageResponse[list[RawMessageResponse]]:
+        return await self.client.request(
+            "GET",
+            f"{self.prefix}/api/messages",
+            BasePageResponse[list[RawMessageResponse]],
+            params={"session_id": session_id, "page": page, "page_size": page_size},
         )
 
     async def stream(self, client_id: str, session_id: str, body: AddMessageRequest) -> httpx.Response:

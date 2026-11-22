@@ -8,15 +8,19 @@ import {
 } from "solid-js";
 
 import type { ChatMessage } from "@loong/ui/chat";
+import { MessageStatus, type MessageStatusValue } from "../chat/status";
 
 /** 本地聊天消息。 */
 export interface StoredChatMessage extends ChatMessage {
-  status?: string;
+  status?: MessageStatusValue;
   workspaceId?: string;
   sessionId?: string;
+  /** 从历史存储/分页加载的消息不参与打字机动画。 */
+  history?: boolean;
 }
 
 const STORAGE_KEY_PREFIX = "loong.web.chat-messages";
+const PAGE_KEY_PREFIX = "loong.web.chat-pages";
 
 type MessageStore = {
   get: Accessor<StoredChatMessage[]>;
@@ -24,6 +28,14 @@ type MessageStore = {
 };
 
 const stores = new Map<string, MessageStore>();
+
+
+function asMessageStatusValue(value: unknown): MessageStatusValue | undefined {
+  return typeof value === "string"
+    && Object.values(MessageStatus).includes(value as MessageStatusValue)
+    ? value as MessageStatusValue
+    : undefined;
+}
 
 function storageKey(sessionId: string): string {
   return `${STORAGE_KEY_PREFIX}:${sessionId}`;
@@ -41,9 +53,11 @@ function normalizeMessage(value: unknown): StoredChatMessage | null {
     role: item.role,
     content: item.content,
     createdAt: typeof item.createdAt === "string" ? item.createdAt : undefined,
-    status: typeof item.status === "string" ? item.status : undefined,
+    status: asMessageStatusValue(item.status),
     workspaceId: typeof item.workspaceId === "string" ? item.workspaceId : undefined,
     sessionId: typeof item.sessionId === "string" ? item.sessionId : undefined,
+    // 从 localStorage 读出的消息一律视为历史消息。
+    history: true,
   };
 }
 
@@ -103,7 +117,7 @@ export function upsertAssistantMessage(
   sessionId: string,
   id: string,
   content: string,
-  status?: string,
+  status?: MessageStatusValue,
   workspaceId?: string,
 ): void {
   if (!sessionId) return;
@@ -127,6 +141,7 @@ export function upsertAssistantMessage(
         status,
         workspaceId,
         sessionId,
+        history: false,
         createdAt: new Date().toISOString(),
       }];
     persistMessages(sessionId, next);
@@ -139,7 +154,7 @@ export function appendAssistantMessageDelta(
   sessionId: string,
   id: string,
   delta: string,
-  status?: string,
+  status?: MessageStatusValue,
   workspaceId?: string,
 ): void {
   if (!sessionId || !delta) return;
@@ -163,8 +178,23 @@ export function appendAssistantMessageDelta(
         status,
         workspaceId,
         sessionId,
+        history: false,
         createdAt: new Date().toISOString(),
       }];
+    persistMessages(sessionId, next);
+    return next;
+  });
+}
+
+/** 收到 stop 后，将当前会话的助手消息标记为历史记录。 */
+export function markChatSessionHistory(sessionId: string): void {
+  if (!sessionId) return;
+  const store = getStore(sessionId);
+  store.set((current) => {
+    const next = current.map((message) =>
+      message.role === "assistant"
+        ? {...message, history: true}
+        : message);
     persistMessages(sessionId, next);
     return next;
   });
@@ -180,6 +210,7 @@ export function clearChatMessages(sessionId: string): void {
 /** 监听本地消息并生成打字机效果。 */
 export function useTypewriterMessages(
   source: Accessor<StoredChatMessage[]>,
+  sessionId: Accessor<string>,
   intervalMs = 16,
 ): Accessor<StoredChatMessage[]> {
   const [display, setDisplay] = createSignal<StoredChatMessage[]>(source());
@@ -192,12 +223,17 @@ export function useTypewriterMessages(
     }
   };
 
+  const shouldAnimate = (message: StoredChatMessage) =>
+    !message.history
+    && message.role === "assistant"
+    && (message.status === MessageStatus.RUNNING || message.status === MessageStatus.START);
+
   const step = () => {
     const target = source();
     setDisplay((current) => {
       let changed = false;
       const next = current.map((message) => {
-        if (message.role !== "assistant") return message;
+        if (!shouldAnimate(message)) return message;
         const latest = target.find((item) => item.id === message.id);
         if (!latest || message.content.length >= latest.content.length) return message;
         changed = true;
@@ -216,7 +252,7 @@ export function useTypewriterMessages(
     setDisplay((current) => {
       const byId = new Map(current.map((message) => [message.id, message]));
       return target.map((message) => {
-        if (message.role !== "assistant") return { ...message };
+        if (!shouldAnimate(message)) return { ...message };
         const shown = byId.get(message.id);
         if (!shown || !message.content.startsWith(shown.content)) {
           return { ...message, content: "" };
@@ -227,7 +263,7 @@ export function useTypewriterMessages(
 
     const shown = untrack(display);
     const needsTyping = target.some((message) => {
-      if (message.role !== "assistant") return false;
+      if (!shouldAnimate(message)) return false;
       const current = shown.find((item) => item.id === message.id);
       return !current || current.content.length < message.content.length;
     });
@@ -249,11 +285,69 @@ export function clearAllChatMessages(): void {
   try {
     for (let index = window.localStorage.length - 1; index >= 0; index -= 1) {
       const key = window.localStorage.key(index);
-      if (key?.startsWith(`${STORAGE_KEY_PREFIX}:`)) {
+      if (key?.startsWith(`${STORAGE_KEY_PREFIX}:`)
+        || key?.startsWith(`${PAGE_KEY_PREFIX}:`)) {
         window.localStorage.removeItem(key);
       }
     }
   } catch {
     // 忽略存储异常。
   }
+}
+
+
+/** 已加载的消息分页状态。 */
+export interface ChatPagingState {
+  page: number;
+  hasMore: boolean;
+}
+
+/** 读取 session 的已加载分页状态。 */
+export function getChatPaging(sessionId: string): ChatPagingState {
+  if (!sessionId) return {page: 0, hasMore: false};
+  try {
+    const raw = window.localStorage.getItem(`${PAGE_KEY_PREFIX}:${sessionId}`);
+    if (!raw) return {page: 0, hasMore: false};
+    const parsed = JSON.parse(raw) as Partial<ChatPagingState> | null;
+    return {
+      page: typeof parsed?.page === "number" && parsed.page > 0 ? parsed.page : 0,
+      hasMore: parsed?.hasMore === true,
+    };
+  } catch {
+    return {page: 0, hasMore: false};
+  }
+}
+
+/** 保存 session 的已加载分页状态。 */
+export function saveChatPaging(sessionId: string, state: ChatPagingState): void {
+  if (!sessionId) return;
+  try {
+    window.localStorage.setItem(`${PAGE_KEY_PREFIX}:${sessionId}`, JSON.stringify(state));
+  } catch {
+    // 忽略存储异常。
+  }
+}
+
+/** 用服务端分页结果替换 session 消息。 */
+export function replaceChatMessages(sessionId: string, messages: StoredChatMessage[]): void {
+  if (!sessionId) return;
+  const history = messages.map((message) => ({...message, history: true}));
+  getStore(sessionId).set(history);
+  persistMessages(sessionId, history);
+}
+
+/** 向消息列表头部追加历史消息，按消息 ID 去重。 */
+export function prependChatMessages(sessionId: string, messages: StoredChatMessage[]): void {
+  if (!sessionId || messages.length === 0) return;
+  const store = getStore(sessionId);
+  store.set((current) => {
+    const ids = new Set(current.map((message) => message.id));
+    const older = messages
+      .filter((message) => !ids.has(message.id))
+      .map((message) => ({...message, history: true}));
+    if (older.length === 0) return current;
+    const next = [...older, ...current];
+    persistMessages(sessionId, next);
+    return next;
+  });
 }

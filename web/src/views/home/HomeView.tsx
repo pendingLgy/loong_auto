@@ -11,6 +11,7 @@ import { clearServerWebStorage} from "../../storage/reset";
 import { clearWorkspaceState } from "../../storage/workspace";
 import { clearWorkspaceTabs } from "../../storage/workspace_tabs";
 import { showNotice } from "../../storage/app_notice";
+import { markChatSessionHistory } from "../../storage/chat_messages";
 import { isServerConfigured, serverConfig, updateServerStatus } from "../../storage/server_config";
 import { theme, toggleTheme } from "../../storage/theme";
 import { isLoggedIn } from "../../storage/user";
@@ -56,6 +57,15 @@ export function HomeView() {
 
   const needsLogin = () => isServerConfigured() && !isLoggedIn();
 
+  const activateTab = (key: string) => {
+    const previousKey = activeTab();
+    if (previousKey && previousKey !== key) {
+      const previous = tabs().find((tab) => tab.key === previousKey);
+      if (previous) markChatSessionHistory(previous.conversationId);
+    }
+    setActiveTab(key);
+  };
+
   const openTab = (tab: WorkspaceChatTab) => {
     setTabs((current) => {
       const exists = current.some((item) => item.key === tab.key);
@@ -63,17 +73,20 @@ export function HomeView() {
         ? current.map((item) => item.key === tab.key ? {...item, ...tab} : item)
         : [...current, tab];
     });
-    setActiveTab(tab.key);
+    activateTab(tab.key);
   };
 
   const selectTab = (key: string) => {
-    setActiveTab(key);
+    activateTab(key);
   };
 
   const closeTab = (key: string) => {
     const current = tabs();
     const index = current.findIndex((tab) => tab.key === key);
     if (index === -1) return;
+
+    const closed = current[index];
+    if (closed) markChatSessionHistory(closed.conversationId);
 
     const next = current.filter((tab) => tab.key !== key);
     setTabs(next);

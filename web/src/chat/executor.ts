@@ -14,6 +14,7 @@ import {
   type StoredChatMessage,
 } from "../storage/chat_messages";
 import { isLoggedIn } from "../storage/user";
+import { MessageStatus, asMessageStatus } from "./status";
 
 /** 发送一条聊天消息所需的会话与模型上下文。 */
 export interface ChatSendRequest {
@@ -161,9 +162,9 @@ function applyLoopEvent(payload: LoopEventPayload): void {
     const id = typeof message.id === "string" && message.id
       ? message.id
       : `assistant-${sessionId}-${index}`;
-    const status = typeof message.status === "string" ? message.status : undefined;
+    const status = asMessageStatus(message.status);
     const workspaceId = sessionWorkspaceIds.get(sessionId);
-    if (status === "running" || status === "start") {
+    if (status === MessageStatus.RUNNING || status === MessageStatus.START) {
       appendAssistantMessageDelta(sessionId, id, message.content, status, workspaceId);
     } else {
       upsertAssistantMessage(sessionId, id, message.content, status, workspaceId);
@@ -201,7 +202,7 @@ function handleEvent(event: EventSourceMessage): void {
 
   applyLoopEvent(payload);
 
-  if (type === "stop" && typeof payload.session_id === "string") {
+  if (type === MessageStatus.STOP && typeof payload.session_id === "string") {
     busySessions.delete(payload.session_id);
     touch();
     drain();
@@ -306,7 +307,7 @@ async function submitPending(message: PendingMessage): Promise<void> {
         messages: [{
           id: message.id,
           role: "user",
-          status: "start",
+          status: MessageStatus.START,
           content: message.content,
         }],
       }),
@@ -354,6 +355,7 @@ export function enqueueChatMessage(request: ChatSendRequest): void {
     content: request.content,
     workspaceId: request.workspaceId,
     sessionId: request.sessionId,
+    history: false,
     createdAt: new Date().toISOString(),
   };
   appendChatMessage(request.sessionId, message);

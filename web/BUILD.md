@@ -81,13 +81,15 @@ web/
 | 工作区界面状态（布局、菜单、工作区/对话、选中模型） | `loong.web.workspace` |
 | 已打开的工作区/会话标签 | `loong.web.workspace-tabs` |
 | 聊天消息（按 session） | `loong.web.chat-messages:<sessionId>` |
+| 已加载消息页码 | `loong.web.chat-pages:<sessionId>` |
 | 待发送消息队列 | `loong.web.chat-queue` |
 | 主题 | `loong.web.theme` |
 
 ## 消息发送与 SSE
 
 - 新建对话使用 UUID 作为 session ID；首次发送时以消息前 5 个字符为标题创建云端 session。
-- 点击左侧工作区会话时，将其加入顶部 `HomeTabs`，标签为「工作区 / 会话」，并切换到对应 `LlmChat`。
+- 点击左侧工作区会话时，将其加入顶部 `HomeTabs`，标签为「工作区 / 会话」，并切换到对应 `LlmChat`；切换或关闭标签时，将离开的会话助手消息标记为历史。
+- 会话本地无消息缓存时，分页调用 `message.list` 拉取首页；滚动到顶部时继续加载更早消息并前插。
 - `src/chat/executor.ts` 按 `sessionId` 保存待发送队列，队列持久化到 `loong.web.chat-queue`。
 - 全局只维护一个 SSE 订阅；队列或执行中任务未清空时不关闭。
 - 队列为空且收到 `heartbeat` 后启动 10 秒计时，期间仍无工作则关闭 SSE；新消息入队会取消关闭。

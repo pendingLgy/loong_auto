@@ -14,7 +14,7 @@ class RawMessageResponse(BaseModel):
     created: BigIntId | None = None
     role: str | None = None
     content: str | None = None
-    tool_calls: str | None = None
+    tool_calls: list[dict] | None = None
     tool_call_id: str | None = None
 
 

@@ -43,6 +43,7 @@
 | 工作区界面状态（布局、菜单、工作区/对话、当前对话、选中模型） | `localStorage` | `loong.web.workspace` |
 | 已打开的工作区/会话标签 | `localStorage` | `loong.web.workspace-tabs` |
 | 本地聊天消息（按 session） | `localStorage` | `loong.web.chat-messages:<sessionId>` |
+| 已加载消息页码 | `localStorage` | `loong.web.chat-pages:<sessionId>` |
 | 待发送消息队列 | `localStorage` | `loong.web.chat-queue` |
 | 主题（light / dark，通过 `<html class="dark">` 切换） | `localStorage` | `loong.web.theme` |
 

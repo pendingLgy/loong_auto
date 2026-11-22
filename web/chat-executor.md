@@ -179,7 +179,30 @@ SSE 流异常结束或主动关闭后：
 - 不同 session 的队列独立保存，但按单通道顺序提交。
 - 同一 session 的 `busySessions` 防止重复提交。
 
-## 7. 本地消息与打字机
+## 7. 消息状态
+
+执行器与 `src/chat/status.ts` 使用云端状态常量：
+
+```text
+start
+running
+tool_calling
+tool_approval_required
+tool_called
+stop
+```
+
+- 用户消息入队状态为 `start`；
+- SSE 助手增量使用 `running`；
+- 工具调用/审批/结束事件保留对应状态；
+- 历史分页消息标记为 `stop`。
+- 每条消息带 `history: boolean` 字段；`chat_messages.ts` 的 `createEffect` 检测到 `stop` 状态后，将当前会话助手消息标记 `history: true`。
+- 分页加载的消息直接标记 `history: true`。
+- 切换或关闭 `HomeTabs` 标签时，离开的会话助手消息标记 `history: true`。
+
+只有 `history: false` 且状态为 `start` / `running` 的助手消息参与打字机动画。
+
+## 8. 本地消息与打字机
 
 key：
 
@@ -201,7 +224,7 @@ loong.web.chat-messages:<sessionId>
 
 `LlmChat` 通过 `messages={typedMessages()}` 渲染。
 
-## 8. 队列持久化
+## 9. 队列持久化
 
 key：
 
@@ -215,7 +238,7 @@ loong.web.chat-queue
 - `busy` 仅保存在内存中；
 - 同一时间只允许一条消息在云端执行。
 
-## 9. 错误处理
+## 10. 错误处理
 
 | 场景 | 行为 |
 | --- | --- |
@@ -225,7 +248,7 @@ loong.web.chat-queue
 | 未登录 | 不建立订阅 |
 | 未选择会话/模型 | `HomeView` 直接提示 |
 
-## 10. 当前限制
+## 11. 当前限制
 
 - 新建对话使用 UUID 作为 `session_id`；首次发送时由 `WorkspaceView` 创建 session，标题取消息前 5 个字符。
 - `busy` 不持久化，刷新后不恢复“正在执行”状态。
@@ -233,7 +256,7 @@ loong.web.chat-queue
 - 工具调用、审批、停止生成尚未接入。
 - 仅处理 `assistant` 角色；工具/系统消息暂不展示。
 
-## 11. 扩展方向
+## 12. 扩展方向
 
 - 接入 sessions API，在首次发送前创建云端 session；
 - 为提交增加幂等重试与失败队列；
