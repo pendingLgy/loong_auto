@@ -13,8 +13,10 @@ from loong_local.core.exceptions import CloudHttpError
 from loong_local.schema.model import (
     SupplierConfigModel,
     SupplierConfigResponse,
+    SupplierModelItemResponse,
     SupplierModelOptionModel,
     SupplierModelOptionResponse,
+    SupplierProviderModelsResponse,
 )
 from loong_local.schema.request import (
     SupplierConfigApiKeyRequest,
@@ -167,6 +169,63 @@ async def delete_supplier_config(
     if not deleted:
         return Response.fail(request, code=404, msg=f"供应商配置不存在：{provider}")
     return Response.ok(request, True)
+
+
+@router.get("/models", response_model=BaseResponse[list[SupplierProviderModelsResponse]])
+@inject
+async def list_configured_supplier_models(
+        request: Request,
+        store: SupplierConfigService = Depends(Provide["SupplierConfigService"]),
+):
+    """已配置供应商及其模型列表。"""
+    context: SSEContext = request.state.sse_context
+    cloud_client = context.cloud_client
+
+    headers = httpx.Headers(request.headers)
+    rebuild_cloud_request_header(headers, context.headers())
+
+    try:
+        cloud_client.http.headers = headers
+        result: BaseResponse = await cloud_client.supplier.get()
+        logger.info("path={} status={}", request.url.path, result.code,
+                    request_id=result.request_id,
+                    request_date=result.request_date)
+        if result.code != 200:
+            return Response.fail(request, msg="获取供应商失败")
+        if result.data is None or result.data.providers is None:
+            return Response.fail(request, msg="暂无供应商提供")
+    except httpx.HTTPStatusError as e:
+        raise CloudHttpError(status=e.response.status_code, message=e.response.text,
+                             headers=e.response.headers)
+
+    configs = await store.list_configs()
+    configured = {item.provider: item for item in configs if item.api_key}
+    options = await store.list_options()
+    option_map = {(item.provider, item.model): item.enabled for item in options}
+
+    response: list[SupplierProviderModelsResponse] = []
+    for provider, info in result.data.providers.items():
+        config = configured.get(provider)
+        if config is None:
+            continue
+        models = [
+            SupplierModelItemResponse(
+                model=model_name,
+                enabled=option_map.get((provider, model_name), model.enable),
+                reasoning_effort=model.reasoning_effort,
+            )
+            for model_name, model in info.models.items()
+        ]
+        if not models:
+            continue
+        response.append(SupplierProviderModelsResponse(
+            provider=provider,
+            alias=config.alias,
+            base_url=config.base_url or info.base_url,
+            models=models,
+        ))
+
+    return Response.ok(request, response)
 
 
 @router.get("/options", response_model=BaseResponse[list[SupplierModelOptionResponse]])

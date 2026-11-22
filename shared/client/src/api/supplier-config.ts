@@ -3,8 +3,11 @@ import { Effect } from "effect";
 import { requestJson, type HttpClientOptions } from "../http";
 import type {
   RawSupplierConfigPayload,
+  RawSupplierModelItemPayload,
   RawSupplierModelOptionPayload,
+  RawSupplierProviderModelsPayload,
   SupplierConfig,
+  SupplierProviderModels,
   SupplierConfigSaveRequest,
   SupplierModelOption,
   SupplierModelOptionSaveRequest,
@@ -56,6 +59,35 @@ function configList(payload: unknown): SupplierConfig[] {
     : [];
 }
 
+function toProviderModels(payload: RawSupplierProviderModelsPayload): SupplierProviderModels {
+  const rawModels = Array.isArray(payload.models) ? payload.models : [];
+  return {
+    provider: asText(payload.provider),
+    alias: asNullableText(payload.alias),
+    baseUrl: asNullableText(payload.base_url),
+    models: rawModels
+      .map((item) => asRecord(item))
+      .filter((item): item is Record<string, unknown> => item !== null)
+      .map((item: RawSupplierModelItemPayload) => ({
+        model: asText(item.model),
+        enabled: item.enabled !== false,
+        reasoningEffort: Array.isArray(item.reasoning_effort)
+          ? item.reasoning_effort.filter((value): value is string => typeof value === "string")
+          : [],
+      }))
+      .filter((item) => item.model.length > 0),
+  };
+}
+
+function providerModelList(payload: unknown): SupplierProviderModels[] {
+  return Array.isArray(payload)
+    ? payload
+      .map((item) => asRecord(item))
+      .filter((item): item is Record<string, unknown> => item !== null)
+      .map((item) => toProviderModels(item))
+    : [];
+}
+
 function optionList(payload: unknown): SupplierModelOption[] {
   return Array.isArray(payload)
     ? payload.map((item) => toSupplierModelOption(asRecord(item) ?? {}))
@@ -74,6 +106,11 @@ export class SupplierConfigApi {
   listConfigured(): Effect.Effect<SupplierConfig[], ClientError> {
     return requestJson<unknown>(this.options, "/api/supplier-configs/configured")
       .pipe(Effect.map(configList));
+  }
+
+  listModels(): Effect.Effect<SupplierProviderModels[], ClientError> {
+    return requestJson<unknown>(this.options, "/api/supplier-configs/models")
+      .pipe(Effect.map(providerModelList));
   }
 
   save(request: SupplierConfigSaveRequest): Effect.Effect<SupplierConfig, ClientError> {

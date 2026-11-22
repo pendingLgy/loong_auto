@@ -1,8 +1,10 @@
-import { createEffect, onCleanup } from "solid-js";
+import { Show, createEffect, onCleanup } from "solid-js";
 
 import { Dialog } from "@loong/ui/dialog";
+import { Message } from "@loong/ui/message";
 
 import { AppRouter } from "./routers";
+import { clearNotice, notice } from "./storage/app_notice";
 import { authExpired, clearAuthExpired } from "./storage/auth_notice";
 
 /** 登录过期提示：3 秒后返回 HomeTabsView 重新登录。 */
@@ -37,12 +39,35 @@ function AuthExpiredPrompt() {
   );
 }
 
+
+
+/** 全局操作提示：使用 Message 展示，3 秒后自动消失。 */
+function AppNotice() {
+  createEffect(() => {
+    if (!notice()) return;
+
+    const timer = window.setTimeout(() => clearNotice(), 3000);
+    onCleanup(() => window.clearTimeout(timer));
+  });
+
+  return (
+    <Show when={notice()}>
+      {(current) => (
+        <div class="pointer-events-none fixed inset-x-0 top-4 z-50 flex justify-center px-4">
+          <Message type={current().type}>{current().text}</Message>
+        </div>
+      )}
+    </Show>
+  );
+}
+
 /** 应用根组件：路由配置全部位于 `src/routers`。 */
 export function App() {
   return (
     <>
       <AppRouter />
       <AuthExpiredPrompt />
+      <AppNotice />
     </>
   );
 }

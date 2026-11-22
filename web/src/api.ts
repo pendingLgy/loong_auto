@@ -3,12 +3,14 @@ import {Effect} from "effect";
 import {
   createLocalClient,
   isUnauthorized,
+  ClientError,
   type LocalClient,
   type Locale,
   UnauthorizedError,
 } from "@loong/client";
 
 import {markAuthExpired} from "./storage/auth_notice";
+import {showNotice} from "./storage/app_notice";
 import {activeServerId, serverConfig} from "./storage/server_config";
 import {clearUser, updateAccessToken, userSession} from "./storage/user";
 
@@ -24,6 +26,19 @@ function buildClient(origin: string, locale?: Locale, token?: string): LocalClie
 }
 
 const refreshTasks = new Map<string, Effect.Effect<string, unknown>>();
+
+/** 同一接口 + 参数 3 秒内只允许提交一次。 */
+const lastRequests = new Map<string, number>();
+
+function requestKey(namespace: string, method: string, args: unknown[]): string {
+  const raw = JSON.stringify(args);
+  let hash = 2166136261;
+  for (let index = 0; index < raw.length; index += 1) {
+    hash ^= raw.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `${namespace}.${method}:${(hash >>> 0).toString(16)}`;
+}
 
 function refreshAccessToken(
   serverId: string,
@@ -92,7 +107,16 @@ function wrapNamespace<T extends object>(
           );
         }
 
-        return invoke().pipe(
+        const cacheKey = requestKey(key, String(property), args);
+        const now = Date.now();
+        const last = lastRequests.get(cacheKey) ?? 0;
+        if (now - last < 3000) {
+          showNotice("warning", "操作太频繁，请稍后再试");
+          return Effect.fail(new ClientError("操作太频繁，请稍后再试", 429));
+        }
+        lastRequests.set(cacheKey, now);
+
+        const execute = () => invoke().pipe(
           Effect.catchAll((error) => {
             if (!isUnauthorized(error)) {
               return Effect.fail(error);
@@ -114,7 +138,10 @@ function wrapNamespace<T extends object>(
               }),
             );
           }),
+          Effect.tap(() => Effect.sync(() => lastRequests.delete(cacheKey))),
         );
+
+        return execute();
       };
     },
   });

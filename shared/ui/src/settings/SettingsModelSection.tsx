@@ -1,7 +1,7 @@
-import { For, Show, createSignal, type Component } from "solid-js";
+import {type Component, createSignal, For, Show} from "solid-js";
 
-import { DEFAULT_LOCALE, translate, type Locale } from "../i18n";
-import type { ModelInfo, ProviderModelGroup, SettingsModelOptions } from "./types";
+import {DEFAULT_LOCALE, type Locale, translate} from "../i18n";
+import type {ModelInfo, ProviderModelGroup, SettingsModelOptions} from "./types";
 
 export interface SettingsModelSectionProps extends SettingsModelOptions {
   /** 界面语言；默认中文。 */
@@ -18,47 +18,41 @@ export const SettingsModelSection: Component<SettingsModelSectionProps> = (props
   const [detailProvider, setDetailProvider] = createSignal<ProviderModelGroup | null>(null);
   const [draftModels, setDraftModels] = createSignal<ModelInfo[]>([]);
   const [saving, setSaving] = createSignal(false);
-  const [error, setError] = createSignal("");
 
   const locale = () => props.locale ?? DEFAULT_LOCALE;
 
   const openDetail = (provider: ProviderModelGroup) => {
     setDetailProvider(provider);
-    setDraftModels(provider.models.map((model) => ({ ...model })));
-    setError("");
+    setDraftModels(provider.models.map((model) => ({...model})));
   };
 
   const closeDetail = () => {
     if (saving()) return;
     setDetailProvider(null);
-    setError("");
   };
 
   const toggleModel = (modelId: string) => {
-    setDraftModels((models) =>
-      models.map((model) =>
-        model.id === modelId ? { ...model, enabled: !(model.enabled ?? false) } : model,
-      ),
-    );
-  };
-
-  const handleSave = async () => {
     const provider = detailProvider();
     if (!provider || saving()) return;
 
-    setSaving(true);
-    setError("");
+    const target = draftModels().find((model) => model.id === modelId);
+    if (!target) return;
 
-    try {
-      await props.onSaveModels?.(provider, draftModels());
-      setDetailProvider(null);
-    } catch (cause) {
-      setError(cause instanceof Error && cause.message
-        ? cause.message
-        : translate(locale(), "settings.errors.fallback", "保存失败，请稍后再试"));
-    } finally {
-      setSaving(false);
-    }
+    const enabled = !(target.enabled ?? false);
+    setDraftModels((models) =>
+      models.map((model) => model.id === modelId ? {...model, enabled} : model),
+    );
+
+    if (!props.onToggleModel) return;
+
+    setSaving(true);
+    void props.onToggleModel(provider, {...target, enabled}, enabled)
+      .catch(() => {
+        setDraftModels((models) =>
+          models.map((model) => model.id === modelId ? {...model, enabled: !enabled} : model),
+        );
+      })
+      .finally(() => setSaving(false));
   };
 
   return (
@@ -76,7 +70,8 @@ export const SettingsModelSection: Component<SettingsModelSectionProps> = (props
         <For
           each={props.providers ?? []}
           fallback={
-            <div class="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-white/10 dark:bg-slate-900/80">
+            <div
+              class="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-white/10 dark:bg-slate-900/80">
               <p class="m-0 text-sm text-slate-500 dark:text-slate-400">
                 {translate(locale(), "settings.model.empty", "尚未配置供应商或模型")}
               </p>
@@ -111,7 +106,8 @@ export const SettingsModelSection: Component<SettingsModelSectionProps> = (props
                 >
                   <For each={provider.models}>
                     {(model) => (
-                      <span class="flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-900/5 px-2 py-0.5 text-[11px] text-slate-600 dark:border-white/10 dark:bg-white/10 dark:text-slate-300">
+                      <span
+                        class="flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-900/5 px-2 py-0.5 text-[11px] text-slate-600 dark:border-white/10 dark:bg-white/10 dark:text-slate-300">
                         <span
                           class={`h-1.5 w-1.5 shrink-0 rounded-full ${model.enabled ? "bg-emerald-500" : "bg-slate-400 dark:bg-slate-500"}`}
                           aria-hidden="true"
@@ -160,8 +156,10 @@ export const SettingsModelSection: Component<SettingsModelSectionProps> = (props
                 }
               >
                 {(model) => (
-                  <div class="flex h-10 items-center gap-2 rounded-lg px-2 transition hover:bg-slate-900/5 dark:hover:bg-white/5">
-                    <span class="min-w-0 flex-1 truncate text-sm text-slate-700 dark:text-slate-200">
+                  <div
+                    class="flex h-10 items-center gap-2 rounded-lg px-2 transition hover:bg-slate-900/5 dark:hover:bg-white/5">
+                    <span
+                      class="min-w-0 flex-1 truncate text-sm text-slate-700 dark:text-slate-200">
                       {modelLabel(model)}
                     </span>
                     <button
@@ -184,16 +182,6 @@ export const SettingsModelSection: Component<SettingsModelSectionProps> = (props
               </For>
             </div>
 
-            <Show when={error()}>
-              <p
-                class="m-0 rounded-lg bg-red-50 px-3 py-2 text-[13px] font-medium text-red-600 dark:bg-red-500/10 dark:text-red-400"
-                role="alert"
-                aria-live="assertive"
-              >
-                {error()}
-              </p>
-            </Show>
-
             <div class="flex items-center justify-end gap-2">
               <button
                 type="button"
@@ -201,17 +189,7 @@ export const SettingsModelSection: Component<SettingsModelSectionProps> = (props
                 disabled={saving()}
                 class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-900/5 disabled:opacity-60 dark:border-white/15 dark:text-slate-200 dark:hover:bg-white/5"
               >
-                {translate(locale(), "settings.provider.cancel", "取消")}
-              </button>
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={saving()}
-                class="rounded-xl bg-linear-to-b from-sky-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:from-sky-400 hover:to-blue-500 disabled:cursor-progress disabled:opacity-70"
-              >
-                {saving()
-                  ? translate(locale(), "settings.provider.saving", "保存中…")
-                  : translate(locale(), "settings.provider.save", "保存")}
+                {translate(locale(), "settings.provider.close", "关闭")}
               </button>
             </div>
           </div>

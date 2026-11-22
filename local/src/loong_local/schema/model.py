@@ -92,3 +92,20 @@ class SupplierModelOptionResponse(BaseModel):
     enabled: bool = Field(default=True, description="模型是否启用")
     created_at: datetime | None = Field(default=None, description="创建时间")
     updated_at: datetime | None = Field(default=None, description="更新时间")
+
+
+class SupplierModelItemResponse(BaseModel):
+    """供应商下单个模型的启用状态与推理强度。"""
+
+    model: str = Field(description="模型名称")
+    enabled: bool = Field(default=True, description="模型是否启用")
+    reasoning_effort: list[str] = Field(default_factory=list, description="支持的推理强度")
+
+
+class SupplierProviderModelsResponse(BaseModel):
+    """已配置供应商及其模型列表。"""
+
+    provider: str = Field(description="模型供应商")
+    alias: str | None = Field(default=None, description="供应商显示名称")
+    base_url: str | None = Field(default=None, description="供应商 API Base URL")
+    models: list[SupplierModelItemResponse] = Field(default_factory=list, description="模型列表")

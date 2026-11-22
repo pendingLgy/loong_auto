@@ -116,6 +116,6 @@ export interface ProviderModelGroup {
 export interface SettingsModelOptions {
   /** 已配置的供应商及其模型列表。 */
   providers?: ProviderModelGroup[];
-  /** 保存供应商下模型的启用状态。 */
-  onSaveModels?: (provider: ProviderModelGroup, models: ModelInfo[]) => Promise<void>;
+  /** 切换单个模型启用状态；提供后点击 switch 立即保存。 */
+  onToggleModel?: (provider: ProviderModelGroup, model: ModelInfo, enabled: boolean) => Promise<void>;
 }

@@ -4,16 +4,20 @@ import { useNavigate } from "@solidjs/router";
 
 import { Effect } from "effect";
 
-import { createLocalClient, type SupplierConfig } from "@loong/client";
+import {
+  createLocalClient,
+  type SupplierConfig,
+  type SupplierProviderModels,
+} from "@loong/client";
 
 import { createApiClient } from "../../api";
 import { DEFAULT_LOCALE } from "@loong/ui/i18n";
-import { Toast, type MessageType } from "@loong/ui/message";
 import {
   SettingsPage,
   type ConfiguredServer,
   type ConfiguredModelProvider,
   type ModelProviderValues,
+  type ProviderModelGroup,
 } from "@loong/ui/settings";
 
 import {
@@ -22,19 +26,15 @@ import {
   setActiveServer,
   updateServerStatus,
 } from "../../storage/server_config";
+import { showNotice } from "../../storage/app_notice";
 import { clearUser, currentUser } from "../../storage/user";
-
-interface ToastState {
-  type: MessageType;
-  text: string;
-}
 
 /** 设置页：`/settings` 嵌套路由，管理中栏的服务器 / 供应商 / 模型 / 账号。 */
 export function WebSettingsPage() {
   const navigate = useNavigate();
-  const [toast, setToast] = createSignal<ToastState | null>(null);
   const [supplierConfigs, setSupplierConfigs] = createSignal<SupplierConfig[]>([]);
   const [configuredSupplierConfigs, setConfiguredSupplierConfigs] = createSignal<SupplierConfig[]>([]);
+  const [modelProviders, setModelProviders] = createSignal<ProviderModelGroup[]>([]);
 
   const loadSupplierConfigs = async () => {
     try {
@@ -48,7 +48,7 @@ export function WebSettingsPage() {
     } catch {
       setSupplierConfigs([]);
       setConfiguredSupplierConfigs([]);
-      showToast("error", "获取供应商列表失败");
+      showNotice("error", "获取供应商列表失败");
     }
   };
 
@@ -58,12 +58,6 @@ export function WebSettingsPage() {
     return active
       ? { id: active.id, name: active.name, serverUrl: active.serverUrl, token: active.token }
       : undefined;
-  };
-
-  const showToast = (type: MessageType, text: string) => {
-    // 先关闭再下一帧打开，确保连续测试时自动关闭计时器重新开始。
-    setToast(null);
-    queueMicrotask(() => setToast({ type, text }));
   };
 
   const serverLabel = (server: ConfiguredServer) => server.name?.trim() || server.serverUrl;
@@ -80,6 +74,52 @@ export function WebSettingsPage() {
     }
   };
 
+  const modelGroups = (providers: SupplierProviderModels[]): ProviderModelGroup[] =>
+    providers.map((provider) => ({
+      providerName: provider.provider,
+      alias: provider.alias ?? undefined,
+      baseUrl: provider.baseUrl ?? "",
+      models: provider.models.map((model) => ({
+        id: model.model,
+        enabled: model.enabled,
+      })),
+    }));
+
+  const loadModelProviders = async () => {
+    try {
+      const providers = await Effect.runPromise(createApiClient().supplierConfig.listModels());
+      setModelProviders(modelGroups(providers));
+    } catch {
+      setModelProviders([]);
+      showNotice("error", "获取模型列表失败");
+    }
+  };
+
+  const toggleModelOption = async (
+    provider: ProviderModelGroup,
+    model: ProviderModelGroup["models"][number],
+    enabled: boolean,
+  ) => {
+    try {
+      await Effect.runPromise(
+        createApiClient().supplierConfig.saveOption({
+          provider: provider.providerName,
+          model: model.id,
+          enabled,
+        }),
+      );
+      await loadModelProviders();
+    } catch (cause) {
+      showNotice(
+        "error",
+        cause instanceof Error && cause.message
+          ? cause.message
+          : "模型启用状态保存失败",
+      );
+      throw cause;
+    }
+  };
+
   const saveProvider = async (values: ModelProviderValues) => {
     const client = createApiClient();
     await Effect.runPromise(
@@ -90,7 +130,7 @@ export function WebSettingsPage() {
       }),
     );
     await loadSupplierConfigs();
-    showToast("success", `${values.alias.trim() || values.name} 已连接`);
+    showNotice("success", `${values.alias.trim() || values.name} 已连接`);
   };
 
   const updateProviderApiKey = async (provider: ConfiguredModelProvider, apiKey: string) => {
@@ -98,7 +138,7 @@ export function WebSettingsPage() {
       createApiClient().supplierConfig.updateApiKey(provider.name, apiKey),
     );
     await loadSupplierConfigs();
-    showToast("success", `${provider.alias?.trim() || provider.name} API Key 已更新`);
+    showNotice("success", `${provider.alias?.trim() || provider.name} API Key 已更新`);
   };
 
   const renameProvider = async (provider: ConfiguredModelProvider, alias: string) => {
@@ -106,13 +146,13 @@ export function WebSettingsPage() {
       createApiClient().supplierConfig.rename(provider.name, alias),
     );
     await loadSupplierConfigs();
-    showToast("success", `${alias} 已更新`);
+    showNotice("success", `${alias} 已更新`);
   };
 
   const removeProvider = async (provider: ConfiguredModelProvider) => {
     await Effect.runPromise(createApiClient().supplierConfig.remove(provider.name));
     await loadSupplierConfigs();
-    showToast("success", `${provider.alias?.trim() || provider.name} 已移除`);
+    showNotice("success", `${provider.alias?.trim() || provider.name} 已移除`);
   };
 
   const providerOptions = () => {
@@ -152,10 +192,10 @@ export function WebSettingsPage() {
       });
       await Effect.runPromise(client.health.security_token());
       updateServerStatus(config.id, true);
-      showToast("success", `${serverLabel(config)} 连接正常`);
+      showNotice("success", `${serverLabel(config)} 连接正常`);
     } catch {
       updateServerStatus(config.id, false);
-      showToast("error", `${serverLabel(config)} 连接失败`);
+      showNotice("error", `${serverLabel(config)} 连接失败`);
     }
   };
 
@@ -174,6 +214,7 @@ export function WebSettingsPage() {
         }}
         onSectionChange={(key) => {
           if (key === "provider") void loadSupplierConfigs();
+          if (key === "model") void loadModelProviders();
         }}
         provider={{
           ...providerOptions(),
@@ -181,6 +222,10 @@ export function WebSettingsPage() {
           onUpdateApiKey: updateProviderApiKey,
           onRenameProvider: renameProvider,
           onDeleteProvider: (provider) => void removeProvider(provider),
+        }}
+        model={{
+          providers: modelProviders(),
+          onToggleModel: toggleModelOption,
         }}
         account={{
           userName: currentUser()?.name ?? currentUser()?.username,
@@ -190,14 +235,6 @@ export function WebSettingsPage() {
       />
 
 
-      <Toast
-        type={toast()?.type ?? "info"}
-        open={toast() !== null}
-        duration={2500}
-        onClose={() => setToast(null)}
-      >
-        {toast()?.text}
-      </Toast>
     </div>
   );
 }

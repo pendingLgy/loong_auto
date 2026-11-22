@@ -30,7 +30,7 @@ providers:
     description: "Deepseek 系列模型"
     models:
       deepseek-chat: {
-        view: false,
+        view: true,
         enable: true
       }
       deepseek-flash: {

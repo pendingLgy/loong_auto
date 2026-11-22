@@ -27,6 +27,32 @@ export interface SupplierConfigSaveRequest {
   baseUrl?: string;
 }
 
+export interface SupplierModelItem {
+  model: string;
+  enabled: boolean;
+  reasoningEffort: string[];
+}
+
+export interface SupplierProviderModels {
+  provider: string;
+  alias: string | null;
+  baseUrl: string | null;
+  models: SupplierModelItem[];
+}
+
+export interface RawSupplierProviderModelsPayload {
+  provider?: unknown;
+  alias?: unknown;
+  base_url?: unknown;
+  models?: unknown;
+}
+
+export interface RawSupplierModelItemPayload {
+  model?: unknown;
+  enabled?: unknown;
+  reasoning_effort?: unknown;
+}
+
 export interface SupplierModelOptionSaveRequest {
   provider: string;
   model: string;
