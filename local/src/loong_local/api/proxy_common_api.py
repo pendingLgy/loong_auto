@@ -25,8 +25,11 @@ async def proxy_common(request: Request, target: str):
     headers = httpx.Headers(request.headers)
     rebuild_cloud_request_header(headers, context.headers())
 
+    query = list(request.query_params.multi_items())
     outgoing = cloud_client.build_request(request.method, quote(target),
-                                          headers=headers, content=request.stream())
+                                          headers=headers,
+                                          params=query or None,
+                                          content=request.stream())
 
     upstream = await cloud_client.send(outgoing, stream=False)
 

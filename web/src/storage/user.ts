@@ -92,6 +92,12 @@ const userSession = createMemo<LoginResponse | null>(() => {
 
 export { userSession };
 
+/** 读取指定服务器的登录会话，用于按服务器隔离请求。 */
+export function getUserSession(serverId: string): LoginResponse | null {
+  revision();
+  return serverId ? readUser(serverId) : null;
+}
+
 /** 登录成功后保存当前服务器（或指定服务器）的用户数据。 */
 export function saveUser(value: LoginResponse, serverId?: string): void {
   const id = serverId ?? activeServerId();

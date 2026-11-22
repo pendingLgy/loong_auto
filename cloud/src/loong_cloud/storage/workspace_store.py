@@ -19,11 +19,12 @@ class WorkspaceStore:
         self.db = db_proxy
         self.table = schema.GLOBAL_TABLES.workspace
 
-    async def create(self,tenant_id: int,user_id: int, name: str, path: str,) -> None:
+    async def create(self, tenant_id: int, user_id: int, name: str, path: str) -> WorkspaceResponse:
 
         now = utcnow()
+        workspace_id = next_id()
         values = {
-            "id": next_id(),
+            "id": workspace_id,
             "tenant_id": tenant_id,
             "user_id": user_id,
             "name": name,
@@ -36,10 +37,20 @@ class WorkspaceStore:
         async with self.db.session() as session:
             await session.execute(insert(self.table).values(**values))
 
+        return WorkspaceResponse(
+            id=workspace_id,
+            tenant_id=tenant_id,
+            user_id=user_id,
+            name=name,
+            path=path,
+            created_at=now,
+            updated_at=now,
+        )
+
 
     async def list(self, tenant_id: int, user_id: int, page: int = 1, page_size: int = 20) -> BasePageResponse[List[WorkspaceResponse]]:
         page = max(page, 1)
-        page_size = max(min(page_size, 100), 1)
+        page_size = max(min(page_size, 1000), 1)
         where = (
             self.table.c.tenant_id == tenant_id,
             self.table.c.user_id == user_id,
@@ -70,7 +81,8 @@ class WorkspaceStore:
 
         return WorkspaceResponse.model_validate(row) if row else None
 
-    async def update(self, tenant_id: int, user_id: int, workspace_id: int, name: str, path: str) -> None:
+    async def update(self, tenant_id: int, user_id: int, workspace_id: int, name: str,
+                     path: str) -> WorkspaceResponse:
         values = {}
         if name is not None:
             values["name"] = name
@@ -91,6 +103,11 @@ class WorkspaceStore:
             )
             async with self.db.session() as session:
                 await session.execute(update(self.table).where(*where).values(**values))
+
+        updated = await self.get(tenant_id, user_id, workspace_id)
+        if updated is None:
+            raise StorageError("工作目录不存在")
+        return updated
 
     async def delete(self, tenant_id: int, user_id: int, workspace_id: int) -> bool:
         where = (

@@ -48,6 +48,8 @@ export interface HttpRequestInit {
   signal?: AbortSignal;
   /** 单次请求覆盖 `HttpClientOptions.prefix`。 */
   prefix?: string;
+  /** 覆盖默认信封解析，用于分页等非统一 data 响应。 */
+  parse?: (response: Response) => Promise<unknown>;
 }
 
 /**
@@ -56,40 +58,50 @@ export interface HttpRequestInit {
  * 仅负责 HTTP 层：拼 URL、编码 JSON、附加令牌、把响应交给 `parseEnvelope`；
  * 领域字段映射留在 `api/` 层。
  */
+async function sendRequest(
+  client: HttpClientOptions,
+  path: string,
+  init: HttpRequestInit,
+  signal: AbortSignal,
+): Promise<Response> {
+  const send = client.fetch ?? fetch;
+  const method = init.method ?? "GET";
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    ...init.headers,
+  };
+  if (init.body !== undefined) {
+    headers["Content-Type"] = "application/json";
+  }
+  if (client.token) {
+    headers.Authorization = `Bearer ${client.token}`;
+  }
+  if (client.security_token) {
+    headers['X-Security-Token'] = `${client.security_token}`;
+  }
+
+  const url = withPrefix(init.prefix ?? client.prefix, path);
+  return await send(new URL(url, client.baseUrl), {
+    method,
+    headers,
+    credentials: "same-origin",
+    redirect: "error",
+    signal: init.signal ?? signal,
+    body: init.body === undefined ? undefined : JSON.stringify(init.body),
+  });
+}
+
 export function requestJson<T>(
   client: HttpClientOptions,
   path: string,
   init: HttpRequestInit = {},
 ): Effect.Effect<T, ClientError> {
-  const send = client.fetch ?? fetch;
-  const method = init.method ?? "GET";
-
   return Effect.tryPromise({
     try: async (signal) => {
-      const headers: Record<string, string> = {
-        Accept: "application/json",
-        ...init.headers,
-      };
-      if (init.body !== undefined) {
-        headers["Content-Type"] = "application/json";
+      const response = await sendRequest(client, path, init, signal);
+      if (init.parse) {
+        return await init.parse(response) as T;
       }
-      if (client.token) {
-        headers.Authorization = `Bearer ${client.token}`;
-      }
-      if (client.security_token) {
-        headers['X-Security-Token'] = `${client.security_token}`;
-      }
-
-      const url = withPrefix(init.prefix ?? client.prefix, path);
-      const response = await send(new URL(url, client.baseUrl), {
-        method,
-        headers,
-        credentials: "same-origin",
-        redirect: "error",
-        signal: init.signal ?? signal,
-        body: init.body === undefined ? undefined : JSON.stringify(init.body),
-      });
-
       return parseEnvelope<T>(response, client.locale);
     },
     catch: (cause) => cause instanceof ClientError

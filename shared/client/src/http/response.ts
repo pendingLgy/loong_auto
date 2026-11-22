@@ -72,3 +72,58 @@ export async function parseEnvelope<T>(
 
   return envelope.data as T;
 }
+
+
+/** 云端分页响应（顶层字段，不在统一信封的 data 内）。 */
+export interface PageResult<T> {
+  total: number | null;
+  page: number | null;
+  pageSize: number | null;
+  rows: T[];
+}
+
+interface PageEnvelope<T> {
+  code?: number;
+  msg?: string;
+  total?: number | null;
+  page?: number | null;
+  page_size?: number | null;
+  rows?: T[] | null;
+}
+
+/** 解析云端分页响应并保留分页元数据。 */
+export async function parsePageEnvelope<T>(
+  response: Response,
+  locale: Locale = DEFAULT_LOCALE,
+): Promise<PageResult<T>> {
+  const envelope = await response.json().catch(() => null) as PageEnvelope<T> | null;
+  const message = messageOf(envelope as ApiEnvelope<unknown> | null);
+
+  if (response.status === 401 || envelope?.code === 401) {
+    throw new UnauthorizedError(
+      message ?? translate(locale, "client.errors.unauthorized", "未登录或登录已过期"),
+    );
+  }
+
+  if (!envelope || typeof envelope !== "object") {
+    throw new ClientError(
+      translate(locale, "client.errors.invalidJson", "响应不是合法 JSON"),
+      response.status,
+    );
+  }
+
+  if (!response.ok || envelope.code !== 200) {
+    throw new ClientError(
+      message ?? translate(locale, "client.errors.requestFailed", "请求失败"),
+      response.status,
+      typeof envelope.code === "number" ? envelope.code : undefined,
+    );
+  }
+
+  return {
+    total: typeof envelope.total === "number" ? envelope.total : null,
+    page: typeof envelope.page === "number" ? envelope.page : null,
+    pageSize: typeof envelope.page_size === "number" ? envelope.page_size : null,
+    rows: Array.isArray(envelope.rows) ? envelope.rows : [],
+  };
+}

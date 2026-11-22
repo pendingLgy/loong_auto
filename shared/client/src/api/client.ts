@@ -3,10 +3,11 @@ import { Effect } from "effect";
 import type { LoginRequest, LoginResponse } from "../types";
 import { ClientError } from "../types/errors";
 import { DEFAULT_LOCALE, translate, type Locale } from "../i18n";
-import { AuthApi } from "./auth";
-import { HealthApi } from "./health";
-import { SessionConfigApi } from "./session-config";
-import { SupplierConfigApi } from "./supplier-config";
+import { AuthApi } from "./cloud_auth";
+import { HealthApi } from "./local_health";
+import { SessionConfigApi } from "./local_session_config";
+import { SupplierConfigApi } from "./local_supplier_config";
+import { WorkspaceApi } from "./cloud_workspace";
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
 
@@ -37,6 +38,7 @@ export interface LocalClient {
   health: HealthApi;
   sessionConfig: SessionConfigApi;
   supplierConfig: SupplierConfigApi;
+  workspace: WorkspaceApi;
 }
 
 /** 只允许本机网关，拒绝把账号密码发往任意远程地址。 */
@@ -94,6 +96,14 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
       security_token: options.security_token,
     }),
     supplierConfig: new SupplierConfigApi({
+      baseUrl,
+      prefix,
+      token: options.token,
+      locale,
+      fetch: options.fetch,
+      security_token: options.security_token,
+    }),
+    workspace: new WorkspaceApi({
       baseUrl,
       prefix,
       token: options.token,

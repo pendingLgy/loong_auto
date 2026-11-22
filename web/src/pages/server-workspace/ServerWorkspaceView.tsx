@@ -1,4 +1,4 @@
-import {createSignal} from "solid-js";
+import {For, createEffect, createSignal} from "solid-js";
 
 import {useNavigate} from "@solidjs/router";
 
@@ -8,20 +8,12 @@ import {type LayoutState, ThreePaneLayout} from "@loong/ui/layout";
 import {SideNav, type SideNavKey, type SideNavUserData, type Workspace} from "@loong/ui/nav";
 import {createApiClient} from "../../api";
 import {showNotice} from "../../storage/app_notice";
-import {serverConfig, servers} from "../../storage/server_config";
-import {getLayoutState, saveLayoutState} from "../../storage/settings";
+import {activeServerId, serverConfig, servers} from "../../storage/server_config";
+import {getServerWorkspaceState, saveServerWorkspaceState} from "../../storage/server_workspace";
 import {currentUser} from "../../storage/user";
-import {HomeViewContext} from "./home-context";
+import {WorkspaceViewContext} from "./workspace_context";
 
 import {Effect} from "effect";
-
-const INITIAL_WORKSPACES: Workspace[] = [
-  {
-    id: "workspace-default",
-    name: "默认工作区",
-    conversations: [{id: "conversation-1", title: "新的对话"}],
-  },
-];
 
 let nextId = 1;
 const createId = (prefix: string) => `${prefix}-${Date.now()}-${nextId++}`;
@@ -36,24 +28,70 @@ export interface ServerWorkspaceViewProps {
 /** 服务器工作区：左中右布局，布局状态保存到 storage/settings.ts。 */
 export function ServerWorkspaceView(props: ServerWorkspaceViewProps) {
   const navigate = useNavigate();
-  const [layout, setLayout] = createSignal<LayoutState>(getLayoutState());
-  const [active, setActive] = createSignal<SideNavKey>("newChat");
-  const [workspaces, setWorkspaces] = createSignal<Workspace[]>(INITIAL_WORKSPACES);
+  const serverId = () => props.serverId ?? activeServerId() ?? "";
+  const initial = getServerWorkspaceState(serverId());
+  const [layout, setLayout] = createSignal<LayoutState>(initial.layout);
+  const [active, setActive] = createSignal<SideNavKey>(initial.active);
+  const [workspaces, setWorkspaces] = createSignal<Workspace[]>(initial.workspaces);
   const [activeConversationId, setActiveConversationId] = createSignal(
-    INITIAL_WORKSPACES[0].conversations[0].id,
+    initial.activeConversationId,
   );
   const [modelGroups, setModelGroups] = createSignal<ChatModelGroup[]>([]);
-  const [selectedModel, setSelectedModel] = createSignal("");
-  const [selectedProvider, setSelectedProvider] = createSignal("");
+  const [selectedModel, setSelectedModel] = createSignal(initial.selectedModel);
+  const [selectedProvider, setSelectedProvider] = createSignal(initial.selectedProvider);
   const [availableProviders, setAvailableProviders] = createSignal<ProviderOption[]>([]);
   const [managedProviders, setManagedProviders] = createSignal<ManagedProvider[]>([]);
+
+  createEffect(() => {
+    saveServerWorkspaceState(serverId(), {
+      layout: layout(),
+      active: active(),
+      workspaces: workspaces(),
+      activeConversationId: activeConversationId(),
+      selectedModel: selectedModel(),
+      selectedProvider: selectedProvider(),
+    });
+  });
 
   const currentServer = () =>
     servers().find((server) => server.id === props.serverId) ?? serverConfig();
 
+  const api = () => createApiClient({serverId: serverId()});
+
+  const loadWorkspaces = async () => {
+    try {
+      const page = await Effect.runPromise(
+        api().workspace.list({page: 1, pageSize: 1000}),
+      );
+      const stored = getServerWorkspaceState(serverId());
+      const conversations = new Map(
+        stored.workspaces.map((workspace) => [workspace.id, workspace.conversations]),
+      );
+      const rows = page.rows.map((workspace) => ({
+        id: workspace.id,
+        name: workspace.name?.trim() || workspace.path[0] || "未命名工作区",
+        conversations: conversations.get(workspace.id) ?? [],
+      }));
+      setWorkspaces(rows);
+      if (!rows.some((workspace) => workspace.conversations.some(
+        (conversation) => conversation.id === activeConversationId(),
+      ))) {
+        setActiveConversationId("");
+      }
+    } catch {
+      showNotice("error", "获取工作区列表失败");
+    }
+  };
+
+  createEffect(() => {
+    if (serverId() === activeServerId()) {
+      void loadWorkspaces();
+    }
+  });
+
   const loadModelGroups = async () => {
     try {
-      const client = createApiClient();
+      const client = api();
       const [available, managed] = await Promise.all([
         Effect.runPromise(client.supplierConfig.list()),
         Effect.runPromise(client.supplierConfig.listModels()),
@@ -87,7 +125,7 @@ export function ServerWorkspaceView(props: ServerWorkspaceViewProps) {
 
   const connectProvider = async (provider: ProviderOption, values: { apiKey: string; baseUrl: string }) => {
     await Effect.runPromise(
-      createApiClient().supplierConfig.save({
+      api().supplierConfig.save({
         provider: provider.name,
         apiKey: values.apiKey,
         baseUrl: values.baseUrl,
@@ -102,7 +140,7 @@ export function ServerWorkspaceView(props: ServerWorkspaceViewProps) {
     enabled: boolean,
   ) => {
     await Effect.runPromise(
-      createApiClient().supplierConfig.saveOption({
+      api().supplierConfig.saveOption({
         provider: provider.providerName,
         model: model.id,
         enabled,
@@ -130,11 +168,38 @@ export function ServerWorkspaceView(props: ServerWorkspaceViewProps) {
     navigate("/");
   };
 
-  const createWorkspace = () => {
-    setWorkspaces((list) => [
-      ...list,
-      {id: createId("workspace"), name: "新的工作区", conversations: []},
-    ]);
+  type DirectoryPicker = () => Promise<{ name: string }>;
+
+  const createWorkspace = async (name = "新的工作区", path: string[] = [name]) => {
+    try {
+      const workspace = await Effect.runPromise(
+        api().workspace.create({name, path}),
+      );
+      setWorkspaces((list) => [
+        ...list,
+        {id: workspace.id, name: workspace.name ?? name, conversations: []},
+      ]);
+    } catch {
+      showNotice("error", "创建工作区失败");
+    }
+  };
+
+  const openFolderPicker = async () => {
+    const picker = (window as Window & { showDirectoryPicker?: DirectoryPicker })
+      .showDirectoryPicker;
+    if (!picker) {
+      showNotice("error", "当前环境不支持文件夹选择");
+      return;
+    }
+
+    try {
+      const directory = await picker();
+      const name = directory.name.trim() || "新的工作区";
+      await createWorkspace(name, [name]);
+    } catch (cause) {
+      if (cause instanceof DOMException && cause.name === "AbortError") return;
+      showNotice("error", "选择文件夹失败");
+    }
   };
 
   const newChat = () => {
@@ -142,18 +207,33 @@ export function ServerWorkspaceView(props: ServerWorkspaceViewProps) {
     if (first) {
       addConversation(first.id);
     } else {
-      createWorkspace();
-      navigate("/");
+      void openFolderPicker();
     }
   };
 
   const onLayoutChange = (next: LayoutState) => {
     setLayout(next);
-    saveLayoutState(next);
   };
 
+  const renderChat = () => (
+            <LlmChat
+            modelGroups={modelGroups()}
+            modelName={selectedModel()}
+            providerAlias={selectedProvider()}
+            onOpenModels={() => void loadModelGroups()}
+            providers={availableProviders()}
+            managedProviders={managedProviders()}
+            onConnectProvider={connectProvider}
+            onToggleModel={toggleManagedModel}
+            onSelectModel={(model, group) => {
+              setSelectedModel(model);
+              setSelectedProvider(group.providerAlias ?? group.providerName);
+            }}
+    />
+  );
+
   return (
-    <HomeViewContext.Provider value={{active, activeConversationId}}>
+    <WorkspaceViewContext.Provider value={{active, activeConversationId}}>
       <ThreePaneLayout
         value={layout()}
         onChange={onLayoutChange}
@@ -178,7 +258,7 @@ export function ServerWorkspaceView(props: ServerWorkspaceViewProps) {
               navigate("/");
             }}
             onSearch={() => undefined}
-            onCreateWorkspace={createWorkspace}
+            onCreateWorkspace={() => void openFolderPicker()}
             onMoreWorkspace={() => undefined}
             onCreateConversation={addConversation}
             user={userData()}
@@ -198,21 +278,10 @@ export function ServerWorkspaceView(props: ServerWorkspaceViewProps) {
           </div>
         }
       >
-        <LlmChat
-          modelGroups={modelGroups()}
-          modelName={selectedModel()}
-          providerAlias={selectedProvider()}
-          onOpenModels={() => void loadModelGroups()}
-          providers={availableProviders()}
-          managedProviders={managedProviders()}
-          onConnectProvider={connectProvider}
-          onToggleModel={toggleManagedModel}
-          onSelectModel={(model, group) => {
-            setSelectedModel(model);
-            setSelectedProvider(group.providerAlias ?? group.providerName);
-          }}
-        />
+        <For each={[activeConversationId()]}>
+          {() => renderChat()}
+        </For>
       </ThreePaneLayout>
-    </HomeViewContext.Provider>
+    </WorkspaceViewContext.Provider>
   );
 }

@@ -183,7 +183,7 @@ class WorkspacesAPI:
             params={"page": page, "page_size": page_size},
         )
 
-    async def create(self, body: CreateWorkingDirectoryRequest):
+    async def create(self, body: CreateWorkingDirectoryRequest) -> BaseResponse[WorkspaceResponse]:
         return await self.client.request(
             "POST", f"{self.prefix}/api/workspace", BaseResponse[WorkspaceResponse], body=body
         )
@@ -193,7 +193,8 @@ class WorkspacesAPI:
             "GET", f"{self.prefix}/api/workspace/{workspace_id}", BaseResponse[WorkspaceResponse]
         )
 
-    async def update(self, workspace_id: int, body: UpdateWorkingDirectoryRequest):
+    async def update(self, workspace_id: int,
+                     body: UpdateWorkingDirectoryRequest) -> BaseResponse[WorkspaceResponse]:
         return await self.client.request(
             "PUT", f"{self.prefix}/api/workspace/{workspace_id}", BaseResponse[WorkspaceResponse], body=body
         )

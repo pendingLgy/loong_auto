@@ -40,6 +40,7 @@
 | 服务器配置列表（id、名称、地址、security_token、连通状态 `connected`、检查时间 `checkedAt`） | `localStorage` | `loong.web.server-config` |
 | 登录用户数据（access/refresh token、用户信息，按服务器 ID 分开） | `localStorage` | `loong.web.user:<serverId>` |
 | 页面设置（三栏布局宽度、折叠状态） | `localStorage` | `loong.web.settings` |
+| 服务器工作区状态（布局、菜单、工作区/对话、当前对话、选中模型） | `localStorage` | `loong.web.server-workspace:<serverId>` |
 | 主题（light / dark，通过 `<html class="dark">` 切换） | `localStorage` | `loong.web.theme` |
 | 已固定标签 key 列表 | `localStorage` | `loong.web.pinned-tabs` |
 | 上次激活的标签 key | `localStorage` | `loong.web.active-tab` |
@@ -49,6 +50,7 @@
 - 清除用户数据用 `clearUser()`；清除服务器配置用 `clearServerConfig()`，不要手写 `removeItem`。
 - 当前选中的服务器 `activeId` 只保存在内存中，不写入 storage。
 - 登录信息按服务器 ID 隔离；`HomeTabsView` 在未登录时强制弹出登录框，登录成功前不可关闭。
+- 工作区相关状态必须通过 `src/storage/server_workspace.ts` 按服务器 ID 读写；工作区、对话、布局与选中模型不得共用全局 key。
 
 ## API 调用
 
@@ -56,11 +58,13 @@
 
 ```ts
 import { createApiClient } from "./api";
-const client = createApiClient({ locale });
+const client = createApiClient({ serverId, locale });
 await Effect.runPromise(client.auth.login({ username, password, platform: "web" }));
 ```
 
 - `createApiClient` 负责 origin（服务器配置优先）、`locale` 与访问令牌，不要在页面里手工拼 URL 或认证头。
+- 多服务器页面必须传入 `serverId`，使用对应服务器的地址、`security_token`、access token 与 refresh token；不要依赖当前激活服务器。
+- `ServerWorkspaceView` 的工作区、模型、供应商请求统一使用 `createApiClient({ serverId })`，避免隐藏的服务器标签读写到当前激活服务器的数据。
 - 只从 `@loong/client`、`@loong/client/api`、`@loong/client/http`、`@loong/client/types`、`@loong/client/i18n` 导入，
   不直接引用其 `src/` 内部文件。
 - 401 统一是 `UnauthorizedError`：`createApiClient` 会使用当前服务器的 refresh token 刷新一次并重试原请求；刷新失败才清理该服务器会话，并弹出「登录已过期」提示框，3 秒后跳转 HomeTabsView，由登录弹框重新登录。登录 / 注册 / 刷新接口本身不参与自动刷新；同一接口与参数在 3 秒内重复调用会被拒绝，并通过 `Message` 提示「操作太频繁」；请求成功后立即清除限流 key，允许下一次操作。
@@ -86,6 +90,7 @@ bun run --filter '@loong/web' dev   # http://127.0.0.1:5173
 ```
 
 - 改动路由、存储或 API 调用后至少保证 `typecheck` 与 `build:web` 通过。
+- 多服务器改动需验证：切换服务器后，工作区、对话、布局与选中模型互不影响，且请求携带对应服务器登录态。
 - 手工验证顺序：清空 `localStorage` → 应进入 `/setup`；保存配置 → 进入 `/`（HomeTabsView）并弹出登录框；登录成功后才能关闭弹框；切换服务器会使用对应服务器的登录态。
 - 生产构建为静态资源，路由回退未实现前不要宣称可直接由网关托管。
 - 不在本目录引入测试框架；集成测试放在 `local/tests` 或后续专门的 e2e 目录。
