@@ -43,3 +43,17 @@
 .dark *::-webkit-scrollbar-thumb {
   background: rgb(71 85 105 / 0.7);
 }
+
+
+/* HomeTabs 横向滚动条隐藏，仅保留按钮/触控板滚动。 */
+.home-tabs-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.home-tabs-scroll::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+  background: transparent;
+}

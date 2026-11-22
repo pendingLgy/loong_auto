@@ -181,7 +181,7 @@ export const HomeTabs: Component<HomeTabsProps> = (props) => {
 
   return (
     <div
-      class={`flex h-11 items-center gap-2 border-b border-slate-200 bg-white/80 px-2 dark:border-white/10 dark:bg-slate-900/70 ${props.class ?? ""}`}
+      class={`flex h-11 items-center gap-2 overflow-hidden border-b border-slate-200 bg-white/80 px-2 dark:border-white/10 dark:bg-slate-900/70 ${props.class ?? ""}`}
     >
       <button
         type="button"
@@ -216,7 +216,7 @@ export const HomeTabs: Component<HomeTabsProps> = (props) => {
         <div
           ref={tablist}
           onScroll={updateScrollState}
-          class="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          class="home-tabs-scroll flex min-w-0 flex-1 items-center gap-1 overflow-x-hidden overflow-y-hidden whitespace-nowrap"
         >
           <For each={unpinnedTabs()}>{(tab) => tabItem(tab)}</For>
         </div>
