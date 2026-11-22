@@ -2,20 +2,13 @@ import { createMemo, createSignal } from "solid-js";
 
 import type { LoginResponse, UserInfo } from "@loong/client";
 
-import { activeServerId } from "./server_config";
-
-/** 按服务器 ID 分开存储登录信息。 */
-const STORAGE_KEY_PREFIX = "loong.web.user";
-const LEGACY_USER_KEY = "loong.web.user";
+const STORAGE_KEY = "loong.web.user";
 const LEGACY_SESSION_KEY = "loong.web.session";
+const LEGACY_SCOPED_PREFIX = "loong.web.user:";
 
 interface StoredUser {
   session: LoginResponse;
   savedAt: string;
-}
-
-function storageKey(serverId: string): string {
-  return `${STORAGE_KEY_PREFIX}:${serverId}`;
 }
 
 function isLoginResponse(value: Partial<LoginResponse> | null | undefined): boolean {
@@ -24,10 +17,9 @@ function isLoginResponse(value: Partial<LoginResponse> | null | undefined): bool
     && typeof value.refreshToken === "string" && value.refreshToken.length > 0;
 }
 
-function readStoredValue(key: string): LoginResponse | null {
+function parseStored(raw: string | null): LoginResponse | null {
+  if (!raw) return null;
   try {
-    const raw = window.localStorage.getItem(key);
-    if (!raw) return null;
     const stored = JSON.parse(raw) as Partial<StoredUser> | null;
     return isLoginResponse(stored?.session) ? stored!.session as LoginResponse : null;
   } catch {
@@ -35,14 +27,26 @@ function readStoredValue(key: string): LoginResponse | null {
   }
 }
 
-function readLegacyValue(): LoginResponse | null {
-  const stored = readStoredValue(LEGACY_USER_KEY);
-  if (stored) return stored;
-
+function readStored(): LoginResponse | null {
   try {
-    const raw = window.localStorage.getItem(LEGACY_SESSION_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as (Partial<StoredUser> & Partial<LoginResponse>) | null;
+    const current = parseStored(window.localStorage.getItem(STORAGE_KEY));
+    if (current) return current;
+
+    // 兼容旧版按服务器 ID 分开存储的会话：取第一个可用会话。
+    for (let index = 0; index < window.localStorage.length; index += 1) {
+      const key = window.localStorage.key(index);
+      if (!key?.startsWith(LEGACY_SCOPED_PREFIX)) continue;
+      const legacy = parseStored(window.localStorage.getItem(key));
+      if (legacy) {
+        writeStored(legacy);
+        window.localStorage.removeItem(key);
+        return legacy;
+      }
+    }
+
+    const legacySession = window.localStorage.getItem(LEGACY_SESSION_KEY);
+    if (!legacySession) return null;
+    const parsed = JSON.parse(legacySession) as (Partial<StoredUser> & Partial<LoginResponse>) | null;
     const value = parsed?.session ?? parsed;
     return isLoginResponse(value as Partial<LoginResponse>) ? value as LoginResponse : null;
   } catch {
@@ -50,83 +54,53 @@ function readLegacyValue(): LoginResponse | null {
   }
 }
 
-function writeStoredValue(serverId: string, value: LoginResponse): void {
+function writeStored(value: LoginResponse): void {
   try {
     const stored: StoredUser = { session: value, savedAt: new Date().toISOString() };
-    window.localStorage.setItem(storageKey(serverId), JSON.stringify(stored));
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
   } catch {
-    // 存储不可用时仅保留内存态。
+    // 存储不可用时仅保留内存状态。
   }
-}
-
-function removeLegacyValues(): void {
-  try {
-    window.localStorage.removeItem(LEGACY_USER_KEY);
-    window.localStorage.removeItem(LEGACY_SESSION_KEY);
-  } catch {
-    // 忽略存储异常。
-  }
-}
-
-function readUser(serverId: string): LoginResponse | null {
-  const scoped = readStoredValue(storageKey(serverId));
-  if (scoped) return scoped;
-
-  // 兼容旧版本单一登录信息：迁移到当前服务器后删除旧 key。
-  const legacy = readLegacyValue();
-  if (!legacy) return null;
-
-  writeStoredValue(serverId, legacy);
-  removeLegacyValues();
-  return legacy;
 }
 
 const [revision, setRevision] = createSignal(0);
 
-/** 当前服务器的登录用户数据；null 表示该服务器未登录。 */
+/** 当前登录用户会话。 */
 const userSession = createMemo<LoginResponse | null>(() => {
   revision();
-  const serverId = activeServerId();
-  return serverId ? readUser(serverId) : null;
+  return readStored();
 });
 
 export { userSession };
 
-/** 读取指定服务器的登录会话，用于按服务器隔离请求。 */
-export function getUserSession(serverId: string): LoginResponse | null {
-  revision();
-  return serverId ? readUser(serverId) : null;
-}
-
-/** 登录成功后保存当前服务器（或指定服务器）的用户数据。 */
-export function saveUser(value: LoginResponse, serverId?: string): void {
-  const id = serverId ?? activeServerId();
-  if (!id) return;
-
-  writeStoredValue(id, value);
+/** 登录成功后保存唯一用户会话。 */
+export function saveUser(value: LoginResponse): void {
+  writeStored(value);
   setRevision((current) => current + 1);
 }
 
-/** 清除当前服务器（或指定服务器）的用户数据。 */
-export function clearUser(serverId?: string): void {
-  const id = serverId ?? activeServerId();
-  if (id) {
-    try {
-      window.localStorage.removeItem(storageKey(id));
-    } catch {
-      // 忽略存储异常。
+/** 清除用户会话。 */
+export function clearUser(): void {
+  try {
+    window.localStorage.removeItem(STORAGE_KEY);
+    window.localStorage.removeItem(LEGACY_SESSION_KEY);
+    for (let index = window.localStorage.length - 1; index >= 0; index -= 1) {
+      const key = window.localStorage.key(index);
+      if (key?.startsWith(LEGACY_SCOPED_PREFIX)) {
+        window.localStorage.removeItem(key);
+      }
     }
+  } catch {
+    // 忽略存储异常。
   }
   setRevision((current) => current + 1);
 }
 
-/** 刷新令牌成功后只更新 accessToken，保留 refreshToken 与用户信息。 */
-export function updateAccessToken(token: string, serverId?: string): void {
-  const id = serverId ?? activeServerId();
-  if (!id) return;
-  const current = readUser(id);
+/** 刷新令牌后只更新 accessToken。 */
+export function updateAccessToken(token: string): void {
+  const current = readStored();
   if (!current) return;
-  saveUser({ ...current, accessToken: token }, id);
+  saveUser({ ...current, accessToken: token });
 }
 
 export function currentUser(): UserInfo | null {

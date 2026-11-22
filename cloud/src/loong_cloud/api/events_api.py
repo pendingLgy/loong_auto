@@ -10,11 +10,6 @@ from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from loguru import logger
-from loong_contracts.agent.models import LoopEvent, Message, ToolDefinition
-from loong_contracts.common.llm_message_constant import GlobalMessageRole, GlobalMessageStatus
-from loong_contracts.request.message import AddMessageRequest, LLMParamRequest
-from loong_contracts.utils import Response
-from loong_contracts.utils.datetime_util import utcnow
 from starlette.types import Message as ASGIMessage
 from starlette.types import Receive, Scope, Send
 
@@ -24,6 +19,13 @@ from loong_cloud.agent.tools import DEFAULT_LOCAL_TOOLS
 from loong_cloud.config.config_model import ModelConfig
 from loong_cloud.core.logging import log_exception
 from loong_cloud.storage.message_store import MessageStore
+from loong_contracts.agent.models import LoopEvent, Message, ToolDefinition
+from loong_contracts.common.llm_message_constant import GlobalMessageRole, GlobalMessageStatus
+from loong_contracts.request.message import AddMessageRequest, LLMParamRequest
+from loong_contracts.response.login import UserInfoResponse
+from loong_contracts.utils import Response
+from loong_contracts.utils.datetime_util import utcnow
+from loong_contracts.utils.uuid_util import uuid_str
 
 router = APIRouter(prefix="/events", tags=["对话事件"])
 HEARTBEAT_INTERVAL_SECONDS = 15
@@ -164,11 +166,16 @@ def _session_key(request: Request, session_id: str) -> tuple[str, str, str]:
 async def _run_dialogue(
     channel: EventSession,
     supplier: ModelSupplier,
+    tenant_id: int,
+    user_id: int,
+    workspace_id: int,
     client_id: str,
     session_id: str,
     messages: list[Message],
     config: ModelConfig,
-    tools: list[ToolDefinition],
+    tools: list[ToolDefinition] | None,
+    message_store: MessageStore,
+    llm:LLMParamRequest,
 ) -> None:
     try:
         async with ModelExecutor(supplier=supplier) as executor:
@@ -178,11 +185,38 @@ async def _run_dialogue(
                     await channel.queue.put(frame)
     except Exception as e:
         log_exception(e, f"对话 SSE 执行失败，session_id={session_id}")
+
+        error_msg = Message(id=uuid_str(),status=GlobalMessageStatus.RUNNING, role=GlobalMessageRole.ASSISTANT, content=str(e))
         await channel.queue.put(LoopEvent(
+            last_message_event=GlobalMessageStatus.RUNNING,
+            client_id=client_id,
             session_id=session_id,
             error=True,
-            messages=[Message(status=GlobalMessageStatus.STOP, content=str(e))],
+            messages=[error_msg],
         ).to_sse())
+
+        try:
+            add_message = AddMessageRequest(
+                tenant_id=tenant_id,
+                user_id=user_id,
+                workspace_id=workspace_id,
+                session_id=session_id,
+                llm=llm,
+                messages=[error_msg]
+            )
+            await message_store.add_message(add_message)
+        except Exception as e:
+            log_exception(e,"保存sse错误异常")
+            pass
+
+        await channel.queue.put(LoopEvent(
+            last_message_event=GlobalMessageStatus.STOP,
+            client_id=client_id,
+            session_id=session_id,
+            error=True,
+            messages=None,
+        ).to_sse())
+
     finally:
         channel.busy = False
 
@@ -285,6 +319,9 @@ async def submit_message(
     """保存消息后启动对话任务，结果通过已建立的 SSE 连接推送。"""
 
     supplier = request.app.state.supplier
+    identity:UserInfoResponse = request.state.identity
+    workspace_id = body.workspace_id
+    llm = body.llm
 
     channel = _sessions(request).get(_session_key(request, client_id))
     if channel is None or not channel.connected:
@@ -318,7 +355,17 @@ async def submit_message(
             model=body.llm.model,
         )
         channel.task = asyncio.create_task(
-            _run_dialogue(channel, supplier, client_id, session_id, messages, config, tools),
+            _run_dialogue(channel=channel,supplier=supplier,
+                          tenant_id=identity.tenant_id,
+                          user_id=identity.id,
+                          workspace_id=workspace_id,
+                          client_id=client_id,
+                          session_id=session_id,
+                          messages=messages,
+                          config=config,
+                          tools=tools,
+                          message_store=message_store,
+                          llm=llm),
             name=f"dialogue:{session_id}",
         )
     except BaseException:

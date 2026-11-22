@@ -4,11 +4,10 @@ import type { Component } from "solid-js";
 import { LoginDialog as UiLoginDialog, type LoginCredentials, type RegisterValues } from "@loong/ui/login";
 
 import { createApiClient } from "../../api";
+import { startChatExecutor } from "../../chat/executor";
 import { saveUser } from "../../storage/user";
 
 export interface LoginViewProps {
-  /** 当前服务器 ID，登录信息按该 ID 保存。 */
-  serverId: string;
   /** 服务器名称，用于标题展示。 */
   serverName?: string;
 }
@@ -24,7 +23,8 @@ export const LoginView: Component<LoginViewProps> = (props) => {
         platform: "web",
       }),
     );
-    saveUser(session, props.serverId);
+    saveUser(session);
+    startChatExecutor();
   };
 
   const register = async (values: RegisterValues) => {

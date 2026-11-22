@@ -9,7 +9,7 @@ import { ServerConfigPage, type ServerConfigValues } from "@loong/ui/server-conf
 
 import { saveServerConfig, serverConfig } from "../../storage/server_config";
 
-export interface WebServerConfigPageProps {
+export interface WebServerConfigViewProps {
   /** 界面语言；默认中文。 */
   locale?: Locale;
 }
@@ -20,7 +20,7 @@ export interface WebServerConfigPageProps {
  * 2. 调用 `client.health.security_token()` 验证 security_token；
  * 3. 校验通过后写入 `storage/server_config.ts`，由路由守卫跳转。
  */
-export const WebServerConfigPage: Component<WebServerConfigPageProps> = (props) => {
+export const WebServerConfigView: Component<WebServerConfigViewProps> = (props) => {
   const navigate = useNavigate();
   const locale = () => props.locale ?? DEFAULT_LOCALE;
 

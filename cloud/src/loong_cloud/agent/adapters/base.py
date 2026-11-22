@@ -99,6 +99,6 @@ class ModelAdapter(ABC):
                 if lines:
                     raise ValueError("SSE 帧未完整结束")
         except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError) as exc:
-            error = ModelError(f"模型流式请求失败（{self.config.provider}，{type(exc).__name__}）")
+            error = ModelError(f"模型流式请求失败（{self.config.provider}，{type(exc).__name__}）{str(exc)}")
             logger.opt(exception=(ModelError, error, exc.__traceback__)).error("模型流式调用失败")
             raise error from None

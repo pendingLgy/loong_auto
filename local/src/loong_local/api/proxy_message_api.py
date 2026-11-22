@@ -1,7 +1,7 @@
 """消息提交入口；认证、自动拒绝及上下文补齐交由应用服务。"""
 
 import httpx
-from dependency_injector.wiring import Provide
+from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, Request
 from loguru import logger
 from loong_contracts.request.message import AddMessageRequest, LLMParamRequest
@@ -18,6 +18,7 @@ router = APIRouter(prefix="/session", tags=["消息提交接口转发"])
 
 
 @router.api_route("/{session_id}/message", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"])
+@inject
 async def submit_message(request: Request, session_id: str, body: AddMessageRequest,
                          supplier_config_service: SupplierConfigService = Depends(Provide["SupplierConfigService"])):
     context: SSEContext = request.state.sse_context

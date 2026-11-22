@@ -8,6 +8,8 @@ import { HealthApi } from "./local_health";
 import { SessionConfigApi } from "./local_session_config";
 import { SupplierConfigApi } from "./local_supplier_config";
 import { WorkspaceApi } from "./cloud_workspace";
+import { EventsApi } from "./cloud_events";
+import { SessionApi } from "./cloud_session";
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
 
@@ -39,6 +41,8 @@ export interface LocalClient {
   sessionConfig: SessionConfigApi;
   supplierConfig: SupplierConfigApi;
   workspace: WorkspaceApi;
+  session: SessionApi;
+  events: EventsApi;
 }
 
 /** 只允许本机网关，拒绝把账号密码发往任意远程地址。 */
@@ -104,6 +108,22 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
       security_token: options.security_token,
     }),
     workspace: new WorkspaceApi({
+      baseUrl,
+      prefix,
+      token: options.token,
+      locale,
+      fetch: options.fetch,
+      security_token: options.security_token,
+    }),
+    session: new SessionApi({
+      baseUrl,
+      prefix,
+      token: options.token,
+      locale,
+      fetch: options.fetch,
+      security_token: options.security_token,
+    }),
+    events: new EventsApi({
       baseUrl,
       prefix,
       token: options.token,

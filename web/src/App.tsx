@@ -7,7 +7,7 @@ import { AppRouter } from "./routers";
 import { clearNotice, notice } from "./storage/app_notice";
 import { authExpired, clearAuthExpired } from "./storage/auth_notice";
 
-/** 登录过期提示：3 秒后返回 HomeTabsView 重新登录。 */
+/** 登录过期提示：3 秒后返回工作区重新登录。 */
 function AuthExpiredPrompt() {
   createEffect(() => {
     if (!authExpired()) return;

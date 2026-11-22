@@ -13,7 +13,8 @@
     "@loong/client": "workspace:*",
     "@loong/ui": "workspace:*",
     "solid-js": "catalog:",
-    "@solidjs/router": "catalog:"
+    "@solidjs/router": "catalog:",
+    "eventsource-parser": "catalog:"
   },
   "devDependencies": {
     "@tailwindcss/vite": "catalog:",

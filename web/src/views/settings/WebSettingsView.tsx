@@ -20,17 +20,13 @@ import {
   type ProviderModelGroup,
 } from "@loong/ui/settings";
 
-import {
-  activeServerId,
-  servers,
-  setActiveServer,
-  updateServerStatus,
-} from "../../storage/server_config";
+import { serverConfig, updateServerStatus } from "../../storage/server_config";
+import { stopChatExecutor } from "../../chat/executor";
 import { showNotice } from "../../storage/app_notice";
 import { clearUser, currentUser } from "../../storage/user";
 
 /** 设置页：`/settings` 嵌套路由，管理中栏的服务器 / 供应商 / 模型 / 账号。 */
-export function WebSettingsPage() {
+export function WebSettingsView() {
   const navigate = useNavigate();
   const [supplierConfigs, setSupplierConfigs] = createSignal<SupplierConfig[]>([]);
   const [configuredSupplierConfigs, setConfiguredSupplierConfigs] = createSignal<SupplierConfig[]>([]);
@@ -53,10 +49,9 @@ export function WebSettingsPage() {
   };
 
   const currentServerOption = () => {
-    const list = servers();
-    const active = list.find((item) => item.id === activeServerId()) ?? list[0];
-    return active
-      ? { id: active.id, name: active.name, serverUrl: active.serverUrl, token: active.token }
+    const config = serverConfig();
+    return config
+      ? { id: "default", name: config.name, serverUrl: config.serverUrl, token: config.token }
       : undefined;
   };
 
@@ -69,6 +64,7 @@ export function WebSettingsPage() {
     } catch {
       // 忽略注销请求异常。
     } finally {
+      stopChatExecutor();
       clearUser();
       navigate("/");
     }
@@ -175,13 +171,8 @@ export function WebSettingsPage() {
     };
   };
 
-  const findServer = (server: ConfiguredServer) =>
-    server.id
-      ? servers().find((item) => item.id === server.id)
-      : servers().find((item) => item.serverUrl === server.serverUrl);
-
-  const testServer = async (server: ConfiguredServer) => {
-    const config = findServer(server);
+  const testServer = async (_server: ConfiguredServer) => {
+    const config = serverConfig();
     if (!config) return;
 
     try {
@@ -191,10 +182,10 @@ export function WebSettingsPage() {
         security_token: config.token,
       });
       await Effect.runPromise(client.health.security_token());
-      updateServerStatus(config.id, true);
+      updateServerStatus(true);
       showNotice("success", `${serverLabel(config)} 连接正常`);
     } catch {
-      updateServerStatus(config.id, false);
+      updateServerStatus(false);
       showNotice("error", `${serverLabel(config)} 连接失败`);
     }
   };
@@ -206,10 +197,6 @@ export function WebSettingsPage() {
         onBack={() => navigate("/")}
         server={{
           server: currentServerOption(),
-          onSelectServer: (serverUrl) => {
-            const target = servers().find((server) => server.serverUrl === serverUrl);
-            if (target) setActiveServer(target.id);
-          },
           onTestServer: testServer,
         }}
         onSectionChange={(key) => {

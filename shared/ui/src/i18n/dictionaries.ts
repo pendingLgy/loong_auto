@@ -65,6 +65,7 @@ export const enUS = {
   "chat.noModels": "No models configured",
   "chat.copyMessage": "Copy",
   "homeTabs.add": "New",
+  "homeTabs.close": "Close",
   "homeTabs.pin": "Pin to left",
   "homeTabs.unpin": "Unpin",
   "homeTabs.scrollLeft": "Scroll left",

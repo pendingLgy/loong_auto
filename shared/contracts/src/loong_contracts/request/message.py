@@ -17,7 +17,7 @@ class AddMessageRequest(BaseModel):
     user_id: BigIntId
     workspace_id: BigIntId
     session_id: str
-    session_title: str
-    llm: LLMParamRequest
-    tools: list[ToolDefinition]
+    session_title: str | None = None
+    llm: LLMParamRequest | None = None
+    tools: list[ToolDefinition] | None = None
     messages: list[Message]

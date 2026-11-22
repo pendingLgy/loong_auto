@@ -1,22 +1,22 @@
 import { Route, Router } from "@solidjs/router";
 
-import { HomeTabsView } from "../pages/home-tabs/HomeTabsView";
-import { WebServerConfigPage } from "../pages/server-config/WebServerConfigPage";
-import { WebSettingsPage } from "../pages/settings/WebSettingsPage";
+import { HomeView } from "../views/home/HomeView";
+import { WebServerConfigView } from "../views/server-config/WebServerConfigView";
+import { WebSettingsView } from "../views/settings/WebSettingsView";
 import { RequireServerConfig, SetupOnly } from "./guards";
 
 function SetupScreen() {
   return (
     <SetupOnly>
-      <WebServerConfigPage />
+      <WebServerConfigView />
     </SetupOnly>
   );
 }
 
-function HomeTabsViewScreen() {
+function HomeViewScreen() {
   return (
     <RequireServerConfig>
-      <HomeTabsView />
+      <HomeView />
     </RequireServerConfig>
   );
 }
@@ -24,7 +24,7 @@ function HomeTabsViewScreen() {
 function SettingsScreen() {
   return (
     <RequireServerConfig>
-      <WebSettingsPage />
+      <WebSettingsView />
     </RequireServerConfig>
   );
 }
@@ -34,7 +34,7 @@ export function AppRouter() {
   return (
     <Router>
       <Route path="/setup" component={SetupScreen} />
-      <Route path="/" component={HomeTabsViewScreen} />
+      <Route path="/" component={HomeViewScreen} />
       <Route path="/settings" component={SettingsScreen} />
     </Router>
   );

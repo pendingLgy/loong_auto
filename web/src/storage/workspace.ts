@@ -1,8 +1,8 @@
 import type { LayoutState } from "@loong/ui/layout";
 import type { SideNavKey, Workspace } from "@loong/ui/nav";
 
-/** 单个服务器的工作区界面状态。 */
-export interface ServerWorkspaceState {
+/** 单服务器的工作区界面状态。 */
+export interface WorkspaceState {
   layout: LayoutState;
   active: SideNavKey;
   workspaces: Workspace[];
@@ -11,7 +11,7 @@ export interface ServerWorkspaceState {
   selectedProvider: string;
 }
 
-const STORAGE_KEY_PREFIX = "loong.web.server-workspace";
+const STORAGE_KEY = "loong.web.workspace";
 
 const DEFAULT_LAYOUT: LayoutState = {
   leftWidth: 300,
@@ -20,7 +20,7 @@ const DEFAULT_LAYOUT: LayoutState = {
   rightCollapsed: true,
 };
 
-const DEFAULT_STATE: ServerWorkspaceState = {
+const DEFAULT_STATE: WorkspaceState = {
   layout: DEFAULT_LAYOUT,
   active: "newChat",
   workspaces: [],
@@ -28,10 +28,6 @@ const DEFAULT_STATE: ServerWorkspaceState = {
   selectedModel: "",
   selectedProvider: "",
 };
-
-function storageKey(serverId: string): string {
-  return `${STORAGE_KEY_PREFIX}:${serverId}`;
-}
 
 function normalizeLayout(value: unknown): LayoutState {
   const parsed = typeof value === "object" && value !== null
@@ -73,9 +69,9 @@ function normalizeWorkspaces(value: unknown): Workspace[] {
   });
 }
 
-function normalizeState(value: unknown): ServerWorkspaceState {
+function normalizeState(value: unknown): WorkspaceState {
   const parsed = typeof value === "object" && value !== null
-    ? value as Partial<ServerWorkspaceState>
+    ? value as Partial<WorkspaceState>
     : {};
 
   return {
@@ -90,22 +86,20 @@ function normalizeState(value: unknown): ServerWorkspaceState {
   };
 }
 
-/** 读取指定服务器的工作区界面状态。 */
-export function getServerWorkspaceState(serverId: string): ServerWorkspaceState {
-  if (!serverId) return normalizeState(DEFAULT_STATE);
+/** 读取工作区界面状态。 */
+export function getWorkspaceState(): WorkspaceState {
   try {
-    const raw = window.localStorage.getItem(storageKey(serverId));
+    const raw = window.localStorage.getItem(STORAGE_KEY);
     return raw ? normalizeState(JSON.parse(raw)) : normalizeState(DEFAULT_STATE);
   } catch {
     return normalizeState(DEFAULT_STATE);
   }
 }
 
-/** 保存指定服务器的工作区界面状态。 */
-export function saveServerWorkspaceState(serverId: string, state: ServerWorkspaceState): void {
-  if (!serverId) return;
+/** 保存工作区界面状态。 */
+export function saveWorkspaceState(state: WorkspaceState): void {
   try {
-    window.localStorage.setItem(storageKey(serverId), JSON.stringify(state));
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch {
     // 存储不可用时仅保留内存状态。
   }

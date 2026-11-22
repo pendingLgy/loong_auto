@@ -1,6 +1,6 @@
 import {type Component, createEffect, createSignal, For, onCleanup, onMount, Show} from "solid-js";
 
-import {BackIcon, LogoutIcon, MoonIcon, PinIcon, PlusIcon, ServerIcon, SunIcon} from "../icon";
+import {BackIcon, CloseIcon, LogoutIcon, MoonIcon, PinIcon, PlusIcon, ServerIcon, SunIcon} from "../icon";
 import {DEFAULT_LOCALE, type Locale, translate} from "../i18n";
 
 /** 顶部标签页数据。 */
@@ -32,6 +32,8 @@ export interface HomeTabsProps {
   onUnpin?: (key: string) => void;
   /** 点击服务器信息按钮。 */
   onServerInfo?: () => void;
+  /** 关闭某个标签。 */
+  onClose?: (key: string) => void;
   /** 点击「退出登录」。 */
   onLogout?: () => void;
   /** 当前是否深色主题，用于切换按钮图标。 */
@@ -89,7 +91,7 @@ export const HomeTabs: Component<HomeTabsProps> = (props) => {
 
   const tabItem = (tab: HomeTab) => (
     <div
-      class={`flex h-8 shrink-0 items-center rounded-md text-sm transition ${
+      class={`group flex h-8 shrink-0 items-center rounded-md text-sm transition ${
         props.active === tab.key
           ? "bg-blue-500/15 font-medium text-blue-700 dark:bg-blue-500/20 dark:text-blue-200"
           : "text-slate-500 hover:bg-slate-900/5 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-slate-200"
@@ -104,6 +106,17 @@ export const HomeTabs: Component<HomeTabsProps> = (props) => {
       >
         <span class="truncate">{tab.label}</span>
       </button>
+      <Show when={props.onClose}>
+        <button
+          type="button"
+          onClick={() => props.onClose?.(tab.key)}
+          aria-label={translate(locale(), "homeTabs.close", "关闭")}
+          title={translate(locale(), "homeTabs.close", "关闭")}
+          class={`mr-1 grid h-6 w-6 shrink-0 place-items-center rounded text-current outline-none transition hover:bg-slate-900/10 hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-sky-500/40 dark:hover:bg-white/10 ${props.active === tab.key ? "opacity-60" : "opacity-0 group-hover:opacity-60"}`}
+        >
+          <CloseIcon class="h-3 w-3" />
+        </button>
+      </Show>
       <Show when={props.active === tab.key || isPinned(tab.key)}>
         <button
           type="button"

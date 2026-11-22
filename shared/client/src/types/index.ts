@@ -4,4 +4,6 @@ export * from "./auth";
 export * from "./session-config";
 export * from "./supplier-config";
 export * from "./workspace";
+export * from "./session";
+export * from "./event";
 export * from "./errors";

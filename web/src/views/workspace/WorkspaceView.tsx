@@ -1,4 +1,4 @@
-import {For, createEffect, createSignal} from "solid-js";
+import {For, Show, createEffect, createSignal, onMount} from "solid-js";
 
 import {useNavigate} from "@solidjs/router";
 
@@ -7,29 +7,37 @@ import type {ManagedModel, ManagedProvider, ProviderOption} from "@loong/ui/mode
 import {type LayoutState, ThreePaneLayout} from "@loong/ui/layout";
 import {SideNav, type SideNavKey, type SideNavUserData, type Workspace} from "@loong/ui/nav";
 import {createApiClient} from "../../api";
+import {enqueueChatMessage, isChatStreaming, startChatExecutor} from "../../chat/executor";
 import {showNotice} from "../../storage/app_notice";
-import {activeServerId, serverConfig, servers} from "../../storage/server_config";
-import {getServerWorkspaceState, saveServerWorkspaceState} from "../../storage/server_workspace";
+import {chatMessages, useTypewriterMessages} from "../../storage/chat_messages";
+import {serverConfig} from "../../storage/server_config";
+import {getWorkspaceState, saveWorkspaceState} from "../../storage/workspace";
 import {currentUser} from "../../storage/user";
 import {WorkspaceViewContext} from "./workspace_context";
+import {workspaceTabKey, type WorkspaceChatTab} from "./types";
 
 import {Effect} from "effect";
 
-let nextId = 1;
-const createId = (prefix: string) => `${prefix}-${Date.now()}-${nextId++}`;
-
-export interface ServerWorkspaceViewProps {
-  /** 指定服务器 id；省略时使用当前激活服务器。 */
-  serverId?: string;
-  /** 组件高度，默认 100%。 */
-  height?: number | string;
+function createSessionId(): string {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  return `session-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-/** 服务器工作区：左中右布局，布局状态保存到 storage/settings.ts。 */
-export function ServerWorkspaceView(props: ServerWorkspaceViewProps) {
+export interface WorkspaceViewProps {
+  /** 组件高度，默认 100%。 */
+  height?: number | string;
+  /** HomeTabs 中的工作区 / 会话标签。 */
+  tabs?: WorkspaceChatTab[];
+  /** 当前激活标签 key。 */
+  activeTabKey?: string;
+  /** 打开工作区会话标签。 */
+  onOpenConversation?: (tab: WorkspaceChatTab) => void;
+}
+
+/** 服务器工作区：左中右布局，界面状态保存到 storage/workspace.ts。 */
+export function WorkspaceView(props: WorkspaceViewProps) {
   const navigate = useNavigate();
-  const serverId = () => props.serverId ?? activeServerId() ?? "";
-  const initial = getServerWorkspaceState(serverId());
+  const initial = getWorkspaceState();
   const [layout, setLayout] = createSignal<LayoutState>(initial.layout);
   const [active, setActive] = createSignal<SideNavKey>(initial.active);
   const [workspaces, setWorkspaces] = createSignal<Workspace[]>(initial.workspaces);
@@ -41,9 +49,11 @@ export function ServerWorkspaceView(props: ServerWorkspaceViewProps) {
   const [selectedProvider, setSelectedProvider] = createSignal(initial.selectedProvider);
   const [availableProviders, setAvailableProviders] = createSignal<ProviderOption[]>([]);
   const [managedProviders, setManagedProviders] = createSignal<ManagedProvider[]>([]);
+  const pendingSessions = new Set<string>();
+  const sessionCreations = new Map<string, Promise<void>>();
 
   createEffect(() => {
-    saveServerWorkspaceState(serverId(), {
+    saveWorkspaceState({
       layout: layout(),
       active: active(),
       workspaces: workspaces(),
@@ -53,25 +63,128 @@ export function ServerWorkspaceView(props: ServerWorkspaceViewProps) {
     });
   });
 
-  const currentServer = () =>
-    servers().find((server) => server.id === props.serverId) ?? serverConfig();
+  const currentServer = () => serverConfig();
 
-  const api = () => createApiClient({serverId: serverId()});
+  const api = () => createApiClient();
+
+  const chatSource = () => chatMessages(activeConversationId())();
+  const typedMessages = useTypewriterMessages(chatSource);
+
+  const activeConversation = () => {
+    const conversationId = activeConversationId();
+    for (const workspace of workspaces()) {
+      const conversation = workspace.conversations.find((item) => item.id === conversationId);
+      if (conversation) return {workspace, conversation};
+    }
+    return null;
+  };
+
+  const sendChat = async (content: string) => {
+    const target = activeConversation();
+    const user = currentUser();
+    const model = selectedModel().trim();
+    if (!target) {
+      showNotice("error", "请先选择或新建对话");
+      return;
+    }
+    if (!user) {
+      showNotice("error", "登录信息已失效");
+      return;
+    }
+    if (!model) {
+      showNotice("error", "请先选择模型");
+      return;
+    }
+
+    const sessionId = target.conversation.id;
+    let sessionTitle = target.conversation.title;
+
+    if (pendingSessions.has(sessionId)) {
+      sessionTitle = content.trim().slice(0, 5) || "新的对话";
+      let creation = sessionCreations.get(sessionId);
+      if (!creation) {
+        creation = Effect.runPromise(api().session.create({
+          sessionId,
+          sessionTitle,
+          workspaceId: target.workspace.id,
+        })).then(() => {
+          pendingSessions.delete(sessionId);
+          setWorkspaces((list) => list.map((workspace) =>
+            workspace.id === target.workspace.id
+              ? {
+                ...workspace,
+                conversations: workspace.conversations.map((conversation) =>
+                  conversation.id === sessionId
+                    ? {...conversation, title: sessionTitle}
+                    : conversation),
+              }
+              : workspace,
+          ));
+          openConversationTab(target.workspace.id, sessionId);
+        }).finally(() => {
+          sessionCreations.delete(sessionId);
+        });
+        sessionCreations.set(sessionId, creation);
+      }
+
+      try {
+        await creation;
+      } catch {
+        showNotice("error", "创建会话失败");
+        return;
+      }
+    }
+
+    enqueueChatMessage({
+      sessionId,
+      workspaceId: target.workspace.id,
+      tenantId: user.tenantId,
+      userId: user.id,
+      sessionTitle,
+      provider: selectedProvider().trim() || "openai",
+      model,
+      content,
+      sessionReady: true,
+    });
+  };
 
   const loadWorkspaces = async () => {
     try {
+      const client = api();
       const page = await Effect.runPromise(
-        api().workspace.list({page: 1, pageSize: 1000}),
+        client.workspace.list({page: 1, pageSize: 100}),
       );
-      const stored = getServerWorkspaceState(serverId());
-      const conversations = new Map(
+      const stored = getWorkspaceState();
+      const storedConversations = new Map(
         stored.workspaces.map((workspace) => [workspace.id, workspace.conversations]),
       );
-      const rows = page.rows.map((workspace) => ({
-        id: workspace.id,
-        name: workspace.name?.trim() || workspace.path[0] || "未命名工作区",
-        conversations: conversations.get(workspace.id) ?? [],
+
+      const rows = await Promise.all(page.rows.map(async (workspace) => {
+        const localConversations = storedConversations.get(workspace.id) ?? [];
+        let conversations = localConversations;
+
+        try {
+          const sessions = await Effect.runPromise(client.session.list({
+            workspaceId: workspace.id,
+            page: 1,
+            pageSize: 100,
+          }));
+          // 刷新后以云端会话为准，覆盖本地缓存。
+          conversations = sessions.rows.map((session) => ({
+            id: session.sessionId,
+            title: session.sessionTitle?.trim() || "新的对话",
+          }));
+        } catch {
+          // 查询失败时才保留本地缓存，避免网络异常导致对话全部消失。
+        }
+
+        return {
+          id: workspace.id,
+          name: workspace.name?.trim() || workspace.path[0] || "未命名工作区",
+          conversations,
+        };
       }));
+
       setWorkspaces(rows);
       if (!rows.some((workspace) => workspace.conversations.some(
         (conversation) => conversation.id === activeConversationId(),
@@ -83,10 +196,9 @@ export function ServerWorkspaceView(props: ServerWorkspaceViewProps) {
     }
   };
 
-  createEffect(() => {
-    if (serverId() === activeServerId()) {
-      void loadWorkspaces();
-    }
+  onMount(() => {
+    void loadWorkspaces();
+    startChatExecutor();
   });
 
   const loadModelGroups = async () => {
@@ -154,19 +266,53 @@ export function ServerWorkspaceView(props: ServerWorkspaceViewProps) {
     return info ? {name: info.name ?? info.username, username: info.username} : undefined;
   };
 
+  const openConversationTab = (workspaceId: string, conversationId: string) => {
+    const workspace = workspaces().find((item) => item.id === workspaceId);
+    const conversation = workspace?.conversations.find((item) => item.id === conversationId);
+    if (!workspace || !conversation || !props.onOpenConversation) return;
+    props.onOpenConversation({
+      key: workspaceTabKey(workspaceId, conversationId),
+      label: `${workspace.name} / ${conversation.title}`,
+      workspaceId,
+      workspaceName: workspace.name,
+      conversationId,
+      conversationTitle: conversation.title,
+    });
+  };
+
   const addConversation = (workspaceId: string) => {
-    const id = createId("conversation");
+    const id = createSessionId();
+    const title = "新的对话";
+    pendingSessions.add(id);
     setWorkspaces((list) =>
       list.map((workspace) =>
         workspace.id === workspaceId
-          ? {...workspace, conversations: [...workspace.conversations, {id, title: "新的对话"}]}
+          ? {...workspace, conversations: [...workspace.conversations, {id, title}]}
           : workspace,
       ),
     );
     setActiveConversationId(id);
     setActive("newChat");
+    openConversationTab(workspaceId, id);
     navigate("/");
   };
+
+  createEffect(() => {
+    const key = props.activeTabKey;
+    if (!key) {
+      setActiveConversationId("");
+      return;
+    }
+    const tab = props.tabs?.find((item) => item.key === key);
+    if (!tab) {
+      setActiveConversationId("");
+      return;
+    }
+    if (tab.conversationId !== activeConversationId()) {
+      setActiveConversationId(tab.conversationId);
+      setActive("newChat");
+    }
+  });
 
   type DirectoryPicker = () => Promise<{ name: string }>;
 
@@ -217,6 +363,9 @@ export function ServerWorkspaceView(props: ServerWorkspaceViewProps) {
 
   const renderChat = () => (
             <LlmChat
+            messages={typedMessages()}
+            streaming={isChatStreaming(activeConversationId())}
+            onSend={sendChat}
             modelGroups={modelGroups()}
             modelName={selectedModel()}
             providerAlias={selectedProvider()}
@@ -227,7 +376,7 @@ export function ServerWorkspaceView(props: ServerWorkspaceViewProps) {
             onToggleModel={toggleManagedModel}
             onSelectModel={(model, group) => {
               setSelectedModel(model);
-              setSelectedProvider(group.providerAlias ?? group.providerName);
+              setSelectedProvider(group.providerName);
             }}
     />
   );
@@ -253,8 +402,9 @@ export function ServerWorkspaceView(props: ServerWorkspaceViewProps) {
             }}
             workspaces={workspaces()}
             activeConversationId={activeConversationId()}
-            onSelectConversation={(_, conversationId) => {
+            onSelectConversation={(workspaceId, conversationId) => {
               setActiveConversationId(conversationId);
+              openConversationTab(workspaceId, conversationId);
               navigate("/");
             }}
             onSearch={() => undefined}
@@ -278,9 +428,11 @@ export function ServerWorkspaceView(props: ServerWorkspaceViewProps) {
           </div>
         }
       >
-        <For each={[activeConversationId()]}>
-          {() => renderChat()}
-        </For>
+        <Show when={activeConversationId()}>
+          <For each={[activeConversationId()]}>
+            {() => renderChat()}
+          </For>
+        </Show>
       </ThreePaneLayout>
     </WorkspaceViewContext.Provider>
   );

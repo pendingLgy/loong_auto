@@ -118,6 +118,8 @@ export const LlmChat: Component<LlmChatProps> = (props) => {
     if (measureFrame !== undefined) cancelAnimationFrame(measureFrame);
   });
 
+
+
   const syncContent = () => {
     if (!input) return;
     setHasContent((input.innerText || "").replace(/\u00a0/g, " ").trim().length > 0);
@@ -216,13 +218,14 @@ export const LlmChat: Component<LlmChatProps> = (props) => {
   return (
     <section
       aria-label={translate(locale(), "chat.label", "聊天")}
-      class={`relative mx-auto flex h-full min-h-0 w-full max-w-[var(--chat-max-width)] flex-col ${props.class ?? ""}`}
+      class={`relative flex h-full min-h-0 w-full flex-col ${props.class ?? ""}`}
       style={{ "--chat-max-width": `max(60%, ${props.minWidth ?? 320}px)` }}
     >
       <div
         ref={scroller}
-        class={`flex-1 overflow-y-auto p-4 ${messages().length > 0 ? "pb-44" : ""}`}
+        class={`w-full flex-1 overflow-y-auto p-4 ${messages().length > 0 ? "pb-44" : ""}`}
       >
+        <div class="mx-auto flex h-full w-full max-w-[var(--chat-max-width)] flex-col">
         <Show
           when={messages().length > 0}
           fallback={
@@ -264,13 +267,19 @@ export const LlmChat: Component<LlmChatProps> = (props) => {
             </div>
           </Show>
         </Show>
+
+        </div>
       </div>
 
-      <Show when={messages().length > 0}>
-        <footer class="pointer-events-none absolute inset-x-0 bottom-0 bg-linear-to-t from-white via-white/85 to-transparent p-3 dark:from-slate-950 dark:via-slate-950/85">
-          {composer()}
-        </footer>
-      </Show>
+      <footer
+        class={`pointer-events-none absolute inset-x-0 bottom-0 bg-linear-to-t from-white via-white/85 to-transparent p-3 dark:from-slate-950 dark:via-slate-950/85 ${messages().length > 0 ? "" : "hidden"}`}
+      >
+        <Show when={messages().length > 0}>
+          <div class="mx-auto w-full max-w-[var(--chat-max-width)]">
+            {composer()}
+          </div>
+        </Show>
+      </footer>
 
       <ModelPicker
         locale={locale()}
