@@ -109,6 +109,7 @@ export const HomeTabs: Component<HomeTabsProps> = (props) => {
 
   const tabItem = (tab: HomeTab) => (
     <div
+      data-tab-key={tab.key}
       class={`group flex h-8 shrink-0 items-center rounded-md text-sm transition ${
         props.active === tab.key
           ? "bg-blue-500/15 font-medium text-blue-700 dark:bg-blue-500/20 dark:text-blue-200"
@@ -155,6 +156,23 @@ export const HomeTabs: Component<HomeTabsProps> = (props) => {
     setCanScrollLeft(tablist.scrollLeft > 0);
     setCanScrollRight(tablist.scrollLeft + tablist.clientWidth < tablist.scrollWidth - 1);
   };
+
+  createEffect(() => {
+    const key = props.active;
+    if (!key || !tablist) return;
+
+    const tab = [...tablist.querySelectorAll<HTMLElement>("[data-tab-key]")]
+      .find((element) => element.dataset.tabKey === key);
+    if (!tab) return;
+
+    const tabRect = tab.getBoundingClientRect();
+    const listRect = tablist.getBoundingClientRect();
+    if (tabRect.left < listRect.left) {
+      tablist.scrollBy({left: tabRect.left - listRect.left - 8, behavior: "smooth"});
+    } else if (tabRect.right > listRect.right) {
+      tablist.scrollBy({left: tabRect.right - listRect.right + 8, behavior: "smooth"});
+    }
+  });
 
   const scrollTabs = (direction: -1 | 1) => {
     if (!tablist) return;
