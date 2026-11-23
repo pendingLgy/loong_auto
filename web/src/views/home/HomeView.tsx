@@ -1,4 +1,5 @@
 import { Show, createEffect, createSignal } from "solid-js";
+import { useNavigate, useParams } from "@solidjs/router";
 
 import { Effect } from "effect";
 
@@ -22,6 +23,8 @@ import { LoginView } from "./LoginView";
 
 /** 根页面：承载唯一服务器的工作区与登录弹窗。 */
 export function HomeView() {
+  const navigate = useNavigate();
+  const params = useParams();
   const [logoutOpen, setLogoutOpen] = createSignal(false);
   const [infoOpen, setInfoOpen] = createSignal(false);
   const [testing, setTesting] = createSignal(false);
@@ -30,7 +33,15 @@ export function HomeView() {
     : {tabs: [] as WorkspaceChatTab[], activeKey: "", pinnedKeys: [] as string[]};
   const [tabs, setTabs] = createSignal<WorkspaceChatTab[]>(initialTabs.tabs);
   const [activeTab, setActiveTab] = createSignal(initialTabs.activeKey);
+  const [newChatToken, setNewChatToken] = createSignal(0);
   const [pinnedKeys, setPinnedKeys] = createSignal<string[]>(initialTabs.pinnedKeys);
+
+  createEffect(() => {
+    const sessionId = params.sessionId;
+    if (!sessionId) return;
+    const tab = tabs().find((item) => item.conversationId === sessionId);
+    if (tab && activeTab() !== tab.key) setActiveTab(tab.key);
+  });
 
   createEffect(() => {
     if (!isLoggedIn()) {
@@ -74,14 +85,21 @@ export function HomeView() {
       if (previous) markChatSessionHistory(previous.conversationId);
     }
     setActiveTab(key);
+    const tab = tabs().find((item) => item.key === key);
+    if (tab) navigate(`/chat/${tab.conversationId}`);
   };
 
   const openTab = (tab: WorkspaceChatTab) => {
     setTabs((current) => {
       const exists = current.some((item) => item.key === tab.key);
-      return exists
-        ? current.map((item) => item.key === tab.key ? {...item, ...tab} : item)
-        : [...current, tab];
+      if (exists) {
+        return current.map((item) => item.key === tab.key ? {...item, ...tab} : item);
+      }
+      // 同一会话换工作区时替换旧标签，避免重复标签。
+      return [
+        ...current.filter((item) => item.conversationId !== tab.conversationId),
+        tab,
+      ];
     });
     activateTab(tab.key);
   };
@@ -102,7 +120,10 @@ export function HomeView() {
     setTabs(next);
     setPinnedKeys((keys) => keys.filter((item) => item !== key));
     if (activeTab() === key) {
-      setActiveTab(next[Math.min(index, next.length - 1)]?.key ?? "");
+      const nextKey = next[Math.min(index, next.length - 1)]?.key ?? "";
+      setActiveTab(nextKey);
+      const nextTab = next.find((tab) => tab.key === nextKey);
+      navigate(nextTab ? `/chat/${nextTab.conversationId}` : "/");
     }
   };
 
@@ -137,7 +158,7 @@ export function HomeView() {
         onClose={closeTab}
         pinnedKeys={pinnedKeys()}
         onPinnedChange={setPinnedKeys}
-        onAdd={() => undefined}
+        onAdd={() => setNewChatToken((current) => current + 1)}
         onServerInfo={() => setInfoOpen(true)}
         onLogout={() => setLogoutOpen(true)}
         dark={theme() === "dark"}
@@ -150,6 +171,7 @@ export function HomeView() {
             tabs={tabs()}
             activeTabKey={activeTab()}
             onOpenConversation={openTab}
+            newChatToken={newChatToken()}
           />
         </Show>
 

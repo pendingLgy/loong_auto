@@ -34,6 +34,7 @@ export function AppRouter() {
   return (
     <Router>
       <Route path="/setup" component={SetupScreen} />
+      <Route path="/chat/:sessionId" component={HomeViewScreen} />
       <Route path="/" component={HomeViewScreen} />
       <Route path="/settings" component={SettingsScreen} />
     </Router>

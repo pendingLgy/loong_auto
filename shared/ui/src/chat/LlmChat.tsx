@@ -3,7 +3,7 @@ import { For, Show, createEffect, createSignal, onCleanup, type Component, type 
 import { createVirtualizer } from "@tanstack/solid-virtual";
 
 import { DEFAULT_LOCALE, translate, type Locale } from "../i18n";
-import { PlusIcon, SendIcon, StopIcon } from "../icon";
+import { HomeIcon, PlusIcon, SendIcon, StopIcon } from "../icon";
 import { MessageRow } from "./MessageRow";
 import type { ChatMessage } from "./types";
 import {
@@ -28,7 +28,8 @@ export interface LlmChatProps {
   /** 禁用输入与发送。 */
   disabled?: boolean;
   /** 发送消息（纯文本，保留换行）。 */
-  onSend?: (content: string) => void;
+  /** 发送消息；返回 false 表示校验失败，输入内容保留。 */
+  onSend?: (content: string) => boolean | void | Promise<boolean | void>;
   /** 停止生成。 */
   onStop?: () => void;
   /** 当前使用的模型名称。 */
@@ -53,6 +54,10 @@ export interface LlmChatProps {
   onToggleModel?: (provider: ManagedProvider, model: ManagedModel, enabled: boolean) => Promise<void>;
   /** 点击输入区下方「+」按钮。 */
   onAdd?: () => void;
+  /** 当前会话所属工作区名称；为空表示未归属工作区。 */
+  workspaceName?: string;
+  /** 点击输入区下方工作区按钮。 */
+  onSelectWorkspace?: () => void;
   /** 消息列表滚动到顶部附近。 */
   onScrollTop?: () => void;
   /** 最小宽度（px），默认 320。 */
@@ -203,12 +208,17 @@ export const LlmChat: Component<LlmChatProps> = (props) => {
     setHasContent(false);
   };
 
-  const send = () => {
+  const send = async () => {
     if (!canSend() || !input) return;
     const content = input.innerText.replace(/\u00a0/g, " ").trim();
     if (!content) return;
 
-    props.onSend?.(content);
+    try {
+      const result = await props.onSend?.(content);
+      if (result === false) return;
+    } catch {
+      return;
+    }
     clearInput();
   };
 
@@ -246,6 +256,29 @@ export const LlmChat: Component<LlmChatProps> = (props) => {
         >
           <PlusIcon class="h-4 w-4" />
         </button>
+
+        <Show when={props.onSelectWorkspace}>
+          <button
+            type="button"
+            onClick={() => props.onSelectWorkspace?.()}
+            aria-label={props.workspaceName
+              ? translate(locale(), "chat.currentWorkspace", "当前工作区：{{ name }}", {
+                name: props.workspaceName,
+              })
+              : translate(locale(), "chat.selectWorkspace", "选择工作区")}
+            title={props.workspaceName
+              ? translate(locale(), "chat.currentWorkspace", "当前工作区：{{ name }}", {
+                name: props.workspaceName,
+              })
+              : translate(locale(), "chat.selectWorkspace", "选择工作区")}
+            class="flex h-8 max-w-40 shrink-0 items-center gap-1 rounded-lg border border-slate-200 px-2 text-[12px] text-slate-600 outline-none transition hover:bg-slate-900/5 hover:text-slate-800 focus-visible:ring-2 focus-visible:ring-sky-500/40 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-slate-100"
+          >
+            <HomeIcon class="h-3.5 w-3.5 shrink-0" />
+            <span class="truncate">
+              {props.workspaceName || translate(locale(), "chat.selectWorkspace", "选择工作区")}
+            </span>
+          </button>
+        </Show>
 
         <button
           type="button"

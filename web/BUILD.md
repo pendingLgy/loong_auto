@@ -90,6 +90,8 @@ web/
 - 新建对话使用 UUID 作为 session ID；首次发送时以消息前 5 个字符为标题创建云端 session。
 - 点击左侧工作区会话时，将其加入顶部 `HomeTabs`，标签为「工作区 / 会话」，并切换到对应 `LlmChat`；切换或关闭标签时，将离开的会话助手消息标记为历史。
 - 会话行 hover 显示编辑按钮，修改标题调用 `client.session.update` 并同步工作区、标签标题。
+- 新建工作区与选择工作区分别使用 `WorkspaceCreate`、`WorkspaceSelect` 弹窗；新建支持多个工作目录，提交调用 `client.workspace.create`。
+- 点击「新建对话」会创建未归属工作区的会话标签，工作区选择保持为空；选择工作区后才允许发送并关联会话。
 - 会话本地无消息缓存时，分页调用 `message.list` 拉取首页；滚动到顶部时继续加载更早消息并前插。
 - `src/chat/executor.ts` 按 `sessionId` 保存待发送队列，队列持久化到 `loong.web.chat-queue`。
 - 全局只维护一个 SSE 订阅；队列或执行中任务未清空时不关闭。

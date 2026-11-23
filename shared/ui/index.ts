@@ -4,6 +4,7 @@ export * from "./src/server-config";
 export * from "./src/layout";
 export * from "./src/chat";
 export * from "./src/home-tabs";
+export * from "./src/workspace-picker";
 export * from "./src/dialog";
 export * from "./src/message";
 export * from "./src/icon";

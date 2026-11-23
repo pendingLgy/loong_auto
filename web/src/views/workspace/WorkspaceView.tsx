@@ -6,6 +6,7 @@ import type {MessageRecord} from "@loong/client";
 
 import {LlmChat, type ChatModelGroup} from "@loong/ui/chat";
 import {Dialog} from "@loong/ui/dialog";
+import {WorkspaceCreate, WorkspaceSelect, type WorkspaceCreateInput} from "@loong/ui/workspace-picker";
 import type {ManagedModel, ManagedProvider, ProviderOption} from "@loong/ui/model-picker";
 import {type LayoutState, ThreePaneLayout} from "@loong/ui/layout";
 import {SideNav, type SideNavKey, type SideNavUserData, type Workspace} from "@loong/ui/nav";
@@ -71,6 +72,8 @@ export interface WorkspaceViewProps {
   activeTabKey?: string;
   /** 打开工作区会话标签。 */
   onOpenConversation?: (tab: WorkspaceChatTab) => void;
+  /** 变化时请求新建对话。 */
+  newChatToken?: number;
 }
 
 /** 服务器工作区：左中右布局，界面状态保存到 storage/workspace.ts。 */
@@ -97,6 +100,10 @@ export function WorkspaceView(props: WorkspaceViewProps) {
   } | null>(null);
   const [editTitle, setEditTitle] = createSignal("");
   const [editSaving, setEditSaving] = createSignal(false);
+  const [workspacePickerOpen, setWorkspacePickerOpen] = createSignal(false);
+  const [workspacePickerCreate, setWorkspacePickerCreate] = createSignal(false);
+  const [workspaceCreateFromSelect, setWorkspaceCreateFromSelect] = createSignal(false);
+  const [assignCreatedWorkspace, setAssignCreatedWorkspace] = createSignal(false);
   const sessionCreations = new Map<string, Promise<void>>();
 
   createEffect(() => {
@@ -195,27 +202,35 @@ export function WorkspaceView(props: WorkspaceViewProps) {
     if (sessionId) void loadConversationMessages(sessionId);
   });
 
-  const sendChat = async (content: string) => {
+  const sendChat = async (content: string): Promise<boolean> => {
+    if (!content.trim()) return false;
+
     const target = activeConversation();
     const user = currentUser();
     const model = selectedModel().trim();
     if (!target) {
-      showNotice("error", "请先选择或新建对话");
-      return;
+      if (activeConversationId()) {
+        showNotice("error", "请先选择工作区");
+      } else {
+        showNotice("error", "请先选择或新建对话");
+      }
+      return false;
     }
     if (!user) {
       showNotice("error", "登录信息已失效");
-      return;
+      return false;
     }
     if (!model) {
       showNotice("error", "请先选择模型");
-      return;
+      return false;
     }
 
     const sessionId = target.conversation.id;
     let sessionTitle = target.conversation.title;
+    const isNewSession = pendingSessions.has(sessionId);
 
-    if (pendingSessions.has(sessionId)) {
+    // 新会话在参数校验通过后、提交消息前创建，并同时绑定工作区。
+    if (isNewSession) {
       sessionTitle = content.trim().slice(0, 10) || "新的对话";
       let creation = sessionCreations.get(sessionId);
       if (!creation) {
@@ -247,7 +262,7 @@ export function WorkspaceView(props: WorkspaceViewProps) {
         await creation;
       } catch {
         showNotice("error", "创建会话失败");
-        return;
+        return false;
       }
     }
 
@@ -262,6 +277,7 @@ export function WorkspaceView(props: WorkspaceViewProps) {
       content,
       sessionReady: true,
     });
+    return true;
   };
 
   const loadWorkspaces = async () => {
@@ -382,6 +398,79 @@ export function WorkspaceView(props: WorkspaceViewProps) {
     return info ? {name: info.name ?? info.username, username: info.username} : undefined;
   };
 
+  const assignActiveConversationToWorkspace = async (workspaceId: string) => {
+    const sessionId = activeConversationId();
+    if (!sessionId) return;
+
+    const target = workspaces().find((workspace) => workspace.id === workspaceId);
+    if (!target) return;
+    const existing = activeConversation();
+    if (existing?.workspace.id === workspaceId) {
+      setWorkspacePickerOpen(false);
+      return;
+    }
+
+    const tabLabel = props.tabs?.find((tab) => tab.conversationId === sessionId)?.label;
+    const title = existing?.conversation.title
+      ?? tabLabel?.split(" / ").pop()
+      ?? "新对话";
+
+    setWorkspaces((list) => list.map((workspace) => {
+      const conversations = workspace.conversations.filter(
+        (conversation) => conversation.id !== sessionId,
+      );
+      return workspace.id === workspaceId
+        ? {...workspace, conversations: [...conversations, {id: sessionId, title}]}
+        : {...workspace, conversations};
+    }));
+    openConversationTab(workspaceId, sessionId);
+    setWorkspacePickerOpen(false);
+  };
+
+  const pickWorkspaceDirectory = async (): Promise<string | null> => {
+    const picker = (window as Window & {
+      showDirectoryPicker?: () => Promise<{name: string}>;
+    }).showDirectoryPicker;
+    if (!picker) {
+      throw new Error("当前环境不支持文件夹选择，请手动输入目录路径");
+    }
+    const directory = await picker();
+    return directory.name;
+  };
+
+  const openWorkspaceCreate = (assignActive: boolean) => {
+    setAssignCreatedWorkspace(assignActive);
+    setWorkspaceCreateFromSelect(false);
+    setWorkspacePickerCreate(true);
+    setWorkspacePickerOpen(true);
+  };
+
+  const openWorkspaceSelect = () => {
+    setWorkspacePickerCreate(false);
+    setWorkspacePickerOpen(true);
+  };
+
+  const closeWorkspacePicker = () => {
+    setWorkspacePickerOpen(false);
+    setWorkspacePickerCreate(false);
+    setWorkspaceCreateFromSelect(false);
+  };
+
+  const createWorkspaceFromPicker = async (input: WorkspaceCreateInput) => {
+    const workspace = await Effect.runPromise(api().workspace.create({
+      name: input.name,
+      path: input.path,
+    }));
+    setWorkspaces((list) => [
+      ...list,
+      {id: workspace.id, name: workspace.name ?? input.name, conversations: []},
+    ]);
+    closeWorkspacePicker();
+    if (assignCreatedWorkspace()) {
+      await assignActiveConversationToWorkspace(workspace.id);
+    }
+  };
+
   const openEditConversation = (
     workspaceId: string,
     conversation: {id: string; title: string},
@@ -442,7 +531,13 @@ export function WorkspaceView(props: WorkspaceViewProps) {
     });
   };
 
+  const resetModelSelection = () => {
+    setSelectedModel("");
+    setSelectedProvider("");
+  };
+
   const addConversation = (workspaceId: string) => {
+    resetModelSelection();
     const id = createSessionId();
     const title = "新的对话";
     pendingSessions.add(id);
@@ -456,7 +551,7 @@ export function WorkspaceView(props: WorkspaceViewProps) {
     setActiveConversationId(id);
     setActive("newChat");
     openConversationTab(workspaceId, id);
-    navigate("/");
+    navigate(`/chat/${id}`);
   };
 
   createEffect(() => {
@@ -476,48 +571,31 @@ export function WorkspaceView(props: WorkspaceViewProps) {
     }
   });
 
-  type DirectoryPicker = () => Promise<{ name: string }>;
-
-  const createWorkspace = async (name = "新的工作区", path: string[] = [name]) => {
-    try {
-      const workspace = await Effect.runPromise(
-        api().workspace.create({name, path}),
-      );
-      setWorkspaces((list) => [
-        ...list,
-        {id: workspace.id, name: workspace.name ?? name, conversations: []},
-      ]);
-    } catch {
-      showNotice("error", "创建工作区失败");
-    }
-  };
-
-  const openFolderPicker = async () => {
-    const picker = (window as Window & { showDirectoryPicker?: DirectoryPicker })
-      .showDirectoryPicker;
-    if (!picker) {
-      showNotice("error", "当前环境不支持文件夹选择");
-      return;
-    }
-
-    try {
-      const directory = await picker();
-      const name = directory.name.trim() || "新的工作区";
-      await createWorkspace(name, [name]);
-    } catch (cause) {
-      if (cause instanceof DOMException && cause.name === "AbortError") return;
-      showNotice("error", "选择文件夹失败");
-    }
-  };
-
   const newChat = () => {
-    const first = workspaces()[0];
-    if (first) {
-      addConversation(first.id);
-    } else {
-      void openFolderPicker();
-    }
+    resetModelSelection();
+    const id = createSessionId();
+    const title = "新的对话";
+    pendingSessions.add(id);
+    setActiveConversationId(id);
+    setActive("newChat");
+    props.onOpenConversation?.({
+      key: workspaceTabKey("unassigned", id),
+      label: title,
+      workspaceId: "unassigned",
+      workspaceName: "",
+      conversationId: id,
+      conversationTitle: title,
+    });
+    navigate(`/chat/${id}`);
   };
+
+  let lastNewChatToken = props.newChatToken;
+  createEffect(() => {
+    const token = props.newChatToken;
+    if (token === undefined || token === lastNewChatToken) return;
+    lastNewChatToken = token;
+    newChat();
+  });
 
   const onLayoutChange = (next: LayoutState) => {
     setLayout(next);
@@ -533,6 +611,8 @@ export function WorkspaceView(props: WorkspaceViewProps) {
             providerAlias={selectedProvider()}
             onOpenModels={() => void loadModelGroups()}
             onScrollTop={() => void loadOlderMessages()}
+            workspaceName={activeConversation()?.workspace.name ?? ""}
+            onSelectWorkspace={openWorkspaceSelect}
             providers={availableProviders()}
             managedProviders={managedProviders()}
             onConnectProvider={connectProvider}
@@ -568,10 +648,10 @@ export function WorkspaceView(props: WorkspaceViewProps) {
             onSelectConversation={(workspaceId, conversationId) => {
               setActiveConversationId(conversationId);
               openConversationTab(workspaceId, conversationId);
-              navigate("/");
+              navigate(`/chat/${conversationId}`);
             }}
             onSearch={() => undefined}
-            onCreateWorkspace={() => void openFolderPicker()}
+            onCreateWorkspace={() => openWorkspaceCreate(false)}
             onMoreWorkspace={() => undefined}
             onCreateConversation={addConversation}
             onEditConversation={openEditConversation}
@@ -599,6 +679,31 @@ export function WorkspaceView(props: WorkspaceViewProps) {
           </For>
         </Show>
       </ThreePaneLayout>
+
+      <WorkspaceSelect
+        open={workspacePickerOpen() && !workspacePickerCreate()}
+        workspaces={workspaces().map((workspace) => ({
+          id: workspace.id,
+          name: workspace.name,
+        }))}
+        activeWorkspaceId={activeConversation()?.workspace.id}
+        onSelect={(workspaceId) => void assignActiveConversationToWorkspace(workspaceId)}
+        onCreate={() => {
+          setWorkspaceCreateFromSelect(true);
+          setWorkspacePickerCreate(true);
+        }}
+        onClose={closeWorkspacePicker}
+      />
+
+      <WorkspaceCreate
+        open={workspacePickerOpen() && workspacePickerCreate()}
+        onSubmit={createWorkspaceFromPicker}
+        onPickDirectory={pickWorkspaceDirectory}
+        onBack={workspaceCreateFromSelect()
+          ? () => setWorkspacePickerCreate(false)
+          : undefined}
+        onClose={closeWorkspacePicker}
+      />
 
       <Dialog
         open={editConversation() !== null}

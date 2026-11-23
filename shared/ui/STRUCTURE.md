@@ -26,6 +26,10 @@ shared/ui/
 │   ├── home-tabs/
 │   │   ├── HomeTabs.tsx          # 首页顶部标签导航
 │   │   └── index.ts
+│   ├── workspace-picker/
+│   │   ├── WorkspaceSelect.tsx   # 选择已有工作区
+│   │   ├── WorkspaceCreate.tsx   # 新建工作区（多目录）
+│   │   └── index.ts
 │   ├── dialog/
 │   │   ├── Dialog.tsx            # 通用对话框
 │   │   └── index.ts

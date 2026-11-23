@@ -10,6 +10,7 @@ import { modelPickerCases } from "./model-picker";
 import { navCases } from "./nav";
 import { serverConfigCases } from "./server-config";
 import { settingsCases } from "./settings";
+import { workspacePickerCases } from "./workspace-picker";
 
 /**
  * 预览用例总表：新增组件时创建 `cases/<component>.tsx`，导出用例数组，
@@ -26,5 +27,6 @@ export const cases: PreviewCase[] = [
   ...modelPickerCases,
   ...messageCases,
   ...homeTabsCases,
+  ...workspacePickerCases,
   ...iconCases,
 ];

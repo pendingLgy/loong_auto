@@ -24,9 +24,10 @@
 路由顺序为：**先服务器配置，配置完成后进入 HomeView**。登录不通过路由守卫跳转，而由 HomeView 弹窗强制完成。
 
 ```text
-/setup     未配置时展示；已配置 → /
-/          未配置 → /setup；否则 HomeView
-/settings  未配置 → /setup；否则 WebSettingsView
+/setup             未配置时展示；已配置 → /
+/                  未配置 → /setup；否则 HomeView
+/chat/:sessionId   未配置 → /setup；否则 HomeView 并激活对应会话
+/settings          未配置 → /setup；否则 WebSettingsView
 ```
 
 - 守卫使用 `RequireServerConfig`、`SetupOnly`；`RequireAuth`、`GuestOnly` 不再参与路由。

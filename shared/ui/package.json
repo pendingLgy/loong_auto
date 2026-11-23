@@ -17,7 +17,8 @@
     "./icon": "./src/icon/index.ts",
     "./message": "./src/message/index.ts",
     "./dialog": "./src/dialog/index.ts",
-    "./home-tabs": "./src/home-tabs/index.ts"
+    "./home-tabs": "./src/home-tabs/index.ts",
+    "./workspace-picker": "./src/workspace-picker/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

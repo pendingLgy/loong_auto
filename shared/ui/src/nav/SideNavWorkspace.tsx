@@ -1,4 +1,4 @@
-import { For, Show, createSignal, onMount, type Component, type JSX } from "solid-js";
+import { For, Show, createEffect, createSignal, onMount, type Component, type JSX } from "solid-js";
 
 import { ChevronIcon, EditIcon, MoreIcon, PlusIcon, SearchIcon, SpinnerIcon } from "../icon";
 import { DEFAULT_LOCALE, translate, type Locale } from "../i18n";
@@ -65,12 +65,66 @@ export interface SideNavWorkspaceProps {
 export const SideNavWorkspace: Component<SideNavWorkspaceProps> = (props) => {
   const locale = () => props.locale ?? DEFAULT_LOCALE;
 
-  const [collapsedWorkspaces, setCollapsedWorkspaces] = createSignal<ReadonlySet<string>>(new Set());
+  const [collapsedWorkspaces, setCollapsedWorkspaces] = createSignal<ReadonlySet<string>>(
+    new Set((props.workspaces ?? []).map((workspace) => workspace.id)),
+  );
+  const knownWorkspaces = new Set<string>();
+  let collapsedInitialized = false;
+
+  // 仅在首次载入时默认折叠，并展开当前会话所属工作区。
+  createEffect(() => {
+    const list = props.workspaces ?? [];
+    if (list.length === 0) return;
+
+    const activeWorkspaceId = list.find((workspace) =>
+      workspace.conversations.some(
+        (conversation) => conversation.id === props.activeConversationId,
+      ))?.id;
+
+    if (!collapsedInitialized) {
+      collapsedInitialized = true;
+      setCollapsedWorkspaces(new Set(
+        list
+          .filter((workspace) => workspace.id !== activeWorkspaceId)
+          .map((workspace) => workspace.id),
+      ));
+      list.forEach((workspace) => knownWorkspaces.add(workspace.id));
+      return;
+    }
+
+    // 后续仅保证新增工作区默认折叠，不覆盖用户手动展开/折叠。
+    setCollapsedWorkspaces((current) => {
+      const next = new Set(current);
+      for (const workspace of list) {
+        if (!knownWorkspaces.has(workspace.id)) {
+          knownWorkspaces.add(workspace.id);
+          next.add(workspace.id);
+        }
+      }
+      return next;
+    });
+  });
 
   onMount(() => {
     props.onReady?.({
       refreshWorkspaces: () => props.onRefreshWorkspaces?.(),
       refreshConversations: (workspaceId) => props.onRefreshConversations?.(workspaceId),
+    });
+  });
+
+  // 点击标签或切换会话时，确保对应工作区展开。
+  createEffect(() => {
+    const activeWorkspaceId = (props.workspaces ?? []).find((workspace) =>
+      workspace.conversations.some(
+        (conversation) => conversation.id === props.activeConversationId,
+      ))?.id;
+    if (!activeWorkspaceId) return;
+
+    setCollapsedWorkspaces((current) => {
+      if (!current.has(activeWorkspaceId)) return current;
+      const next = new Set(current);
+      next.delete(activeWorkspaceId);
+      return next;
     });
   });
 
