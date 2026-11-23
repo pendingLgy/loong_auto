@@ -35,7 +35,7 @@ function createSessionId(): string {
   return `session-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-const MESSAGE_PAGE_SIZE = 20;
+const MESSAGE_PAGE_SIZE = 5;
 
 function toStoredMessage(
   record: MessageRecord,
@@ -216,7 +216,7 @@ export function WorkspaceView(props: WorkspaceViewProps) {
     let sessionTitle = target.conversation.title;
 
     if (pendingSessions.has(sessionId)) {
-      sessionTitle = content.trim().slice(0, 5) || "新的对话";
+      sessionTitle = content.trim().slice(0, 10) || "新的对话";
       let creation = sessionCreations.get(sessionId);
       if (!creation) {
         creation = Effect.runPromise(api().session.create({

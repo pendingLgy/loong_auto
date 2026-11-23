@@ -159,6 +159,21 @@ class SessionStore:
 
         return self._to_response(row) if row else None
 
+    async def get_by_session_id(self, tenant_id: int, user_id: int,
+                  session_id: str) -> SessionSimpleResponse | None:
+        """查看会话详情，不查询 context_summary 字段。"""
+        async with self.db.session() as session:
+            row = (await session.execute(
+                self._simple_select().where(
+                    self.table.c.tenant_id == tenant_id,
+                    self.table.c.user_id == user_id,
+                    self.table.c.session_id == session_id,
+                    self.table.c.is_deleted == 0,
+                )
+            )).mappings().first()
+
+        return self._to_response(row) if row else None
+
     async def detail(self, tenant_id: int, user_id: int,
                      session_id: str) -> SessionSimpleResponse | None:
         """查看会话详情（get 的语义化别名）。"""

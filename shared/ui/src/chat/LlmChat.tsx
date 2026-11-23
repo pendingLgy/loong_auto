@@ -74,6 +74,7 @@ export const LlmChat: Component<LlmChatProps> = (props) => {
 
   const locale = () => props.locale ?? DEFAULT_LOCALE;
   const messages = () => props.messages ?? [];
+  const [stickToBottom, setStickToBottom] = createSignal(true);
   const canSend = () => hasContent() && !props.disabled && !props.streaming;
 
   const virtualizer = createVirtualizer({
@@ -98,6 +99,7 @@ export const LlmChat: Component<LlmChatProps> = (props) => {
   let bottomFrame: number | undefined;
 
   const scrollToBottom = () => {
+    setStickToBottom(true);
     if (bottomFrame !== undefined) cancelAnimationFrame(bottomFrame);
     const apply = () => {
       if (scroller) scroller.scrollTop = scroller.scrollHeight;
@@ -124,7 +126,11 @@ export const LlmChat: Component<LlmChatProps> = (props) => {
     previousFirstId = firstId;
     props.streaming;
 
-    if (count === 0 || prepended) return;
+    if (prepended) {
+      setStickToBottom(false);
+      return;
+    }
+    if (count === 0) return;
     virtualizer.scrollToIndex(count - 1, { align: "end" });
     scrollToBottom();
   });
@@ -142,6 +148,7 @@ export const LlmChat: Component<LlmChatProps> = (props) => {
       measureFrame = undefined;
       pendingRows.forEach((node) => virtualizer.measureElement(node));
       pendingRows.clear();
+      if (stickToBottom()) scrollToBottom();
     });
   };
 
@@ -289,9 +296,13 @@ export const LlmChat: Component<LlmChatProps> = (props) => {
     >
       <div
         ref={scroller}
-        class="w-full flex-1 overflow-y-auto p-4"
+        class={`w-full flex-1 overflow-y-auto p-4 ${messages().length > 0 ? "pb-44" : ""}`}
         onScroll={(event) => {
-          if (event.currentTarget.scrollTop <= 32) {
+          const element = event.currentTarget;
+          setStickToBottom(
+            element.scrollHeight - element.scrollTop - element.clientHeight <= 18,
+          );
+          if (element.scrollTop <= 32) {
             props.onScrollTop?.();
           }
         }}
@@ -338,7 +349,7 @@ export const LlmChat: Component<LlmChatProps> = (props) => {
             </div>
           </Show>
 
-            <div class="h-36 shrink-0" aria-hidden="true" />
+            {/*<div class="h-36 shrink-0" aria-hidden="true" />*/}
 
         </Show>
 

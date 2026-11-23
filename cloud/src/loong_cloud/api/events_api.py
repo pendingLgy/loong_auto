@@ -13,6 +13,7 @@ from loguru import logger
 from starlette.types import Message as ASGIMessage
 from starlette.types import Receive, Scope, Send
 
+from core.exceptions import StorageError
 from loong_cloud.agent import AgentLoop, ModelExecutor
 from loong_cloud.agent.supply.supplier import ModelSupplier
 from loong_cloud.agent.tools import DEFAULT_LOCAL_TOOLS
@@ -26,6 +27,7 @@ from loong_contracts.response.login import UserInfoResponse
 from loong_contracts.utils import Response
 from loong_contracts.utils.datetime_util import utcnow
 from loong_contracts.utils.uuid_util import uuid_str
+from storage.session_store import SessionStore
 
 router = APIRouter(prefix="/events", tags=["对话事件"])
 HEARTBEAT_INTERVAL_SECONDS = 15
@@ -191,7 +193,7 @@ async def _run_dialogue(
             last_message_event=GlobalMessageStatus.RUNNING,
             client_id=client_id,
             session_id=session_id,
-            error=True,
+            error=False,
             messages=[error_msg],
         ).to_sse())
 
@@ -225,7 +227,9 @@ async def _run_dialogue(
 @router.get("/chat/{client_id}/sse")
 @inject
 async def chat_sse(request: Request, client_id: str,
-                   message_store: MessageStore = Depends(Provide["MessageStore"])) -> StreamingResponse:
+                   message_store: MessageStore = Depends(Provide["MessageStore"]),
+                   session_store: SessionStore = Depends(Provide["SessionStore"]),
+                   ) -> StreamingResponse:
     """先建立订阅；对话完成后保持连接，空闲时每 15 秒发送心跳。"""
     sessions = _sessions(request)
     key = _session_key(request, client_id)
@@ -259,17 +263,28 @@ async def chat_sse(request: Request, client_id: str,
         if final_message.role != GlobalMessageRole.ASSISTANT:
             return
         # 模型响应 ID 通常是字符串，存储契约要求数值消息 ID；原始响应保留在 raw。
-        saved = AddMessageRequest(
-            tenant_id=request.state.identity.tenant_id,
-            user_id=request.state.identity.id,
-            session_id=event.session_id,
-            session_title=context.session_title,
-            llm=LLMParamRequest(provider=context.provider, model=context.model),
-            tools=[],
-            messages=[final_message],
-        )
-
         try:
+
+            exist_session = await session_store.get_by_session_id(
+                tenant_id=request.state.identity.tenant_id,
+                user_id=request.state.identity.id,
+                session_id=event.session_id
+            )
+
+            if exist_session is None:
+                raise StorageError("workspace not exist")
+
+            saved = AddMessageRequest(
+                tenant_id=request.state.identity.tenant_id,
+                user_id=request.state.identity.id,
+                workspace_id=exist_session.workspace_id,
+                session_id=event.session_id,
+                session_title=context.session_title,
+                llm=LLMParamRequest(provider=context.provider, model=context.model),
+                tools=[],
+                messages=[final_message],
+            )
+
             await message_store.add_message(saved)
         except Exception:
             logger.exception("保存 SSE 结束消息失败，session_id={}", event.session_id)
