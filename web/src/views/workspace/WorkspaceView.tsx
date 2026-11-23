@@ -6,6 +6,7 @@ import type {MessageRecord} from "@loong/client";
 
 import {LlmChat, type ChatModelGroup} from "@loong/ui/chat";
 import {Dialog} from "@loong/ui/dialog";
+import {EditIcon, PlusIcon, TrashIcon} from "@loong/ui/icon";
 import {WorkspaceCreate, WorkspaceSelect, type WorkspaceCreateInput} from "@loong/ui/workspace-picker";
 import type {ManagedModel, ManagedProvider, ProviderOption} from "@loong/ui/model-picker";
 import {type LayoutState, ThreePaneLayout} from "@loong/ui/layout";
@@ -110,6 +111,11 @@ export function WorkspaceView(props: WorkspaceViewProps) {
   } | null>(null);
   const [editTitle, setEditTitle] = createSignal("");
   const [editSaving, setEditSaving] = createSignal(false);
+  const [workspaceMenu, setWorkspaceMenu] = createSignal<Workspace | null>(null);
+  const [workspaceMenuMode, setWorkspaceMenuMode] = createSignal<"edit" | "remove">("edit");
+  const [workspaceName, setWorkspaceName] = createSignal("");
+  const [workspacePaths, setWorkspacePaths] = createSignal<string[]>([]);
+  const [workspaceSaving, setWorkspaceSaving] = createSignal(false);
   const [workspacePickerOpen, setWorkspacePickerOpen] = createSignal(false);
   const [workspacePickerCreate, setWorkspacePickerCreate] = createSignal(false);
   const [workspaceCreateFromSelect, setWorkspaceCreateFromSelect] = createSignal(false);
@@ -364,6 +370,7 @@ export function WorkspaceView(props: WorkspaceViewProps) {
         return {
           id: workspace.id,
           name: workspace.name?.trim() || workspace.path[0] || "未命名工作区",
+          path: workspace.path,
           conversations,
         };
       }));
@@ -515,11 +522,87 @@ export function WorkspaceView(props: WorkspaceViewProps) {
     }));
     setWorkspaces((list) => [
       ...list,
-      {id: workspace.id, name: workspace.name ?? input.name, conversations: []},
+      {id: workspace.id, name: workspace.name ?? input.name, path: input.path, conversations: []},
     ]);
     closeWorkspacePicker();
     if (assignCreatedWorkspace()) {
       await assignActiveConversationToWorkspace(workspace.id);
+    }
+  };
+
+  const openWorkspaceEdit = (workspaceId: string) => {
+    const workspace = workspaces().find((item) => item.id === workspaceId);
+    if (!workspace) return;
+    setWorkspaceMenu(workspace);
+    setWorkspaceMenuMode("edit");
+    setWorkspaceName(workspace.name);
+    setWorkspacePaths(workspace.path ?? []);
+  };
+
+  const openWorkspaceRemove = (workspaceId: string) => {
+    const workspace = workspaces().find((item) => item.id === workspaceId);
+    if (!workspace) return;
+    setWorkspaceMenu(workspace);
+    setWorkspaceMenuMode("remove");
+  };
+
+  const closeWorkspaceMenu = () => {
+    if (workspaceSaving()) return;
+    setWorkspaceMenu(null);
+  };
+
+  const addWorkspacePath = async () => {
+    try {
+      const path = await pickWorkspaceDirectory();
+      if (!path) return;
+      setWorkspacePaths((current) =>
+        current.includes(path) ? current : [...current, path]);
+    } catch {
+      showNotice("error", "选择工作目录失败");
+    }
+  };
+
+  const saveWorkspaceName = async () => {
+    const target = workspaceMenu();
+    const name = workspaceName().trim();
+    if (!target || !name || workspaceSaving()) return;
+
+    setWorkspaceSaving(true);
+    try {
+      const paths = workspacePaths();
+      await Effect.runPromise(api().workspace.update(target.id, {
+        name,
+        path: paths,
+      }));
+      setWorkspaces((list) => list.map((workspace) =>
+        workspace.id === target.id ? {...workspace, name, path: paths} : workspace));
+      setWorkspaceMenu(null);
+    } catch {
+      showNotice("error", "修改工作区失败");
+    } finally {
+      setWorkspaceSaving(false);
+    }
+  };
+
+  const removeWorkspace = async () => {
+    const target = workspaceMenu();
+    if (!target || workspaceSaving()) return;
+
+    setWorkspaceSaving(true);
+    try {
+      await Effect.runPromise(api().workspace.delete(target.id));
+      setWorkspaces((list) => list.filter((workspace) => workspace.id !== target.id));
+      if (target.conversations.some(
+        (conversation) => conversation.id === activeConversationId(),
+      )) {
+        setActiveConversationId("");
+        navigate("/");
+      }
+      setWorkspaceMenu(null);
+    } catch {
+      showNotice("error", "移除工作区失败");
+    } finally {
+      setWorkspaceSaving(false);
     }
   };
 
@@ -708,7 +791,8 @@ export function WorkspaceView(props: WorkspaceViewProps) {
             }}
             onSearch={() => undefined}
             onCreateWorkspace={() => openWorkspaceCreate(false)}
-            onMoreWorkspace={() => undefined}
+            onEditWorkspace={openWorkspaceEdit}
+            onRemoveWorkspace={openWorkspaceRemove}
             onCreateConversation={addConversation}
             onEditConversation={openEditConversation}
             isConversationProcessing={(_, conversationId) => isChatStreaming(conversationId)}
@@ -760,6 +844,120 @@ export function WorkspaceView(props: WorkspaceViewProps) {
           : undefined}
         onClose={closeWorkspacePicker}
       />
+
+      <Dialog
+        open={workspaceMenu() !== null}
+        onClose={closeWorkspaceMenu}
+        size="sm"
+        header={
+          <h2 class="m-0 text-base font-semibold text-slate-800 dark:text-slate-100">
+            {workspaceMenuMode() === "edit" ? "编辑工作区" : "移除工作区"}
+          </h2>
+        }
+      >
+        <Show when={workspaceMenuMode() === "edit"}>
+          <div class="grid gap-2">
+            <label class="grid gap-2">
+              <span class="text-[13px] text-slate-600 dark:text-slate-300">工作区名称</span>
+              <input
+                value={workspaceName()}
+                onInput={(event) => setWorkspaceName(event.currentTarget.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") void saveWorkspaceName();
+                }}
+                maxlength={256}
+                autofocus
+                class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-[15px] text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 disabled:opacity-60 dark:border-white/15 dark:bg-slate-950/60 dark:text-slate-100"
+              />
+            </label>
+            <div class="grid gap-2">
+              <span class="text-[13px] text-slate-600 dark:text-slate-300">工作区目录</span>
+              <Show
+                when={workspacePaths().length > 0}
+                fallback={
+                  <p class="m-0 rounded-lg border border-dashed border-slate-200 px-3 py-2 text-[13px] text-slate-400 dark:border-white/10 dark:text-slate-500">
+                    未配置工作目录
+                  </p>
+                }
+              >
+                <ul class="m-0 grid list-none gap-1 p-0">
+                  <For each={workspacePaths()}>
+                    {(item) => (
+                      <li class="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[13px] text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
+                        <span class="min-w-0 flex-1 truncate">{item}</span>
+                        <button
+                          type="button"
+                          onClick={() => setWorkspacePaths((current) =>
+                            current.filter((path) => path !== item))}
+                          disabled={workspaceSaving()}
+                          aria-label={`移除目录 ${item}`}
+                          title="移除目录"
+                          class="grid h-6 w-6 shrink-0 place-items-center rounded-md text-slate-400 outline-none transition hover:bg-red-50 hover:text-red-600 focus-visible:ring-2 focus-visible:ring-red-500/40 disabled:opacity-60 dark:hover:bg-red-500/10 dark:hover:text-red-400"
+                        >
+                          <TrashIcon class="h-3.5 w-3.5" />
+                        </button>
+                      </li>
+                    )}
+                  </For>
+                </ul>
+              </Show>
+              <button
+                type="button"
+                onClick={() => void addWorkspacePath()}
+                disabled={workspaceSaving()}
+                class="flex items-center justify-center gap-1 rounded-lg border border-dashed border-slate-300 px-3 py-2 text-[13px] text-slate-600 outline-none transition hover:border-sky-400 hover:bg-sky-50 focus-visible:ring-2 focus-visible:ring-sky-500/40 disabled:opacity-60 dark:border-white/15 dark:text-slate-300 dark:hover:border-sky-500 dark:hover:bg-sky-500/10"
+              >
+                <PlusIcon class="h-3.5 w-3.5" />
+                添加目录
+              </button>
+            </div>
+            <div class="mt-2 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeWorkspaceMenu}
+                disabled={workspaceSaving()}
+                class="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-900/5 disabled:opacity-60 dark:border-white/15 dark:text-slate-200 dark:hover:bg-white/5"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={() => void saveWorkspaceName()}
+                disabled={workspaceSaving() || !workspaceName().trim()}
+                class="rounded-xl bg-linear-to-b from-sky-500 to-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:from-sky-400 hover:to-blue-500 disabled:cursor-progress disabled:opacity-70"
+              >
+                {workspaceSaving() ? "保存中…" : "保存"}
+              </button>
+            </div>
+          </div>
+        </Show>
+
+        <Show when={workspaceMenuMode() === "remove"}>
+          <div class="grid gap-3">
+            <p class="m-0 text-sm text-slate-600 dark:text-slate-300">
+              确定移除工作区「{workspaceMenu()?.name}」？此操作不可撤销。
+            </p>
+            <div class="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeWorkspaceMenu}
+                disabled={workspaceSaving()}
+                class="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-900/5 disabled:opacity-60 dark:border-white/15 dark:text-slate-200 dark:hover:bg-white/5"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={() => void removeWorkspace()}
+                disabled={workspaceSaving()}
+                class="rounded-xl bg-red-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-red-500 disabled:cursor-progress disabled:opacity-70"
+              >
+                {workspaceSaving() ? "移除中…" : "移除"}
+              </button>
+            </div>
+          </div>
+        </Show>
+      </Dialog>
 
       <Dialog
         open={editConversation() !== null}

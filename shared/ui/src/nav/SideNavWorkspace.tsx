@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createSignal, onMount, type Component, type JSX } from "solid-js";
+import { For, Show, createEffect, createSignal, onCleanup, onMount, type Component, type JSX } from "solid-js";
 
 import { ChevronIcon, EditIcon, MoreIcon, PlusIcon, SearchIcon, SpinnerIcon } from "../icon";
 import { DEFAULT_LOCALE, translate, type Locale } from "../i18n";
@@ -13,6 +13,8 @@ export interface WorkspaceConversation {
 export interface Workspace {
   id: string;
   name: string;
+  /** 工作区目录列表。 */
+  path?: string[];
   conversations: WorkspaceConversation[];
 }
 
@@ -37,8 +39,10 @@ export interface SideNavWorkspaceProps {
   onSearch?: () => void;
   /** 点击新增工作区按钮。 */
   onCreateWorkspace?: () => void;
-  /** 点击工作区的「更多」按钮。 */
-  onMoreWorkspace?: (workspaceId: string) => void;
+  /** 点击工作区的「编辑」。 */
+  onEditWorkspace?: (workspaceId: string) => void;
+  /** 点击工作区的「移除」。 */
+  onRemoveWorkspace?: (workspaceId: string) => void;
   /** 点击工作区的「新建对话」按钮。 */
   onCreateConversation?: (workspaceId: string) => void;
   /** 点击会话的编辑按钮。 */
@@ -68,6 +72,7 @@ export const SideNavWorkspace: Component<SideNavWorkspaceProps> = (props) => {
   const [collapsedWorkspaces, setCollapsedWorkspaces] = createSignal<ReadonlySet<string>>(
     new Set((props.workspaces ?? []).map((workspace) => workspace.id)),
   );
+  const [menuWorkspaceId, setMenuWorkspaceId] = createSignal("");
   const knownWorkspaces = new Set<string>();
   let collapsedInitialized = false;
 
@@ -110,6 +115,13 @@ export const SideNavWorkspace: Component<SideNavWorkspaceProps> = (props) => {
       refreshWorkspaces: () => props.onRefreshWorkspaces?.(),
       refreshConversations: (workspaceId) => props.onRefreshConversations?.(workspaceId),
     });
+
+    const closeMenu = (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target?.closest("[data-workspace-menu]")) setMenuWorkspaceId("");
+    };
+    document.addEventListener("pointerdown", closeMenu);
+    onCleanup(() => document.removeEventListener("pointerdown", closeMenu));
   });
 
   // 点击标签或切换会话时，确保对应工作区展开。
@@ -180,7 +192,7 @@ export const SideNavWorkspace: Component<SideNavWorkspaceProps> = (props) => {
       >
         {(workspace) => (
           <div class="group mb-1">
-            <div class="flex h-9 items-center gap-0.5 rounded-lg pl-1 pr-1 transition hover:bg-slate-900/5 dark:hover:bg-white/5">
+            <div data-workspace-menu class="relative flex h-9 items-center gap-0.5 rounded-lg pl-1 pr-1 transition hover:bg-slate-900/5 dark:hover:bg-white/5">
               <button
                 type="button"
                 onClick={() => toggleWorkspace(workspace.id)}
@@ -193,7 +205,10 @@ export const SideNavWorkspace: Component<SideNavWorkspaceProps> = (props) => {
               <div class="flex shrink-0 items-center gap-0.5 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
                 <button
                   type="button"
-                  onClick={() => props.onMoreWorkspace?.(workspace.id)}
+                  onClick={() => setMenuWorkspaceId((current) =>
+                    current === workspace.id ? "" : workspace.id)}
+                  aria-haspopup="menu"
+                  aria-expanded={menuWorkspaceId() === workspace.id}
                   aria-label={translate(locale(), "nav.moreWorkspace", "更多工作区操作")}
                   title={translate(locale(), "nav.moreWorkspace", "更多工作区操作")}
                   class="grid h-7 w-7 place-items-center rounded-md text-slate-500 outline-none transition hover:bg-slate-900/10 hover:text-slate-700 focus-visible:ring-2 focus-visible:ring-sky-500/40 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-200"
@@ -210,6 +225,36 @@ export const SideNavWorkspace: Component<SideNavWorkspaceProps> = (props) => {
                   <PlusIcon />
                 </button>
               </div>
+
+              <Show when={menuWorkspaceId() === workspace.id}>
+                <div
+                  role="menu"
+                  class="absolute right-1 top-9 z-20 grid w-28 gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow-lg shadow-slate-900/10 dark:border-white/10 dark:bg-slate-900 dark:shadow-black/40"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setMenuWorkspaceId("");
+                      props.onEditWorkspace?.(workspace.id);
+                    }}
+                    class="rounded-md px-2 py-1.5 text-left text-[13px] text-slate-600 outline-none transition hover:bg-slate-900/5 focus-visible:ring-2 focus-visible:ring-sky-500/40 dark:text-slate-300 dark:hover:bg-white/10"
+                  >
+                    {translate(locale(), "nav.editWorkspace", "编辑")}
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setMenuWorkspaceId("");
+                      props.onRemoveWorkspace?.(workspace.id);
+                    }}
+                    class="rounded-md px-2 py-1.5 text-left text-[13px] text-red-600 outline-none transition hover:bg-red-50 focus-visible:ring-2 focus-visible:ring-red-500/40 dark:text-red-400 dark:hover:bg-red-500/10"
+                  >
+                    {translate(locale(), "nav.removeWorkspace", "移除")}
+                  </button>
+                </div>
+              </Show>
             </div>
             <Show when={!isCollapsed(workspace.id)}>
               <div class="flex max-h-[300px] flex-col gap-1 overflow-y-auto overscroll-contain pt-1">

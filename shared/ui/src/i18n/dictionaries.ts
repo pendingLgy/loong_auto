@@ -130,6 +130,8 @@ export const enUS = {
   "nav.workspaces": "Workspaces",
   "nav.emptyWorkspaces": "No workspaces yet",
   "nav.editConversation": "Edit conversation",
+  "nav.editWorkspace": "Edit",
+  "nav.removeWorkspace": "Remove",
   "nav.processing": "Processing",
   "nav.searchWorkspaces": "Search workspaces",
   "nav.createWorkspace": "New workspace",
