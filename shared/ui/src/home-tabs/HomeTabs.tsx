@@ -204,8 +204,8 @@ export const HomeTabs: Component<HomeTabsProps> = (props) => {
       <button
         type="button"
         onClick={() => props.onAdd?.()}
-        aria-label={translate(locale(), "homeTabs.add", "新建")}
-        title={translate(locale(), "homeTabs.add", "新建")}
+        aria-label={translate(locale(), "homeTabs.add", "新建对话")}
+        title={translate(locale(), "homeTabs.add", "新建对话")}
         class="grid h-8 w-8 shrink-0 place-items-center rounded-md text-slate-500 outline-none transition hover:bg-slate-900/5 hover:text-slate-800 focus-visible:ring-2 focus-visible:ring-sky-500/40 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-200"
       >
         <PlusIcon class="h-4 w-4" />

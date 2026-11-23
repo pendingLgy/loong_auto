@@ -82,6 +82,7 @@ web/
 | 已打开的工作区/会话标签与固定标签 | `loong.web.workspace-tabs` |
 | 聊天消息（按 session） | `loong.web.chat-messages:<sessionId>` |
 | 已加载消息页码 | `loong.web.chat-pages:<sessionId>` |
+| 会话使用的工作区与模型 | `loong.web.session-config:<sessionId>` |
 | 待发送消息队列 | `loong.web.chat-queue` |
 | 主题 | `loong.web.theme` |
 

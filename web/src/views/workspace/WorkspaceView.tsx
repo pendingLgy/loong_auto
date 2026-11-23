@@ -23,10 +23,13 @@ import {
   useTypewriterMessages,
   type StoredChatMessage,
 } from "../../storage/chat_messages";
-import {serverConfig} from "../../storage/server_config";
 import {getWorkspaceState, saveWorkspaceState} from "../../storage/workspace";
-import {currentUser} from "../../storage/user";
-import {WorkspaceViewContext} from "./workspace_context";
+import {saveSessionConfig} from "../../storage/session_config";
+import {
+  getSessionModelConfig,
+  useWorkspaceLocalData,
+  WorkspaceViewContext,
+} from "./workspace_context";
 import {workspaceTabKey, type WorkspaceChatTab} from "./types";
 
 import {Effect} from "effect";
@@ -79,13 +82,20 @@ export interface WorkspaceViewProps {
 /** 服务器工作区：左中右布局，界面状态保存到 storage/workspace.ts。 */
 export function WorkspaceView(props: WorkspaceViewProps) {
   const navigate = useNavigate();
-  const initial = getWorkspaceState();
+  const localData = useWorkspaceLocalData();
+  const initial = localData.initial;
   const [layout, setLayout] = createSignal<LayoutState>(initial.layout);
   const [active, setActive] = createSignal<SideNavKey>(initial.active);
   const [workspaces, setWorkspaces] = createSignal<Workspace[]>(initial.workspaces);
   const [activeConversationId, setActiveConversationId] = createSignal(
     initial.activeConversationId,
   );
+  createEffect(() => {
+    const config = getSessionModelConfig(activeConversationId());
+    setSelectedModel(config.model);
+    setSelectedProvider(config.provider);
+  });
+
   const [modelGroups, setModelGroups] = createSignal<ChatModelGroup[]>([]);
   const [selectedModel, setSelectedModel] = createSignal(initial.selectedModel);
   const [selectedProvider, setSelectedProvider] = createSignal(initial.selectedProvider);
@@ -153,7 +163,7 @@ export function WorkspaceView(props: WorkspaceViewProps) {
     });
   });
 
-  const currentServer = () => serverConfig();
+  const currentServer = () => localData.serverConfig();
 
   const api = () => createApiClient();
 
@@ -242,7 +252,7 @@ export function WorkspaceView(props: WorkspaceViewProps) {
     if (!content.trim()) return false;
 
     const target = activeConversation();
-    const user = currentUser();
+    const user = localData.currentUser();
     const model = selectedModel().trim();
     if (!target) {
       if (activeConversationId()) {
@@ -302,6 +312,11 @@ export function WorkspaceView(props: WorkspaceViewProps) {
       }
     }
 
+    saveSessionConfig(sessionId, {
+      workspaceId: target.workspace.id,
+      model,
+      provider: selectedProvider().trim() || "openai",
+    });
     enqueueChatMessage({
       sessionId,
       workspaceId: target.workspace.id,
@@ -430,7 +445,7 @@ export function WorkspaceView(props: WorkspaceViewProps) {
   };
 
   const userData = (): SideNavUserData | undefined => {
-    const info = currentUser();
+    const info = localData.currentUser();
     return info ? {name: info.name ?? info.username, username: info.username} : undefined;
   };
 
@@ -459,6 +474,7 @@ export function WorkspaceView(props: WorkspaceViewProps) {
         ? {...workspace, conversations: [...conversations, {id: sessionId, title}]}
         : {...workspace, conversations};
     }));
+    saveSessionConfig(sessionId, {workspaceId});
     openConversationTab(workspaceId, sessionId);
     setWorkspacePickerOpen(false);
   };
@@ -656,6 +672,10 @@ export function WorkspaceView(props: WorkspaceViewProps) {
             onSelectModel={(model, group) => {
               setSelectedModel(model);
               setSelectedProvider(group.providerName);
+              saveSessionConfig(activeConversationId(), {
+                model,
+                provider: group.providerName,
+              });
             }}
     />
   );
