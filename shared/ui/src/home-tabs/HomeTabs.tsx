@@ -282,8 +282,8 @@ export const HomeTabs: Component<HomeTabsProps> = (props) => {
         <button
           type="button"
           onClick={() => props.onLogout?.()}
-          aria-label={translate(locale(), "homeTabs.logout", "退出登录")}
-          title={translate(locale(), "homeTabs.logout", "退出登录")}
+          aria-label={translate(locale(), "homeTabs.logout", "退出服务器")}
+          title={translate(locale(), "homeTabs.logout", "退出服务器")}
           class="grid h-8 w-8 shrink-0 place-items-center rounded-md text-slate-500 outline-none transition hover:bg-red-500/10 hover:text-red-600 focus-visible:ring-2 focus-visible:ring-red-500/40 dark:text-slate-400 dark:hover:bg-red-500/15 dark:hover:text-red-400"
         >
           <LogoutIcon class="h-4 w-4"/>

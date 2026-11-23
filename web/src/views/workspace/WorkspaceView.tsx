@@ -1,4 +1,4 @@
-import {For, Show, createEffect, createSignal, onMount} from "solid-js";
+import {For, Show, createEffect, createSignal, onCleanup, onMount} from "solid-js";
 
 import {useNavigate} from "@solidjs/router";
 
@@ -105,6 +105,42 @@ export function WorkspaceView(props: WorkspaceViewProps) {
   const [workspaceCreateFromSelect, setWorkspaceCreateFromSelect] = createSignal(false);
   const [assignCreatedWorkspace, setAssignCreatedWorkspace] = createSignal(false);
   const sessionCreations = new Map<string, Promise<void>>();
+  const NARROW_LAYOUT_WIDTH = 1024;
+  const [narrowLayout, setNarrowLayout] = createSignal(
+    typeof window !== "undefined" && window.innerWidth < NARROW_LAYOUT_WIDTH,
+  );
+  let layoutBeforeNarrow: LayoutState | null = null;
+
+  createEffect(() => {
+    if (narrowLayout()) {
+      if (!layoutBeforeNarrow) {
+        layoutBeforeNarrow = layout();
+        setLayout((current) => ({
+          ...current,
+          leftCollapsed: true,
+          rightCollapsed: true,
+        }));
+      }
+      return;
+    }
+    if (layoutBeforeNarrow) {
+      const previous = layoutBeforeNarrow;
+      layoutBeforeNarrow = null;
+      setLayout((current) => ({
+        ...current,
+        leftCollapsed: previous.leftCollapsed,
+        rightCollapsed: previous.rightCollapsed,
+      }));
+    }
+  });
+
+  onMount(() => {
+    const handleResize = () => {
+      setNarrowLayout(window.innerWidth < NARROW_LAYOUT_WIDTH);
+    };
+    window.addEventListener("resize", handleResize);
+    onCleanup(() => window.removeEventListener("resize", handleResize));
+  });
 
   createEffect(() => {
     saveWorkspaceState({

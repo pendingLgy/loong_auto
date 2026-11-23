@@ -324,12 +324,15 @@ export const LlmChat: Component<LlmChatProps> = (props) => {
   return (
     <section
       aria-label={translate(locale(), "chat.label", "聊天")}
-      class={`relative flex h-full min-h-0 w-full flex-col ${props.class ?? ""}`}
-      style={{ "--chat-max-width": `max(60%, ${props.minWidth ?? 320}px)` }}
+      class={`relative flex h-full min-h-0 w-full min-w-[var(--chat-min-width)] flex-col ${props.class ?? ""}`}
+      style={{
+        "--chat-max-width": "min(100%, 960px)",
+        "--chat-min-width": `${props.minWidth ?? 320}px`,
+      }}
     >
       <div
         ref={scroller}
-        class={`w-full flex-1 overflow-y-auto p-4 ${messages().length > 0 ? "pb-44" : ""}`}
+        class={`w-full flex-1 overflow-y-auto p-10 ${messages().length > 0 ? "pb-44" : ""}`}
         onScroll={(event) => {
           const element = event.currentTarget;
           setStickToBottom(
