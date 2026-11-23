@@ -73,6 +73,9 @@ export function toUserInfo(payload: unknown): UserInfo {
 
 /** 认证接口：登录、当前用户、退出。HTTP 细节由 `../http` 负责。 */
 export class AuthApi {
+  static readonly httpMethods = {me: "GET"} as const;
+
+
   constructor(private readonly options: AuthApiOptions) {}
 
   login(request: LoginRequest): Effect.Effect<LoginResponse, ClientError> {

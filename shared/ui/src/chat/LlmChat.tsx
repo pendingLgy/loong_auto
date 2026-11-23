@@ -60,6 +60,8 @@ export interface LlmChatProps {
   onSelectWorkspace?: () => void;
   /** 消息列表滚动到顶部附近。 */
   onScrollTop?: () => void;
+  /** 正在加载更早消息。 */
+  loadingOlder?: boolean;
   /** 最小宽度（px），默认 320。 */
   minWidth?: number;
   class?: string;
@@ -330,6 +332,14 @@ export const LlmChat: Component<LlmChatProps> = (props) => {
         "--chat-min-width": `${props.minWidth ?? 320}px`,
       }}
     >
+      <Show when={props.loadingOlder}>
+        <div class="pointer-events-none absolute inset-x-0 top-2 z-20 flex justify-center">
+          <span class="rounded-full border border-slate-200 bg-white/90 px-3 py-1 text-xs text-slate-500 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/90 dark:text-slate-400">
+            {translate(locale(), "chat.loadingOlder", "加载中...")}
+          </span>
+        </div>
+      </Show>
+
       <div
         ref={scroller}
         class={`w-full flex-1 overflow-y-auto p-10 ${messages().length > 0 ? "pb-44" : ""}`}
@@ -393,10 +403,10 @@ export const LlmChat: Component<LlmChatProps> = (props) => {
       </div>
 
       <footer
-        class={`pointer-events-none absolute inset-x-0 bottom-0 bg-linear-to-t from-white via-white/85 to-transparent p-3 dark:from-slate-950 dark:via-slate-950/85 ${messages().length > 0 ? "" : "hidden"}`}
+        class={`pointer-events-none absolute inset-x-0 bottom-0 bg-linear-to-t from-white via-white/85 to-transparent px-10 py-3 dark:from-slate-950 dark:via-slate-950/85 ${messages().length > 0 ? "" : "hidden"}`}
       >
         <Show when={messages().length > 0}>
-          <div class="mx-auto w-full max-w-[var(--chat-max-width)]">
+          <div class="mx-auto w-full max-w-[calc(var(--chat-max-width)+25px)]">
             {composer()}
           </div>
         </Show>

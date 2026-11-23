@@ -6,6 +6,9 @@ import { parseEnvelope } from "./response";
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
+/** 默认请求超时时间（毫秒）。 */
+export const DEFAULT_TIMEOUT_MS = 5000;
+
 /** fetch 请求的公共配置。 */
 export interface HttpClientOptions {
   /** 本地网关基址。 */
@@ -22,7 +25,9 @@ export interface HttpClientOptions {
   /** 错误文案语言，默认中文。 */
   locale?: Locale;
   /** local服务 security_token*/
-  security_token?: string
+  security_token?: string;
+  /** 请求超时时间（毫秒），默认 5000；0 表示不限制。 */
+  timeoutMs?: number;
 }
 
 /** 规范化前缀：补前导斜杠、去掉尾部斜杠；空值或 `/` 视为无前缀。 */
@@ -50,6 +55,8 @@ export interface HttpRequestInit {
   prefix?: string;
   /** 覆盖默认信封解析，用于分页等非统一 data 响应。 */
   parse?: (response: Response) => Promise<unknown>;
+  /** 单次请求超时时间（毫秒）。 */
+  timeoutMs?: number;
 }
 
 /**
@@ -58,6 +65,40 @@ export interface HttpRequestInit {
  * 仅负责 HTTP 层：拼 URL、编码 JSON、附加令牌、把响应交给 `parseEnvelope`；
  * 领域字段映射留在 `api/` 层。
  */
+function createRequestSignal(
+  effectSignal: AbortSignal,
+  requestSignal: AbortSignal | undefined,
+  timeoutMs: number,
+): {signal: AbortSignal; timedOut: () => boolean; cleanup: () => void} {
+  const controller = new AbortController();
+  let timedOut = false;
+
+  const abort = () => controller.abort();
+  if (effectSignal.aborted || requestSignal?.aborted) {
+    abort();
+  } else {
+    effectSignal.addEventListener("abort", abort, {once: true});
+    requestSignal?.addEventListener("abort", abort, {once: true});
+  }
+
+  const timer = timeoutMs > 0
+    ? setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeoutMs)
+    : undefined;
+
+  return {
+    signal: controller.signal,
+    timedOut: () => timedOut,
+    cleanup: () => {
+      if (timer !== undefined) clearTimeout(timer);
+      effectSignal.removeEventListener("abort", abort);
+      requestSignal?.removeEventListener("abort", abort);
+    },
+  };
+}
+
 async function sendRequest(
   client: HttpClientOptions,
   path: string,
@@ -96,13 +137,30 @@ export function requestJson<T>(
   path: string,
   init: HttpRequestInit = {},
 ): Effect.Effect<T, ClientError> {
+  const timeoutMs = init.timeoutMs ?? client.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+
   return Effect.tryPromise({
     try: async (signal) => {
-      const response = await sendRequest(client, path, init, signal);
-      if (init.parse) {
-        return await init.parse(response) as T;
+      const request = createRequestSignal(signal, init.signal, timeoutMs);
+      try {
+        const response = await sendRequest(
+          client,
+          path,
+          {...init, signal: request.signal},
+          request.signal,
+        );
+        if (init.parse) {
+          return await init.parse(response) as T;
+        }
+        return parseEnvelope<T>(response, client.locale);
+      } catch (cause) {
+        if (request.timedOut()) {
+          throw new ClientError("请求超时", 408);
+        }
+        throw cause;
+      } finally {
+        request.cleanup();
       }
-      return parseEnvelope<T>(response, client.locale);
     },
     catch: (cause) => cause instanceof ClientError
       ? cause

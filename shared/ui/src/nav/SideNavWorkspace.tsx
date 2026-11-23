@@ -55,6 +55,8 @@ export interface SideNavWorkspaceProps {
    * 标记对话是否正在处理中；返回 true 时在对话右侧显示 loading 图标。
    */
   isConversationProcessing?: (workspaceId: string, conversationId: string) => boolean;
+  /** 点击标签时展开对应工作区。 */
+  expandToken?: number;
   /** 组件就绪后回传命令式方法，供其他组件触发刷新。 */
   onReady?: (ref: SideNavWorkspaceRef) => void;
   class?: string;
@@ -70,46 +72,9 @@ export const SideNavWorkspace: Component<SideNavWorkspaceProps> = (props) => {
   const locale = () => props.locale ?? DEFAULT_LOCALE;
 
   const [collapsedWorkspaces, setCollapsedWorkspaces] = createSignal<ReadonlySet<string>>(
-    new Set((props.workspaces ?? []).map((workspace) => workspace.id)),
+    new Set(),
   );
   const [menuWorkspaceId, setMenuWorkspaceId] = createSignal("");
-  const knownWorkspaces = new Set<string>();
-  let collapsedInitialized = false;
-
-  // 仅在首次载入时默认折叠，并展开当前会话所属工作区。
-  createEffect(() => {
-    const list = props.workspaces ?? [];
-    if (list.length === 0) return;
-
-    const activeWorkspaceId = list.find((workspace) =>
-      workspace.conversations.some(
-        (conversation) => conversation.id === props.activeConversationId,
-      ))?.id;
-
-    if (!collapsedInitialized) {
-      collapsedInitialized = true;
-      setCollapsedWorkspaces(new Set(
-        list
-          .filter((workspace) => workspace.id !== activeWorkspaceId)
-          .map((workspace) => workspace.id),
-      ));
-      list.forEach((workspace) => knownWorkspaces.add(workspace.id));
-      return;
-    }
-
-    // 后续仅保证新增工作区默认折叠，不覆盖用户手动展开/折叠。
-    setCollapsedWorkspaces((current) => {
-      const next = new Set(current);
-      for (const workspace of list) {
-        if (!knownWorkspaces.has(workspace.id)) {
-          knownWorkspaces.add(workspace.id);
-          next.add(workspace.id);
-        }
-      }
-      return next;
-    });
-  });
-
   onMount(() => {
     props.onReady?.({
       refreshWorkspaces: () => props.onRefreshWorkspaces?.(),
@@ -124,8 +89,27 @@ export const SideNavWorkspace: Component<SideNavWorkspaceProps> = (props) => {
     onCleanup(() => document.removeEventListener("pointerdown", closeMenu));
   });
 
-  // 点击标签或切换会话时，确保对应工作区展开。
+  let collapsedInitialized = false;
   createEffect(() => {
+    const list = props.workspaces ?? [];
+    if (collapsedInitialized || list.length === 0) return;
+    collapsedInitialized = true;
+    const activeWorkspaceId = list.find((workspace) =>
+      workspace.conversations.some(
+        (conversation) => conversation.id === props.activeConversationId,
+      ))?.id;
+    setCollapsedWorkspaces(new Set(
+      list
+        .filter((workspace) => workspace.id !== activeWorkspaceId)
+        .map((workspace) => workspace.id),
+    ));
+  });
+
+  let lastExpandToken = props.expandToken;
+  createEffect(() => {
+    const token = props.expandToken;
+    if (token === undefined || token === lastExpandToken) return;
+    lastExpandToken = token;
     const activeWorkspaceId = (props.workspaces ?? []).find((workspace) =>
       workspace.conversations.some(
         (conversation) => conversation.id === props.activeConversationId,
@@ -269,7 +253,15 @@ export const SideNavWorkspace: Component<SideNavWorkspaceProps> = (props) => {
                     >
                       <button
                         type="button"
-                        onClick={() => props.onSelectConversation?.(workspace.id, conversation.id)}
+                        onClick={() => {
+                          setCollapsedWorkspaces((current) => {
+                            if (!current.has(workspace.id)) return current;
+                            const next = new Set(current);
+                            next.delete(workspace.id);
+                            return next;
+                          });
+                          props.onSelectConversation?.(workspace.id, conversation.id);
+                        }}
                         aria-current={props.activeConversationId === conversation.id ? "page" : undefined}
                         class={`flex h-full min-w-0 flex-1 items-center gap-2 rounded-lg pl-6 pr-2 text-left text-[13px] outline-none transition focus-visible:ring-2 focus-visible:ring-sky-500/40 ${
                           props.activeConversationId === conversation.id

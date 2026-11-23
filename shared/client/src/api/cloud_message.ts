@@ -43,6 +43,9 @@ function toMessage(payload: RawMessagePayload): MessageRecord {
 
 /** 消息接口：按 session 分页查询。 */
 export class MessageApi {
+  static readonly httpMethods = {list: "GET"} as const;
+
+
   constructor(private readonly options: HttpClientOptions) {}
 
   list(

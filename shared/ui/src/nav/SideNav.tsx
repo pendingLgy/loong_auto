@@ -14,6 +14,8 @@ export interface SideNavProps {
   onSelect?: (key: SideNavKey) => void;
   /** 点击「新建对话」。 */
   onNewChat?: () => void;
+  /** 点击标签时展开对应工作区。 */
+  expandToken?: number;
   /** 点击「自动化任务」。 */
   onAutomation?: () => void;
   /** 工作区列表；为空时显示空状态。 */
@@ -89,6 +91,7 @@ export const SideNav: Component<SideNavProps> = (props) => {
         locale={props.locale}
         workspaces={props.workspaces}
         activeConversationId={props.activeConversationId}
+        expandToken={props.expandToken}
         onSelectConversation={props.onSelectConversation}
         onSearch={props.onSearch}
         onCreateWorkspace={props.onCreateWorkspace}

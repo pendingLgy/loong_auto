@@ -1,7 +1,7 @@
 import { For, Show, createEffect, createSignal, type Component } from "solid-js";
 
 import { Dialog } from "../dialog";
-import { PlusIcon, TrashIcon } from "../icon";
+import { EditIcon, PlusIcon, TrashIcon } from "../icon";
 import { DEFAULT_LOCALE, translate, type Locale } from "../i18n";
 
 /** 新建工作区提交数据。 */
@@ -32,12 +32,18 @@ export const WorkspaceCreate: Component<WorkspaceCreateProps> = (props) => {
   const [directories, setDirectories] = createSignal<string[]>([]);
   const [submitting, setSubmitting] = createSignal(false);
   const [error, setError] = createSignal("");
+  const [editingIndex, setEditingIndex] = createSignal<number | null>(null);
+  const [editingPath, setEditingPath] = createSignal("");
+  const [editingError, setEditingError] = createSignal("");
 
   createEffect(() => {
     if (!props.open) return;
     setName("");
     setDirectories([]);
     setError("");
+    setEditingIndex(null);
+    setEditingPath("");
+    setEditingError("");
   });
 
   const folderName = (path: string) => {
@@ -71,6 +77,18 @@ export const WorkspaceCreate: Component<WorkspaceCreateProps> = (props) => {
     }
   };
 
+  const commitEditing = (index: number) => {
+    const value = editingPath().trim();
+    if (!value) {
+      setEditingError("目录不能为空");
+      return;
+    }
+    setDirectories((current) =>
+      current.map((item, itemIndex) => itemIndex === index ? value : item));
+    setEditingIndex(null);
+    setEditingError("");
+  };
+
   const submit = async (event: SubmitEvent) => {
     event.preventDefault();
     const workspaceName = name().trim();
@@ -78,7 +96,8 @@ export const WorkspaceCreate: Component<WorkspaceCreateProps> = (props) => {
       setError(translate(locale(), "workspaceCreate.nameRequired", "请输入工作区名称"));
       return;
     }
-    if (directories().length === 0) {
+    const paths = directories().map((path) => path.trim()).filter(Boolean);
+    if (paths.length === 0) {
       setError(translate(locale(), "workspaceCreate.directoryRequired", "请至少添加一个工作目录"));
       return;
     }
@@ -86,7 +105,7 @@ export const WorkspaceCreate: Component<WorkspaceCreateProps> = (props) => {
     setSubmitting(true);
     setError("");
     try {
-      await props.onSubmit({name: workspaceName, path: directories()});
+      await props.onSubmit({name: workspaceName, path: paths});
     } catch (cause) {
       setError(cause instanceof Error
         ? cause.message
@@ -141,36 +160,102 @@ export const WorkspaceCreate: Component<WorkspaceCreateProps> = (props) => {
             class="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 px-3 py-2.5 text-sm font-medium text-slate-600 outline-none transition hover:border-sky-400 hover:bg-sky-50 focus-visible:ring-2 focus-visible:ring-sky-500/40 disabled:opacity-60 dark:border-white/15 dark:text-slate-300 dark:hover:border-sky-500 dark:hover:bg-sky-500/10"
           >
             <PlusIcon class="h-4 w-4" />
-            {translate(locale(), "workspaceCreate.select", "选择工作区")}
+            {translate(locale(), "workspaceCreate.select", "选择目录")}
           </button>
 
           <Show
             when={directories().length > 0}
             fallback={
               <p class="m-0 rounded-xl border border-slate-200 px-3 py-3 text-center text-[13px] text-slate-400 dark:border-white/10 dark:text-slate-500">
-                {translate(locale(), "workspaceCreate.emptyDirectories", "尚未选择工作区")}
+                {translate(locale(), "workspaceCreate.emptyDirectories", "尚未选择目录")}
               </p>
             }
           >
-            <ul class="m-0 grid list-none gap-1.5 p-0">
+            <ul class="m-0 grid w-full min-w-0 list-none gap-1.5 p-0">
               <For each={directories()}>
-                {(path) => (
-                  <li class="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-white/10 dark:bg-white/5">
-                    <span class="min-w-0 flex-1 truncate text-sm text-slate-700 dark:text-slate-200">
-                      {path}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setDirectories((current) =>
-                        current.filter((item) => item !== path))}
-                      disabled={submitting()}
-                      aria-label={translate(locale(), "workspaceCreate.removeDirectory",
-                        "移除工作区 {{ path }}", {path})}
-                      title={translate(locale(), "workspaceCreate.remove", "移除工作区")}
-                      class="grid h-7 w-7 shrink-0 place-items-center rounded-md text-slate-400 outline-none transition hover:bg-red-50 hover:text-red-600 focus-visible:ring-2 focus-visible:ring-red-500/40 disabled:opacity-60 dark:hover:bg-red-500/10 dark:hover:text-red-400"
-                    >
-                      <TrashIcon class="h-3.5 w-3.5" />
-                    </button>
+                {(path, index) => (
+                  <li class="grid w-full min-w-0 gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-white/10 dark:bg-white/5">
+                    <div class="flex min-w-0 items-center gap-2">
+                      <Show
+                        when={editingIndex() === index()}
+                        fallback={
+                          <>
+                            <span
+                              title={path}
+                              class="min-w-0 max-w-full flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm text-slate-700 dark:text-slate-200"
+                            >
+                              {path}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingIndex(index());
+                                setEditingPath(path);
+                                setEditingError("");
+                                setError("");
+                              }}
+                              disabled={submitting()}
+                              aria-label={translate(locale(), "workspaceCreate.editDirectory",
+                                "编辑工作区 {{ path }}", {path})}
+                              title={translate(locale(), "workspaceCreate.edit", "编辑工作区")}
+                              class="grid h-7 w-7 shrink-0 place-items-center rounded-md text-slate-400 outline-none transition hover:bg-slate-900/10 hover:text-slate-700 focus-visible:ring-2 focus-visible:ring-sky-500/40 disabled:opacity-60 dark:hover:bg-white/10 dark:hover:text-slate-200"
+                            >
+                              <EditIcon class="h-3.5 w-3.5" />
+                            </button>
+                          </>
+                        }
+                      >
+                        <input
+                          value={editingPath()}
+                          onInput={(event) => {
+                            setEditingPath(event.currentTarget.value);
+                            setEditingError("");
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              event.preventDefault();
+                              commitEditing(index());
+                            } else if (event.key === "Escape") {
+                              setEditingIndex(null);
+                              setEditingError("");
+                            }
+                          }}
+                          onBlur={() => {
+                            if (editingIndex() === index()) commitEditing(index());
+                          }}
+                          disabled={submitting()}
+                          autofocus
+                          aria-invalid={!!editingError()}
+                          aria-label={translate(locale(), "workspaceCreate.editDirectory",
+                            "编辑工作区 {{ path }}", {path})}
+                          class="min-w-0 max-w-full flex-1 rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm text-slate-700 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 disabled:opacity-60 aria-invalid:border-red-500 dark:border-white/15 dark:bg-slate-950/60 dark:text-slate-200"
+                        />
+                      </Show>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (editingIndex() === index()) setEditingIndex(null);
+                          setEditingError("");
+                          setDirectories((current) =>
+                            current.filter((_, itemIndex) => itemIndex !== index()));
+                        }}
+                        disabled={submitting()}
+                        aria-label={translate(locale(), "workspaceCreate.removeDirectory",
+                          "移除工作区 {{ path }}", {path})}
+                        title={translate(locale(), "workspaceCreate.remove", "移除工作区")}
+                        class="grid h-7 w-7 shrink-0 place-items-center rounded-md text-slate-400 outline-none transition hover:bg-red-50 hover:text-red-600 focus-visible:ring-2 focus-visible:ring-red-500/40 disabled:opacity-60 dark:hover:bg-red-500/10 dark:hover:text-red-400"
+                      >
+                        <TrashIcon class="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <Show when={editingIndex() === index() && editingError()}>
+                      <p
+                        role="alert"
+                        class="m-0 text-[12px] font-medium text-red-600 dark:text-red-400"
+                      >
+                        {editingError()}
+                      </p>
+                    </Show>
                   </li>
                 )}
               </For>

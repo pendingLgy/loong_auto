@@ -1,4 +1,4 @@
-import { Show, createEffect, createSignal } from "solid-js";
+import { Show, createEffect, createSignal, onCleanup, onMount } from "solid-js";
 import { useNavigate, useParams } from "@solidjs/router";
 
 import { Effect } from "effect";
@@ -35,6 +35,7 @@ export function HomeView() {
   const [activeTab, setActiveTab] = createSignal(initialTabs.activeKey);
   const [newChatToken, setNewChatToken] = createSignal(0);
   const [pinnedKeys, setPinnedKeys] = createSignal<string[]>(initialTabs.pinnedKeys);
+  const [workspaceExpandToken, setWorkspaceExpandToken] = createSignal(0);
 
   createEffect(() => {
     const sessionId = params.sessionId;
@@ -51,6 +52,32 @@ export function HomeView() {
       return;
     }
     saveWorkspaceTabs(tabs(), activeTab(), pinnedKeys());
+  });
+
+  onMount(() => {
+    const onSessionCreated = (event: Event) => {
+      const detail = (event as CustomEvent<{
+        workspaceId?: string;
+        workspaceName?: string;
+        sessionId?: string;
+        title?: string;
+      }>).detail;
+      if (!detail?.sessionId || !detail.title) return;
+      setTabs((list) => list.map((tab) =>
+        tab.conversationId === detail.sessionId
+          ? {
+            ...tab,
+            workspaceId: detail.workspaceId ?? tab.workspaceId,
+            workspaceName: detail.workspaceName ?? tab.workspaceName,
+            conversationTitle: detail.title!,
+            label: detail.workspaceName
+              ? `${detail.workspaceName} / ${detail.title}`
+              : detail.title!,
+          }
+          : tab));
+    };
+    window.addEventListener("loong:session-created", onSessionCreated);
+    onCleanup(() => window.removeEventListener("loong:session-created", onSessionCreated));
   });
 
   const logout = async () => {
@@ -86,7 +113,10 @@ export function HomeView() {
     }
     setActiveTab(key);
     const tab = tabs().find((item) => item.key === key);
-    if (tab) navigate(`/chat/${tab.conversationId}`);
+    if (tab) {
+      navigate(`/chat/${tab.conversationId}`);
+      queueMicrotask(() => setWorkspaceExpandToken((current) => current + 1));
+    }
   };
 
   const openTab = (tab: WorkspaceChatTab) => {
@@ -172,6 +202,7 @@ export function HomeView() {
             activeTabKey={activeTab()}
             onOpenConversation={openTab}
             newChatToken={newChatToken()}
+            workspaceExpandToken={workspaceExpandToken()}
           />
         </Show>
 

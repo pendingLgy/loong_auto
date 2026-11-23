@@ -56,6 +56,9 @@ function toWorkspace(payload: RawWorkspacePayload): Workspace {
 
 /** 工作目录接口：分页列表、创建、详情、更新与删除。 */
 export class WorkspaceApi {
+  static readonly httpMethods = {list: "GET", get: "GET"} as const;
+
+
   constructor(private readonly options: HttpClientOptions) {}
 
   list(params: WorkspaceListParams = {}): Effect.Effect<WorkspacePage, ClientError> {

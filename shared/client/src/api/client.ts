@@ -31,7 +31,9 @@ export interface LocalClientOptions {
   locale?: Locale;
   fetch?: typeof fetch;
 
-  security_token?: string
+  security_token?: string;
+  /** 请求超时时间（毫秒），默认 5000。 */
+  timeoutMs?: number;
 }
 
 export interface LocalClient {
@@ -83,7 +85,8 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
       token: options.token,
       locale,
       fetch: options.fetch,
-      security_token: options.security_token
+      security_token: options.security_token,
+      timeoutMs: options.timeoutMs
     }),
     health: new HealthApi({
       baseUrl,
@@ -92,6 +95,7 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
       locale,
       fetch: options.fetch,
       security_token: options.security_token,
+      timeoutMs: options.timeoutMs,
     }),
     sessionConfig: new SessionConfigApi({
       baseUrl,
@@ -100,6 +104,7 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
       locale,
       fetch: options.fetch,
       security_token: options.security_token,
+      timeoutMs: options.timeoutMs,
     }),
     supplierConfig: new SupplierConfigApi({
       baseUrl,
@@ -108,6 +113,7 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
       locale,
       fetch: options.fetch,
       security_token: options.security_token,
+      timeoutMs: options.timeoutMs,
     }),
     workspace: new WorkspaceApi({
       baseUrl,
@@ -116,6 +122,7 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
       locale,
       fetch: options.fetch,
       security_token: options.security_token,
+      timeoutMs: options.timeoutMs,
     }),
     session: new SessionApi({
       baseUrl,
@@ -124,6 +131,7 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
       locale,
       fetch: options.fetch,
       security_token: options.security_token,
+      timeoutMs: options.timeoutMs,
     }),
     message: new MessageApi({
       baseUrl,
@@ -132,6 +140,7 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
       locale,
       fetch: options.fetch,
       security_token: options.security_token,
+      timeoutMs: options.timeoutMs,
     }),
     events: new EventsApi({
       baseUrl,
@@ -140,6 +149,7 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
       locale,
       fetch: options.fetch,
       security_token: options.security_token,
+      timeoutMs: options.timeoutMs,
     }),
   };
 }

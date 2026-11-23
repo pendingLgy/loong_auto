@@ -10,6 +10,9 @@ function segment(value: string): string {
 
 /** 对话事件接口：SSE 订阅与消息提交。 */
 export class EventsApi {
+  static readonly httpMethods = {subscribe: "GET"} as const;
+
+
   constructor(private readonly options: HttpClientOptions) {}
 
   /**

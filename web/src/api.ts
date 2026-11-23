@@ -30,8 +30,28 @@ let refreshTask: Effect.Effect<string, unknown> | undefined;
 /** 同一接口 + 参数 3 秒内只允许提交一次。 */
 const lastRequests = new Map<string, number>();
 
+type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+
+function getRequestMethod(target: object, property: string): HttpMethod | undefined {
+  const methods = (target.constructor as {
+    httpMethods?: Record<string, HttpMethod>;
+  }).httpMethods;
+  return methods?.[property];
+}
+
+function asClientError(cause: unknown): ClientError {
+
+
+  return new ClientError(cause instanceof Error ? cause.message : String(cause));
+}
+
 function requestKey(namespace: string, method: string, args: unknown[]): string {
-  const raw = JSON.stringify(args);
+  let raw: string;
+  try {
+    raw = JSON.stringify(args);
+  } catch {
+    raw = String(args);
+  }
   let hash = 2166136261;
   for (let index = 0; index < raw.length; index += 1) {
     hash ^= raw.charCodeAt(index);
@@ -52,7 +72,10 @@ function refreshAccessToken(
       return yield* Effect.fail(new UnauthorizedError("登录已过期，请重新登录"));
     }
 
-    const client = buildClient(origin, locale);
+    const client = yield* Effect.try({
+      try: () => buildClient(origin, locale),
+      catch: (cause) => asClientError(cause),
+    });
     const token = yield* client.auth.refreshToken({ refreshToken: session.refreshToken });
     updateAccessToken(token);
     return token;
@@ -107,14 +130,21 @@ function wrapNamespace<T extends object>(
         const cacheKey = requestKey(key, String(property), args);
         const now = Date.now();
         const last = lastRequests.get(cacheKey) ?? 0;
-        if (now - last < 3000) {
+        const readRequest = getRequestMethod(object, String(property)) === "GET";
+        if (!readRequest && now - last < 3000) {
           showNotice("warning", "操作太频繁，请稍后再试");
           return Effect.fail(new ClientError("操作太频繁，请稍后再试", 429));
         }
-        lastRequests.set(cacheKey, now);
+        if (!readRequest) lastRequests.set(cacheKey, now);
 
         const execute = () => invoke().pipe(
           Effect.catchAll((error) => {
+
+            if (error instanceof ClientError){
+              showNotice("error", error.message);
+              return Effect.fail(error);
+            }
+
             if (!isUnauthorized(error)) {
               return Effect.fail(error);
             }

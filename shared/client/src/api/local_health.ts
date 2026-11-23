@@ -8,6 +8,9 @@ const LOCAL_PREFIX = "/";
 
 /** 本地服务健康检查。 */
 export class HealthApi {
+  static readonly httpMethods = {security_token: "GET"} as const;
+
+
   constructor(private readonly options: HttpClientOptions) {}
 
   /** 用 `X-Security-Token` 校验本地网关的 security_token 是否正确。 */

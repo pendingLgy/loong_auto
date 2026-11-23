@@ -96,6 +96,14 @@ function optionList(payload: unknown): SupplierModelOption[] {
 
 /** 供应商配置与模型启用配置接口。 */
 export class SupplierConfigApi {
+  static readonly httpMethods = {
+    list: "GET",
+    listConfigured: "GET",
+    listModels: "GET",
+    listOptions: "GET",
+  } as const;
+
+
   constructor(private readonly options: HttpClientOptions) {}
 
   list(): Effect.Effect<SupplierConfig[], ClientError> {

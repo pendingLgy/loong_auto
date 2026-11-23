@@ -7,6 +7,8 @@ export interface SessionConfig {
   model?: string;
   /** 模型供应商。 */
   provider?: string;
+  /** 会话尚未在云端创建。 */
+  pending?: boolean;
 }
 
 const STORAGE_KEY_PREFIX = "loong.web.session-config";
@@ -26,6 +28,7 @@ export function getSessionConfig(sessionId: string): SessionConfig {
       workspaceId: typeof parsed?.workspaceId === "string" ? parsed.workspaceId : undefined,
       model: typeof parsed?.model === "string" ? parsed.model : undefined,
       provider: typeof parsed?.provider === "string" ? parsed.provider : undefined,
+      pending: parsed?.pending === true,
     };
   } catch {
     return {};
@@ -37,13 +40,21 @@ export function saveSessionConfig(sessionId: string, patch: SessionConfig): void
   if (!sessionId) return;
   const current = getSessionConfig(sessionId);
   const next: SessionConfig = {...current, ...patch};
+  const changed = current.workspaceId !== next.workspaceId
+    || current.model !== next.model
+    || current.provider !== next.provider;
 
   try {
-    if (!next.workspaceId && !next.model && !next.provider) {
+    if (!next.workspaceId && !next.model && !next.provider && !next.pending) {
       window.localStorage.removeItem(storageKey(sessionId));
       return;
     }
     window.localStorage.setItem(storageKey(sessionId), JSON.stringify(next));
+    if (changed) {
+      window.dispatchEvent(new CustomEvent("loong:session-config", {
+        detail: {sessionId},
+      }));
+    }
   } catch {
     // 忽略存储异常。
   }

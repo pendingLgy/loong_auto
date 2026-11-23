@@ -58,6 +58,9 @@ function configPath(sessionId: string): string {
 
 /** 会话配置接口：读取、创建/覆盖、局部更新与删除。 */
 export class SessionConfigApi {
+  static readonly httpMethods = {get: "GET"} as const;
+
+
   constructor(private readonly options: HttpClientOptions) {}
 
   get(sessionId: string): Effect.Effect<SessionConfig, ClientError> {

@@ -64,7 +64,7 @@ function AppNotice() {
 /** 应用根组件：路由配置全部位于 `src/routers`。 */
 export function App() {
   return (
-    <div class="flex h-dvh w-full flex-col overflow-hidden">
+    <div class="flex h-dvh w-full flex-col overflow-hidden bg-slate-50 text-slate-900 transition-colors dark:bg-slate-950 dark:text-slate-100">
       <AppRouter />
       <AuthExpiredPrompt />
       <AppNotice />

@@ -1,3 +1,5 @@
+import { createEffect } from "solid-js";
+
 /** 图标组件通用 props。 */
 export interface IconProps {
   /** 覆盖默认尺寸/颜色类。 */
@@ -113,10 +115,14 @@ export function SettingsIcon(props: IconProps = {}): Node {
 }
 
 export function ChevronIcon(props: IconProps & { expanded: boolean }): Node {
-  return createIcon(
+  const span = createIcon(
     chevronIcon,
-    `inline-block align-middle ${props.class ?? "h-3.5 w-3.5"} shrink-0 transition-transform${props.expanded ? " rotate-90" : ""}`,
-  );
+    `inline-block align-middle ${props.class ?? "h-3.5 w-3.5"} shrink-0 transition-transform`,
+  ) as HTMLSpanElement;
+  createEffect(() => {
+    span.classList.toggle("rotate-90", props.expanded);
+  });
+  return span;
 }
 
 export function SpinnerIcon(props: IconProps = {}): Node {

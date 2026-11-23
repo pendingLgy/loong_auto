@@ -48,6 +48,9 @@ function sessionPath(sessionId: string): string {
 
 /** 会话接口：分页列表、创建、详情与更新。 */
 export class SessionApi {
+  static readonly httpMethods = {list: "GET", get: "GET"} as const;
+
+
   constructor(private readonly options: HttpClientOptions) {}
 
   list(params: SessionListParams): Effect.Effect<SessionPage, ClientError> {
