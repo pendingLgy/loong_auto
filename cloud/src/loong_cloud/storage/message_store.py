@@ -115,7 +115,7 @@ class MessageStore:
                 serialized_message = message.model_dump(mode="json")
                 add_session_message.append(message)
 
-                tool_detail_json = tool_detail.model_dump(mode="json") if tool_detail else {}
+                tool_detail_json = tool_detail.model_dump(mode="json",) if tool_detail else {}
 
                 value = {
                     "id": next_id(),

@@ -79,7 +79,7 @@ export const SideNav: Component<SideNavProps> = (props) => {
       "min-width": `${props.minWidth ?? 0}px`,
     }}
   >
-    <div class="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-3">
+    <div class="flex min-h-0 flex-1 flex-col gap-1 overflow-hidden p-3">
       <SideNavMenu
         locale={props.locale}
         active={props.active}

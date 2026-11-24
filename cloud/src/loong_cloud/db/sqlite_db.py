@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import os
 from typing import Any, List
@@ -62,7 +63,9 @@ class AsyncSqliteDb(BaseDB):
                     connect_args={
                         "timeout": self.config.timeout,
                         "check_same_thread": self.config.check_same_thread,
-                    }
+                    },
+                    json_serializer=lambda obj: json.dumps(obj, ensure_ascii=False),
+                    json_deserializer=json.loads,
                 )
 
                 # SQLite 开启 WAL 并发模式

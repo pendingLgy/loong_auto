@@ -34,6 +34,8 @@ export interface MessageRowProps {
   locale: Locale;
   /** Markdown 渲染完成后的回调（传入根元素）。 */
   onRendered?: (element: HTMLElement) => void;
+  /** 消息正文与日期行之间的附加内容，例如工具调用。 */
+  toolCallsView?: JSX.Element;
 }
 
 /** 单条聊天消息：用户消息右侧气泡，助手消息全宽展示，底部带复制与时间操作行。 */
@@ -102,6 +104,7 @@ export const MessageRow: Component<MessageRowProps> = (props) => {
               locale={props.locale}
               onRendered={props.onRendered}
             />
+            {props.toolCallsView}
             <div class="flex h-6 items-center gap-2">
               {copyButton()}
               {timeText()}

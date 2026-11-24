@@ -58,6 +58,8 @@ export function WorkspaceView(props: WorkspaceViewProps) {
   const [editWorkspace, setEditWorkspace] = createSignal<Workspace | null>(null);
   const [editWorkspaceName, setEditWorkspaceName] = createSignal("");
   const [editWorkspaceSaving, setEditWorkspaceSaving] = createSignal(false);
+  const [removeWorkspaceTarget, setRemoveWorkspaceTarget] = createSignal<Workspace | null>(null);
+  const [removeWorkspaceSaving, setRemoveWorkspaceSaving] = createSignal(false);
   const NARROW_LAYOUT_WIDTH = 1024;
   const [narrowLayout, setNarrowLayout] = createSignal(
     typeof window !== "undefined" && window.innerWidth < NARROW_LAYOUT_WIDTH,
@@ -201,6 +203,33 @@ export function WorkspaceView(props: WorkspaceViewProps) {
     if (!workspace) return;
     setEditWorkspace(workspace);
     setEditWorkspaceName(workspace.name);
+  };
+
+  const openRemoveWorkspace = (workspaceId: string) => {
+    const workspace = workspaces().find((item) => item.id === workspaceId);
+    if (workspace) setRemoveWorkspaceTarget(workspace);
+  };
+
+  const removeWorkspace = async () => {
+    const target = removeWorkspaceTarget();
+    if (!target || removeWorkspaceSaving()) return;
+
+    setRemoveWorkspaceSaving(true);
+    try {
+      await Effect.runPromise(api().workspace.delete(target.id));
+      setWorkspaces((list) => list.filter((workspace) => workspace.id !== target.id));
+      if (target.conversations.some(
+        (conversation) => conversation.id === activeConversationId(),
+      )) {
+        setActiveConversationId("");
+        navigate("/");
+      }
+      setRemoveWorkspaceTarget(null);
+    } catch {
+      showNotice("error", "移除工作区失败");
+    } finally {
+      setRemoveWorkspaceSaving(false);
+    }
   };
 
   const saveWorkspaceName = async () => {
@@ -358,6 +387,7 @@ export function WorkspaceView(props: WorkspaceViewProps) {
             onSearch={() => undefined}
             onCreateWorkspace={openWorkspaceCreate}
             onEditWorkspace={openEditWorkspace}
+            onRemoveWorkspace={openRemoveWorkspace}
             onCreateConversation={addConversation}
             isConversationProcessing={(_, conversationId) => isChatStreaming(conversationId)}
             user={userData()}
@@ -465,6 +495,43 @@ export function WorkspaceView(props: WorkspaceViewProps) {
             </ul>
           </Show>
         </div>
+      </Dialog>
+
+      <Dialog
+        open={removeWorkspaceTarget() !== null}
+        onClose={() => {
+          if (!removeWorkspaceSaving()) setRemoveWorkspaceTarget(null);
+        }}
+        size="sm"
+        header={
+          <h2 class="m-0 text-base font-semibold text-slate-800 dark:text-slate-100">
+            移除工作区
+          </h2>
+        }
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setRemoveWorkspaceTarget(null)}
+              disabled={removeWorkspaceSaving()}
+              class="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-900/5 disabled:opacity-60 dark:border-white/15 dark:text-slate-200 dark:hover:bg-white/5"
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              onClick={() => void removeWorkspace()}
+              disabled={removeWorkspaceSaving()}
+              class="rounded-xl bg-red-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-red-500 disabled:cursor-progress disabled:opacity-70"
+            >
+              {removeWorkspaceSaving() ? "移除中…" : "移除"}
+            </button>
+          </>
+        }
+      >
+        <p class="m-0 text-sm text-slate-600 dark:text-slate-300">
+          确定移除工作区「{removeWorkspaceTarget()?.name}」？此操作不可撤销。
+        </p>
       </Dialog>
     </>
   );

@@ -48,3 +48,27 @@ export interface RawMessagePagePayload {
   page_size?: unknown;
   rows?: unknown;
 }
+
+
+/** 工具审批请求。 */
+export interface ToolApprovalRequest {
+  approved: boolean;
+}
+
+/** 工具审批执行后返回的 tool 消息。 */
+export interface ToolApprovalMessage {
+  id: string | null;
+  role: string;
+  status: string | null;
+  content: string;
+  toolCallId: string | null;
+}
+
+/** 工具审批接口的原始 message 字段。 */
+export interface RawToolApprovalMessagePayload {
+  id?: unknown;
+  role?: unknown;
+  status?: unknown;
+  content?: unknown;
+  tool_call_id?: unknown;
+}

@@ -58,10 +58,16 @@ export interface LlmChatProps {
   workspaceName?: string;
   /** 点击输入区下方工作区按钮。 */
   onSelectWorkspace?: () => void;
+  /** 工作区权限模式。 */
+  workspaceMode?: "read_only" | "workspace_write" | "full";
+  /** 切换工作区权限模式。 */
+  onWorkspaceModeChange?: (mode: "read_only" | "workspace_write" | "full") => void;
   /** 消息列表滚动到顶部附近。 */
   onScrollTop?: () => void;
   /** 正在加载更早消息。 */
   loadingOlder?: boolean;
+  /** 为带 tool_calls 的 assistant 消息渲染工具调用视图。 */
+  toolCallsView?: (message: ChatMessage) => JSX.Element;
   /** 最小宽度（px），默认 320。 */
   minWidth?: number;
   class?: string;
@@ -75,9 +81,11 @@ export interface LlmChatProps {
 export const LlmChat: Component<LlmChatProps> = (props) => {
   const [hasContent, setHasContent] = createSignal(false);
   const [showModels, setShowModels] = createSignal(false);
+const [workspaceModeOpen, setWorkspaceModeOpen] = createSignal(false);
 
   let scroller: HTMLDivElement | undefined;
   let input: HTMLDivElement | undefined;
+let workspaceModeRef: HTMLDivElement | undefined;
 
   const locale = () => props.locale ?? DEFAULT_LOCALE;
   const messages = () => props.messages ?? [];
@@ -232,6 +240,27 @@ export const LlmChat: Component<LlmChatProps> = (props) => {
     }
   };
 
+  const workspaceModes = () => [
+    {value: "read_only" as const, label: translate(locale(), "chat.readOnly", "仅查看")},
+    {value: "workspace_write" as const, label: translate(locale(), "chat.editable", "可编辑")},
+    {value: "full" as const, label: translate(locale(), "chat.takeover", "接管")},
+  ] as const;
+
+  const workspaceModeLabel = () => workspaceModes().find(
+    (item) => item.value === (props.workspaceMode ?? "read_only"),
+  )?.label ?? translate(locale(), "chat.readOnly", "仅查看");
+
+  createEffect(() => {
+    if (!workspaceModeOpen()) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!workspaceModeRef?.contains(event.target as Node)) {
+        setWorkspaceModeOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    onCleanup(() => document.removeEventListener("pointerdown", onPointerDown));
+  });
+
   const composer = () => (
     <div class="pointer-events-auto grid gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm transition focus-within:border-sky-500 focus-within:ring-2 focus-within:ring-sky-500/20 dark:border-white/10 dark:bg-slate-900">
       <div
@@ -280,6 +309,51 @@ export const LlmChat: Component<LlmChatProps> = (props) => {
               {props.workspaceName || translate(locale(), "chat.selectWorkspace", "选择工作区")}
             </span>
           </button>
+        </Show>
+
+        <Show when={props.onWorkspaceModeChange}>
+          <div ref={workspaceModeRef} class="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => setWorkspaceModeOpen((open) => !open)}
+              aria-haspopup="listbox"
+              aria-expanded={workspaceModeOpen()}
+              aria-label={translate(locale(), "chat.workspaceMode", "工作区权限")}
+              title={translate(locale(), "chat.workspaceMode", "工作区权限")}
+              class="flex h-8 items-center gap-1 rounded-lg border border-slate-200 px-2 text-[12px] text-slate-600 outline-none transition hover:bg-slate-900/5 focus-visible:ring-2 focus-visible:ring-sky-500/40 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/10"
+            >
+              <span>{workspaceModeLabel()}</span>
+              <span class="text-[10px] text-slate-400" aria-hidden="true">▾</span>
+            </button>
+
+            <Show when={workspaceModeOpen()}>
+              <div
+                role="listbox"
+                aria-label={translate(locale(), "chat.workspaceMode", "工作区权限")}
+                class="absolute bottom-full left-0 z-40 mb-1 grid min-w-28 gap-0.5 rounded-lg border border-slate-200 bg-white p-1 shadow-lg dark:border-white/10 dark:bg-slate-900"
+              >
+                <For each={workspaceModes()}>
+                  {(item) => (
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={(props.workspaceMode ?? "read_only") === item.value}
+                      onClick={() => {
+                        setWorkspaceModeOpen(false);
+                        props.onWorkspaceModeChange?.(item.value);
+                      }}
+                      class="flex items-center justify-between rounded-md px-2 py-1.5 text-left text-[12px] text-slate-600 outline-none transition hover:bg-slate-900/5 focus-visible:ring-2 focus-visible:ring-sky-500/40 dark:text-slate-300 dark:hover:bg-white/10"
+                    >
+                      <span>{item.label}</span>
+                      <Show when={(props.workspaceMode ?? "read_only") === item.value}>
+                        <span class="text-sky-500" aria-hidden="true">✓</span>
+                      </Show>
+                    </button>
+                  )}
+                </For>
+              </div>
+            </Show>
+          </div>
         </Show>
 
         <button
@@ -378,6 +452,11 @@ export const LlmChat: Component<LlmChatProps> = (props) => {
                     message={messages()[item.index]}
                     locale={locale()}
                     onRendered={measureRow}
+                    toolCallsView={(messages()[item.index] as {
+                      tool_calls?: unknown[];
+                    })?.tool_calls?.length
+                      ? props.toolCallsView?.(messages()[item.index])
+                      : undefined}
                   />
                 </div>
               )}

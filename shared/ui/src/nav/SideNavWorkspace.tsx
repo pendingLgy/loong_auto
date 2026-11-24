@@ -139,8 +139,8 @@ export const SideNavWorkspace: Component<SideNavWorkspaceProps> = (props) => {
   };
 
   return (
-    <section class={`mt-2 border-t border-slate-200 pt-2 dark:border-white/10 ${props.class ?? ""}`}>
-      <div class="flex items-center justify-between gap-1 px-3 pb-1">
+    <section class={`mt-2 flex min-h-0 flex-1 flex-col border-t border-slate-200 pt-2 dark:border-white/10 ${props.class ?? ""}`}>
+      <div class="flex shrink-0 items-center justify-between gap-1 px-3 pb-1">
         <p class="m-0 truncate text-[14px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
           {translate(locale(), "nav.workspaces", "工作区")}
         </p>
@@ -166,6 +166,7 @@ export const SideNavWorkspace: Component<SideNavWorkspaceProps> = (props) => {
         </div>
       </div>
 
+      <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain">
       <For
         each={props.workspaces ?? []}
         fallback={
@@ -300,6 +301,7 @@ export const SideNavWorkspace: Component<SideNavWorkspaceProps> = (props) => {
           </div>
         )}
       </For>
+      </div>
     </section>
   );
 };

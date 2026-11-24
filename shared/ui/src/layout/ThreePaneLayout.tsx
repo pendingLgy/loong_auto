@@ -73,7 +73,7 @@ export const ThreePaneLayout: Component<ThreePaneLayoutProps> = (props) => {
   const minWidth = (side: Side) =>
     side === LEFT ? (props.minLeftWidth ?? 160) : (props.minRightWidth ?? 200);
   const maxWidth = (side: Side) =>
-    side === LEFT ? (props.maxLeftWidth ?? 480) : (props.maxRightWidth ?? 560);
+    side === LEFT ? (props.maxLeftWidth ?? 480) : (props.maxRightWidth ?? 1000);
 
   const collapsed = (side: Side) =>
     side === LEFT ? state().leftCollapsed : state().rightCollapsed;

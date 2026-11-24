@@ -81,6 +81,7 @@ async def subscribe(
             tool_id=pending.tool_call.id,
             session_id=pending.session_id,
             tool_name=pending.tool_call.name,
+            description=pending.tool_call.arguments["description"],
             request_data=inspection.request.model_dump(mode="json"),
             summary=inspection.summary,
             risk_reason=inspection.risk_reason if inspection.needs_approval else None,
@@ -125,15 +126,14 @@ async def subscribe(
                 current_event = lines[0][len("event:"):].strip()
                 if current_event in [GlobalMessageStatus.TOOL_CALLING.value]:
                     try:
-                        if len(lines) > 1 and lines[1].startswith("data:"):
-                            loop_event: LoopEvent = LoopEvent.model_validate_json(
-                                lines[1][len("data:"):].strip())
-                            if loop_event.remote_tool_calls:
+                        data = lines[1][len("data:"):].strip()
+                        loop_event: LoopEvent = LoopEvent.model_validate_json(data)
+                        if loop_event.remote_tool_calls:
 
-                                for tool_call in loop_event.remote_tool_calls or []:
-                                    # 极速非阻塞：毫秒级返回，绝不卡住 SSE 流
-                                    await task_queue.put(PendingToolCall(session_id=loop_event.session_id,
-                                                                         tool_call=tool_call))
+                            for tool_call in loop_event.remote_tool_calls or []:
+                                # 极速非阻塞：毫秒级返回，绝不卡住 SSE 流
+                                await task_queue.put(PendingToolCall(session_id=loop_event.session_id,
+                                                                     tool_call=tool_call))
 
                     except Exception as parse_err:
                         log_exception(parse_err,

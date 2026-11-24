@@ -27,6 +27,8 @@ class BaseToolParameters(BaseModel):
         description="若评估为高风险，请在此简述原因，该说明将展示给用户进行人工审批"
     )
 
+    description: str = Field(default="", description="执行简介，20字符内")
+
 
 class ToolExecutionError(Exception):
     def __init__(self, message: str, code: int = 500):

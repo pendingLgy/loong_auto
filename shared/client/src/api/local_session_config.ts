@@ -76,6 +76,7 @@ export class SessionConfigApi {
       method: "PUT",
       prefix: LOCAL_PREFIX,
       body: {
+        workspace_id: request.workspaceId,
         workspace_mode: request.workspaceMode,
         workspaces: request.workspaces,
       },

@@ -1,6 +1,6 @@
 import { createEffect, createSignal, on, onMount } from "solid-js";
 
-import type { MessageRecord } from "@loong/client";
+import { ClientError, type MessageRecord, type WorkspaceMode } from "@loong/client";
 import { LlmChat, type ChatModelGroup } from "@loong/ui/chat";
 import type { ManagedModel, ManagedProvider, ProviderOption } from "@loong/ui/model-picker";
 import { createEventListener } from "@solid-primitives/event-listener";
@@ -17,6 +17,7 @@ import { enqueueChatMessage, isChatStreaming, startChatExecutor } from "../../ch
 import { MessageStatus } from "../../chat/status";
 import { showNotice } from "../../storage/app_notice";
 import {
+  appendToolCallMessage,
   chatMessages,
   getChatPaging,
   prependChatMessages,
@@ -26,6 +27,7 @@ import {
   type StoredChatMessage,
 } from "../../storage/chat_messages";
 import { getSessionConfig, saveSessionConfig } from "../../storage/session_config";
+import { ToolCallsView } from "./ToolCallsView";
 import { currentUser } from "../../storage/user";
 
 const MESSAGE_PAGE_SIZE = 10;
@@ -71,18 +73,65 @@ export function ChatPage(props: ChatPageProps) {
   const [availableProviders, setAvailableProviders] = createSignal<ProviderOption[]>([]);
   const [managedProviders, setManagedProviders] = createSignal<ManagedProvider[]>([]);
   const [workspaceName, setWorkspaceName] = createSignal("");
-  const [workspaceItems, setWorkspaceItems] = createSignal<Array<{id: string; name: string}>>([]);
+  const [workspaceItems, setWorkspaceItems] = createSignal<
+    Array<{id: string; name: string; paths: string[]}>
+  >([]);
   const [workspaceSelectOpen, setWorkspaceSelectOpen] = createSignal(false);
   const [workspaceCreateOpen, setWorkspaceCreateOpen] = createSignal(false);
   const initialConfig = getSessionConfig(props.sessionId);
   const [selectedModel, setSelectedModel] = createSignal(initialConfig.model ?? "");
   const [selectedProvider, setSelectedProvider] = createSignal(initialConfig.provider ?? "");
+  const [workspaceMode, setWorkspaceMode] = createSignal<WorkspaceMode>(
+    initialConfig.workspaceMode ?? "read_only",
+  );
   const sessionCreations = new Map<string, Promise<void>>();
+  const approvedTools = new Set<string>();
+  let loadedWorkspaceNameId = "";
 
   const sessionId = () => props.sessionId;
   const workspaceId = () => getSessionConfig(sessionId()).workspaceId ?? "";
   const chatSource = () => chatMessages(sessionId())();
   const typedMessages = useTypewriterMessages(chatSource, sessionId);
+
+
+  const latestToolCallMessage = () => {
+    const list = chatSource();
+    for (let index = list.length - 1; index >= 0; index -= 1) {
+      const message = list[index];
+      if (message.status === MessageStatus.TOOL_CALLING && message.tool_calls?.length) {
+        return message;
+      }
+    }
+    return undefined;
+  };
+
+  const approveTool = async (messageId: string, toolId: string): Promise<boolean> => {
+    if (approvedTools.has(toolId)) return true;
+    approvedTools.add(toolId);
+
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      try {
+        const result = await Effect.runPromise(createApiClient().tools.approve(
+          sessionId(),
+          toolId,
+          {approved: true},
+        ));
+        appendToolCallMessage(sessionId(), messageId, result);
+        return true;
+      } catch (error) {
+        // 本地 SSE Worker 可能尚未把待审批任务写入数据库。
+        if (error instanceof ClientError && error.status === 404 && attempt < 19) {
+          await new Promise((resolve) => window.setTimeout(resolve, 100));
+          continue;
+        }
+        approvedTools.delete(toolId);
+        showNotice("error", "执行工具失败");
+        return false;
+      }
+    }
+    approvedTools.delete(toolId);
+    return false;
+  };
 
   const loadFirstPage = async (id: string) => {
     if (!id || loading()) return;
@@ -213,6 +262,7 @@ export function ChatPage(props: ChatPageProps) {
       setWorkspaceItems(page.rows.map((item) => ({
         id: item.id,
         name: item.name?.trim() || item.path[0] || "未命名工作区",
+        paths: item.path,
       })));
     } catch {
       // 保持当前工作区列表。
@@ -224,11 +274,53 @@ export function ChatPage(props: ChatPageProps) {
     setWorkspaceSelectOpen(true);
   };
 
+  const saveWorkspaceAccess = async (mode: WorkspaceMode): Promise<boolean> => {
+    const id = sessionId();
+    const workspace = workspaceId();
+    if (!id || !workspace) return false;
+
+    let item = workspaceItems().find((entry) => entry.id === workspace);
+    if (!item?.paths.length) {
+      try {
+        const info = await Effect.runPromise(createApiClient().workspace.get(workspace));
+        item = {
+          id: workspace,
+          name: item?.name ?? info.name?.trim() ?? "",
+          paths: info.path,
+        };
+        setWorkspaceItems((current) => current.map((entry) =>
+          entry.id === workspace ? item! : entry));
+      } catch {
+        showNotice("error", "读取工作区目录失败");
+        return false;
+      }
+    }
+
+    try {
+      await Effect.runPromise(createApiClient().sessionConfig.save(id, {
+        workspaceId: workspace,
+        workspaceMode: mode,
+        workspaces: item.paths,
+      }));
+      return true;
+    } catch {
+      showNotice("error", "保存工作区权限失败");
+      return false;
+    }
+  };
+
+  const changeWorkspaceMode = async (mode: WorkspaceMode) => {
+    setWorkspaceMode(mode);
+    saveSessionConfig(sessionId(), {workspaceMode: mode});
+    await saveWorkspaceAccess(mode);
+  };
+
   const selectWorkspace = (id: string) => {
     const item = workspaceItems().find((workspace) => workspace.id === id);
     saveSessionConfig(sessionId(), {workspaceId: id});
     setWorkspaceName(item?.name ?? "");
     setWorkspaceSelectOpen(false);
+    void saveWorkspaceAccess(workspaceMode());
   };
 
   const createWorkspace = async (input: WorkspaceCreateInput) => {
@@ -239,6 +331,7 @@ export function ChatPage(props: ChatPageProps) {
     const item = {
       id: workspace.id,
       name: workspace.name?.trim() || input.name,
+      paths: workspace.path,
     };
     setWorkspaceItems((current) => [...current, item]);
     await props.onWorkspaceCreated?.();
@@ -246,6 +339,7 @@ export function ChatPage(props: ChatPageProps) {
     setWorkspaceName(item.name);
     setWorkspaceCreateOpen(false);
     setWorkspaceSelectOpen(false);
+    void saveWorkspaceAccess(workspaceMode());
   };
 
   const pickWorkspaceDirectory = async (): Promise<string | null> => {
@@ -282,6 +376,9 @@ export function ChatPage(props: ChatPageProps) {
     let sessionTitle = "会话";
     if (pending) {
       sessionTitle = content.trim().slice(0, 10) || "新的对话";
+      if (!await saveWorkspaceAccess(workspaceMode())) {
+        return false;
+      }
       let creation = sessionCreations.get(id);
       if (!creation) {
         creation = Effect.runPromise(createApiClient().session.create({
@@ -339,14 +436,28 @@ export function ChatPage(props: ChatPageProps) {
     const config = getSessionConfig(sessionId());
     setSelectedModel(config.model ?? "");
     setSelectedProvider(config.provider ?? "");
+    setWorkspaceMode(config.workspaceMode ?? "read_only");
     const workspace = workspaceId();
     if (!workspace) {
+      loadedWorkspaceNameId = "";
       setWorkspaceName("");
       return;
     }
+    if (workspace === loadedWorkspaceNameId) return;
+    loadedWorkspaceNameId = workspace;
     void Effect.runPromise(createApiClient().workspace.get(workspace))
       .then((item) => setWorkspaceName(item.name?.trim() || item.path[0] || ""))
       .catch(() => setWorkspaceName(""));
+  });
+
+  createEffect(() => {
+    const message = latestToolCallMessage();
+    if (!message || message.history) return;
+    for (const call of message.tool_calls ?? []) {
+      if (!("dangerous" in call.arguments)) {
+        void approveTool(message.id, call.id);
+      }
+    }
   });
 
   onMount(() => {
@@ -373,7 +484,19 @@ export function ChatPage(props: ChatPageProps) {
         onOpenModels={() => void loadModelGroups()}
         onScrollTop={() => void loadOlderMessages()}
         loadingOlder={loadingOlder()}
+        toolCallsView={(message) => {
+          const stored = message as StoredChatMessage;
+          return (
+            <ToolCallsView
+              calls={stored.tool_calls ?? []}
+              toolCallMessages={stored.tool_call_messages ?? []}
+              onRunTool={(toolId) => approveTool(stored.id, toolId)}
+            />
+          );
+        }}
         workspaceName={workspaceName()}
+        workspaceMode={workspaceMode()}
+        onWorkspaceModeChange={(mode) => void changeWorkspaceMode(mode)}
         onSelectWorkspace={openWorkspaceSelect}
         providers={availableProviders()}
         managedProviders={managedProviders()}

@@ -1,5 +1,7 @@
 import { notifySessionConfig } from "../events";
 
+export type WorkspaceMode = "read_only" | "workspace_write" | "full";
+
 /** 每个会话使用的模型与工作区配置。 */
 
 export interface SessionConfig {
@@ -11,6 +13,8 @@ export interface SessionConfig {
   provider?: string;
   /** 会话尚未在云端创建。 */
   pending?: boolean;
+  /** 工作区权限模式，默认仅查看。 */
+  workspaceMode?: WorkspaceMode;
 }
 
 const STORAGE_KEY_PREFIX = "loong.web.session-config";
@@ -31,6 +35,9 @@ export function getSessionConfig(sessionId: string): SessionConfig {
       model: typeof parsed?.model === "string" ? parsed.model : undefined,
       provider: typeof parsed?.provider === "string" ? parsed.provider : undefined,
       pending: parsed?.pending === true,
+      workspaceMode: parsed?.workspaceMode === "workspace_write" || parsed?.workspaceMode === "full"
+        ? parsed.workspaceMode
+        : "read_only",
     };
   } catch {
     return {};
@@ -44,7 +51,8 @@ export function saveSessionConfig(sessionId: string, patch: SessionConfig): void
   const next: SessionConfig = {...current, ...patch};
   const changed = current.workspaceId !== next.workspaceId
     || current.model !== next.model
-    || current.provider !== next.provider;
+    || current.provider !== next.provider
+    || current.workspaceMode !== next.workspaceMode;
 
   try {
     if (!next.workspaceId && !next.model && !next.provider && !next.pending) {

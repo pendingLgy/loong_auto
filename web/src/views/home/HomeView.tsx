@@ -25,6 +25,7 @@ import { WorkspaceView } from "../workspace/WorkspaceView";
 import { getWorkspaceTabs, saveWorkspaceTabs } from "../../storage/workspace_tabs";
 import type { WorkspaceChatTab } from "../workspace/types";
 import { LoginView } from "./LoginView";
+import {authExpired} from "../../storage/auth_notice";
 
 /** 根页面：承载唯一服务器的工作区与登录弹窗。 */
 export function HomeView() {
@@ -203,7 +204,7 @@ export function HomeView() {
           />
         </Show>
 
-        <Show when={needsLogin()}>
+        <Show when={needsLogin() && !authExpired()}>
           <LoginView serverName={serverLabel()} />
         </Show>
       </div>

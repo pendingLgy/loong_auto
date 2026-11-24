@@ -9,9 +9,13 @@ import { createApiClient } from "../api";
 import { showNotice } from "../storage/app_notice";
 import {
   appendAssistantMessageDelta,
+  chatMessages,
+  markChatSessionHistory,
   appendChatMessage,
+  setAssistantToolCalls,
   upsertAssistantMessage,
   type StoredChatMessage,
+  type StoredToolCall,
 } from "../storage/chat_messages";
 import { isLoggedIn } from "../storage/user";
 import { MessageStatus, asMessageStatus } from "./status";
@@ -40,11 +44,15 @@ interface LoopMessage {
   role?: unknown;
   content?: unknown;
   status?: unknown;
+  tool_calls?: unknown;
 }
 
 interface LoopEventPayload {
   session_id?: unknown;
   messages?: unknown;
+  tool_call_messages?: unknown;
+  tool_calls?: unknown;
+  remote_tool_calls?: unknown;
   last_message_event?: unknown;
   error?: unknown;
 }
@@ -55,6 +63,10 @@ interface Connection {
   closed: boolean;
   idleTimer?: number;
 }
+
+const LOOP_EVENT_ALL_MESSAGES = "all_messages";
+const LOOP_EVENT_CONNECTED = "connected";
+const LOOP_EVENT_HEARTBEAT = "heartbeat";
 
 const QUEUE_STORAGE_KEY = "loong.web.chat-queue";
 const CONNECTION_RETRY_MS = 1000;
@@ -149,21 +161,72 @@ function scheduleIdleClose(current: Connection): void {
   }, IDLE_CLOSE_MS);
 }
 
-function applyLoopEvent(payload: LoopEventPayload): void {
+function toStoredToolCalls(value: unknown): StoredToolCall[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (typeof item !== "object" || item === null) return [];
+    const call = item as Record<string, unknown>;
+    if (typeof call.id !== "string" || typeof call.name !== "string") return [];
+    return [{
+      id: call.id,
+      name: call.name,
+      arguments: typeof call.arguments === "object" && call.arguments !== null
+        ? call.arguments as Record<string, unknown>
+        : {},
+      location: typeof call.location === "string" ? call.location : undefined,
+    }];
+  });
+}
+
+function latestActiveAssistantId(sessionId: string): string | undefined {
+  const messages = chatMessages(sessionId)();
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message.role === "assistant" && !message.history) return message.id;
+  }
+  return undefined;
+}
+
+function applyLoopEvent(payload: LoopEventPayload, eventType: string): void {
   if (typeof payload.session_id !== "string" || !payload.session_id) return;
   if (!Array.isArray(payload.messages)) return;
+
+  // 不依赖 summary/all_messages 的全量消息，避免重复传输。
+  if (eventType === LOOP_EVENT_ALL_MESSAGES) return;
+
+  const sessionId = payload.session_id;
+  const workspaceId = sessionWorkspaceIds.get(sessionId);
 
   payload.messages.forEach((value, index) => {
     if (typeof value !== "object" || value === null) return;
     const message = value as LoopMessage;
     if (message.role !== "assistant") return;
-    if (typeof message.content !== "string" || !message.content) return;
-    const sessionId = payload.session_id as string;
-    const id = typeof message.id === "string" && message.id
+    if (typeof message.content !== "string") return;
+
+    const incomingId = typeof message.id === "string" && message.id
       ? message.id
       : `assistant-${sessionId}-${index}`;
     const status = asMessageStatus(message.status);
-    const workspaceId = sessionWorkspaceIds.get(sessionId);
+    const isFinal = status === MessageStatus.STOP
+      || status === MessageStatus.TOOL_CALLING;
+    const id = isFinal
+      ? latestActiveAssistantId(sessionId) ?? incomingId
+      : incomingId;
+    if (status === MessageStatus.TOOL_CALLING) {
+      setAssistantToolCalls(sessionId, id, message.content, {
+        tool_call_messages: Array.isArray(payload.tool_call_messages)
+          ? payload.tool_call_messages
+          : [],
+        tool_calls: toStoredToolCalls(payload.tool_calls ?? message.tool_calls),
+        remote_tool_calls: toStoredToolCalls(
+          payload.remote_tool_calls ?? message.tool_calls,
+        ),
+      }, status, workspaceId);
+      return;
+    }
+
+    if (!message.content && !isFinal) return;
+
     if (status === MessageStatus.RUNNING || status === MessageStatus.START) {
       appendAssistantMessageDelta(sessionId, id, message.content, status, workspaceId);
     } else {
@@ -187,22 +250,28 @@ function handleEvent(event: EventSourceMessage): void {
     ? payload.last_message_event
     : "message");
 
-  if (type === "heartbeat") {
+  if (type === LOOP_EVENT_HEARTBEAT) {
     scheduleIdleClose(current);
     return;
   }
 
   cancelIdleTimer(current);
 
-  if (type === "connected") {
+  if (type === LOOP_EVENT_CONNECTED) {
     current.connected = true;
     drain();
     return;
   }
 
-  applyLoopEvent(payload);
+  applyLoopEvent(payload, type);
 
-  if (type === MessageStatus.STOP && typeof payload.session_id === "string") {
+  if ((type === MessageStatus.STOP || type === MessageStatus.TOOL_CALLING)
+    && typeof payload.session_id === "string") {
+    // tool_calling 与 stop 都表示本轮模型输出结束。
+    // tool_calling 保留工具列表为非历史状态，供界面展示。
+    if (type === MessageStatus.STOP) {
+      markChatSessionHistory(payload.session_id);
+    }
     busySessions.delete(payload.session_id);
     touch();
     drain();

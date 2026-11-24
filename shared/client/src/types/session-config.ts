@@ -13,6 +13,7 @@ export interface SessionConfig {
 
 /** 创建或覆盖会话配置。 */
 export interface SessionConfigSaveRequest {
+  workspaceId: string | number;
   workspaceMode: WorkspaceMode;
   workspaces: string[];
 }

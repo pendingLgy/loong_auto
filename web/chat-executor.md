@@ -1,33 +1,34 @@
-# Web 聊天消息执行器架构（`chat/executor.ts`）
+# Web 聊天消息执行器（`chat/executor.ts`）
 
-本文说明 `web/src/chat/executor.ts` 在单服务器架构下的职责、队列、SSE 生命周期和消息存储。
+本文说明 `web/src/chat/executor.ts` 在单服务器架构下的职责、队列、SSE 生命周期、事件处理和消息存储。
 
 ## 1. 职责范围
 
-执行器把 `LlmChat` 的发送动作转换为云端对话请求，并接收对应 SSE 事件：
+执行器把 ChatPage 的发送动作转换为云端对话请求，并接收 SSE 事件：
 
 - 按 session 维护待发送消息队列；
 - 维护全局唯一 SSE 订阅；
 - 串行提交消息，避免云端 `channel.busy`；
 - 解析 SSE 事件并写入本地消息存储；
-- 队列空闲且收到心跳后关闭 SSE；
+- 队列空闲并收到心跳后关闭 SSE；
 - 为页面提供 `isChatStreaming` 状态。
 
 执行器不负责：
 
-- 创建云端 session；
-- 工具审批与工具执行；
-- 停止生成协议；
-- 模型/供应商配置；
-- UI 渲染。
+- 工作区选择；
+- 模型与供应商选择；
+- UI 渲染；
+- 工具审批；
+- 工具执行编排。
 
 ## 2. 文件与依赖
 
 | 文件 | 作用 |
 | --- | --- |
 | `web/src/chat/executor.ts` | 队列、SSE、事件分发、消息提交 |
+| `web/src/views/workspace/ChatPage.tsx` | 新会话创建、消息发送、模型与工作区选择 |
 | `web/src/storage/chat_messages.ts` | 按 session 持久化消息与打字机 |
-| `web/src/storage/workspace.ts` | 工作区、选中模型与对话状态 |
+| `web/src/storage/session_config.ts` | 会话工作区、模型、pending 状态 |
 | `web/src/api.ts` | 唯一服务器 API 客户端 |
 | `shared/client/src/api/cloud_events.ts` | `events.subscribe` / `events.submit` |
 | `eventsource-parser` | 增量解析 SSE |
@@ -37,6 +38,8 @@
 ```text
 queues: Map<messageId, PendingMessage>
 busySessions: Set<sessionId>
+createdSessions: Set<sessionId>
+sessionWorkspaceIds: Map<sessionId, workspaceId>
 connection: Connection | undefined
 queuesLoaded: boolean
 revision: Signal<number>
@@ -60,17 +63,28 @@ interface Connection {
 - `sessionTitle`；
 - `provider`、`model`；
 - `content`；
-- 本地消息 `id`。
+- 本地消息 `id`；
+- `sessionReady`。
 
-## 4. 数据流
+## 4. 发送流程
 
 ```text
-LlmChat.onSend(content)
+ChatPage.sendChat(content)
+  |
+  |-- 参数校验（工作区、登录、模型）
+  |-- 如果是 pending 新会话
+  |     |-- client.session.create(...)
+  |     |-- 保存 pending: false
+  |     |-- 派发 session-created 事件
+  |
+  |-- saveSessionConfig(...)
+  |-- enqueueChatMessage(request)
+  |-- startChatExecutor()
   |
   v
 enqueueChatMessage(request)
   |-- appendChatMessage(sessionId, userMessage)
-  |-- queues[sessionId].push(pending)
+  |-- queues[messageId] = pending
   |-- persistQueues()
   |-- ensureConnection()
   |
@@ -79,57 +93,30 @@ SSE connected
   |
   v
 drain()
-  |-- 取出一条 pending
+  |-- 全局只允许一条消息处于提交中
+  |-- 取出队列消息
+  |-- busySessions.add(sessionId)
+  |-- submitPending(message)
+  |
+  v
+submitPending
+  |-- ensureSession(message) 兜底
   |-- events.submit(...)
   |
   v
 云端 SSE
-  |-- running / start：追加助手增量
-  |-- stop：覆盖最终内容、清除 busy、继续 drain
-  |-- heartbeat：队列为空时启动 10 秒关闭计时
 ```
 
-## 5. 生命周期
+### 4.1 新会话创建职责
 
-### 5.1 页面打开
+- `ChatPage` 是主路径：发送前根据 `session_config.pending` 判断；
+- `pending: true` 时调用 `client.session.create`；
+- 创建成功后才提交消息；
+- `executor.ensureSession` 保留兜底：
+  - `sessionReady: true` 时跳过；
+  - 未标记时尝试创建，失败后调用 `session.get` 确认已存在。
 
-`HomeView` 在挂载时调用 `startChatExecutor()`；登录成功后 `LoginView` 也会调用一次。
-
-执行器会：
-
-1. 从 `loong.web.chat-queue` 恢复队列；
-2. 只有队列存在待发送数据时才建立 SSE；
-3. 队列为空时保持离线，等待新消息入队后连接。
-
-### 5.2 建立 SSE
-
-```text
-GET /api/cloud/sse/subscribe
-```
-
-同一时间只允许一个 `Connection`；重复调用复用已有连接。
-
-### 5.3 确保会话并提交消息
-
-新建对话首次发送时，`WorkspaceView` 先调用 `SessionApi.create`：
-
-```text
-POST /api/sessions
-  session_id: UUID
-  session_title: 当前消息前 5 个字符
-```
-
-创建成功后写入 `sessionReady: true` 再入队；执行器收到该标记后不再创建 session。旧队列没有该标记时仍保留兜底检查。
-
-然后提交：
-
-```text
-POST /api/session/{session_id}/message
-```
-
-本地网关负责补齐供应商 API Key，并通过 `context.client_id` 绑定当前 SSE 会话。
-
-请求体：
+### 4.2 提交请求体
 
 ```ts
 {
@@ -144,17 +131,25 @@ POST /api/session/{session_id}/message
 }
 ```
 
-### 5.4 SSE 事件
+## 5. SSE 生命周期
 
-| 事件 | 处理 |
-| --- | --- |
-| `connected` | 标记连接可用，触发 `drain` |
-| `running` / `start` | 追加助手消息增量 |
-| `stop` | 覆盖最终内容、清除 session busy、继续 drain |
-| `heartbeat` | 无队列且无 busy 时启动 10 秒关闭计时 |
-| 其它 | 取消空闲计时；有 `messages` 时处理助手消息 |
+### 5.1 建立连接
 
-### 5.5 空闲关闭
+```text
+GET /api/cloud/sse/subscribe
+```
+
+同一时间只允许一个 `Connection`；重复调用复用已有连接。
+
+### 5.2 页面打开
+
+`WorkspaceView` 挂载时调用 `startChatExecutor()`：
+
+1. 从 `loong.web.chat-queue` 恢复队列；
+2. 只有队列存在待发送数据时才建立 SSE；
+3. 队列为空时保持离线，等待新消息入队后连接。
+
+### 5.3 空闲关闭
 
 ```text
 heartbeat
@@ -163,9 +158,9 @@ heartbeat
        false -> 10 秒后 abort SSE
 ```
 
-`hasWork` 检查所有 session 队列与 `busySessions`。新消息入队会取消关闭。
+`hasWork` 检查所有 session 队列与 `busySessions`。
 
-### 5.6 断线重连
+### 5.4 断线重连
 
 SSE 流异常结束或主动关闭后：
 
@@ -173,11 +168,172 @@ SSE 流异常结束或主动关闭后：
 - 仍有队列时 1 秒后重连；
 - 队列为空时不重连。
 
-## 6. 并发与顺序
+## 6. SSE 事件处理流程
 
-- 全局串行提交：同一时间只有一条消息在云端执行。
-- 不同 session 的队列独立保存，但按单通道顺序提交。
-- 同一 session 的 `busySessions` 防止重复提交。
+## 6.1 正常文本回复
+
+```text
+connected
+  -> running*      （助手增量）
+  -> stop          （响应结束）
+```
+
+### 6.2 工具调用
+
+```text
+connected
+  -> running*
+  -> tool_calling
+  -> stop
+```
+
+`tool_calling` 帧可能包含：
+
+- `messages`：当前 assistant 工具调用消息；
+- `tool_call_messages`：本地工具结果；
+- `tool_calls`：全部工具调用；
+- `remote_tool_calls`：需要客户端执行的远程工具。
+
+### 6.3 异常
+
+```text
+running(error)
+  -> stop(error=true)
+```
+
+异常路径不会发送 `all_messages`。
+
+## 6.4 执行器事件表
+
+| 事件 | 当前处理 |
+| --- | --- |
+| `connected` | 标记连接可用，触发 `drain()` |
+| `heartbeat` | 无队列且无 busy 时启动 10 秒关闭计时 |
+| `running` / `start` | 追加 assistant 消息增量 |
+| `tool_calling` | 保存工具列表并结束本轮生成，清除 busy，不执行工具 |
+| `tool_called` | 仅可能出现在工具结果消息内部；不作为顶层事件处理 |
+| `stop` | 覆盖最终内容、标记历史、清除 busy、继续 `drain()` |
+| `all_messages` | 忽略；不读取全量消息，避免重复传输与带宽浪费 |
+| 其他 | 取消空闲计时；有 `messages` 时处理 assistant 消息 |
+| `error=true` | 依赖后续 `stop` 清理 busy；错误内容按普通消息展示 |
+
+### 6.5 事件字段
+
+```text
+LoopEvent
+  ├─ client_id
+  ├─ session_id
+  ├─ error
+  ├─ summary（Web 不读取）
+  ├─ last_message_event
+  ├─ messages
+  ├─ tool_call_messages
+  ├─ tool_calls
+  └─ remote_tool_calls
+```
+
+## 6.6 读取事件流的消息处理流程
+
+```text
+SSE Response.body
+  │
+  ▼
+reader.read()
+  │
+  ▼
+TextDecoder.decode(value, { stream: true })
+  │
+  ▼
+eventsource-parser.feed()
+  │
+  ▼
+onEvent(EventSourceMessage)
+  │
+  ├─ JSON.parse(event.data)
+  │    └─ 失败：丢弃该帧
+  │
+  ├─ type = event.event
+  │           ?? payload.last_message_event
+  │           ?? "message"
+  │
+  ▼
+handleEvent()
+  │
+  ├─ connection 不存在
+  │    └─ 丢弃
+  │
+  ├─ heartbeat
+  │    └─ scheduleIdleClose(connection)
+  │         ├─ hasWork() == true：取消关闭计时
+  │         └─ hasWork() == false：10 秒后 abort
+  │
+  ├─ connected
+  │    ├─ connection.connected = true
+  │    └─ drain()
+  │
+  ├─ 其他事件
+  │    └─ cancelIdleTimer(connection)
+  │
+  ▼
+applyLoopEvent(payload)
+  │
+  ├─ session_id 无效或 messages 非数组
+  │    └─ 忽略
+  │
+  └─ 遍历 messages
+       │
+       ├─ 仅处理 role == "assistant"
+       ├─ content 必须为非空字符串
+       ├─ message.id 缺失时生成 assistant-{sessionId}-{index}
+       ├─ 读取 message.status
+       └─ 读取 sessionWorkspaceIds
+            │
+            ├─ status == running / start
+            │    └─ appendAssistantMessageDelta()
+            │         └─ 追加本地助手内容并持久化
+            │
+            └─ 其他 status
+                 └─ upsertAssistantMessage()
+                      └─ 覆盖本地助手内容并持久化
+  │
+  ▼
+type == stop
+  ├─ busySessions.delete(session_id)
+  ├─ touch()
+  └─ drain()
+       └─ 继续提交下一条队列消息
+```
+
+### 事件流结束
+
+```text
+reader.read() 返回 done 或异常
+  │
+  ▼
+finally
+  ├─ connection.closed = true
+  ├─ connection.connected = false
+  ├─ cancelIdleTimer()
+  ├─ connection = undefined
+  ├─ reader.cancel()
+  └─ hasWork() == true
+       └─ 1 秒后 ensureConnection()
+```
+
+### 消息写入分支
+
+| SSE 类型 | 本地处理 |
+| --- | --- |
+| `connected` | 标记连接，触发队列提交 |
+| `heartbeat` | 根据队列状态关闭或保持连接 |
+| `running` / `start` | 追加 assistant 增量 |
+| `tool_calling` | 保存工具列表，结束生成状态，保留工具视图 |
+| `tool_called` | 不单独处理顶层事件 |
+| `stop` | 覆盖最终内容，标记历史，清除 busy，继续下一队列 |
+| `all_messages` | 忽略；不读取全量消息，避免重复传输与带宽浪费 |
+| `error=true` | 内容照常写入，等待 `stop` 清理 busy |
+
+当前 Web 端不依赖 `summary` 或 `all_messages` 的全量消息。模型增量通过 `running` / `start` 写入；`tool_calling` 与 `stop` 都表示本轮输出结束并清理 busy，其中 `tool_calling` 保留工具列表供界面展示。
 
 ## 7. 消息状态
 
@@ -195,12 +351,14 @@ stop
 - 用户消息入队状态为 `start`；
 - SSE 助手增量使用 `running`；
 - 工具调用/审批/结束事件保留对应状态；
-- 历史分页消息标记为 `stop`。
-- 每条消息带 `history: boolean` 字段；`chat_messages.ts` 的 `createEffect` 检测到 `stop` 状态后，将当前会话助手消息标记 `history: true`。
-- 分页加载的消息直接标记 `history: true`。
-- 切换或关闭 `HomeTabs` 标签时，离开的会话助手消息标记 `history: true`。
+- 历史分页消息标记为 `stop`；
+- 每条消息带 `history: boolean` 字段。
 
-只有 `history: false` 且状态为 `start` / `running` 的助手消息参与打字机动画。
+`chat_messages.ts` 的 `createEffect` 检测到 `stop` 状态后，将当前会话助手消息标记 `history: true`：
+
+- 历史分页消息直接标记 `history: true`；
+- 切换或关闭 `HomeTabs` 标签时，离开的会话助手消息标记 `history: true`；
+- 只有 `history: false` 且状态为 `start` / `running` 的助手消息参与打字机动画。
 
 ## 8. 本地消息与打字机
 
@@ -214,11 +372,11 @@ loong.web.chat-messages:<sessionId>
 
 - 用户发送：立即写入完整用户消息；
 - `running` / `start`：追加助手增量；
-- `stop`：覆盖为最终完整内容。
+- `stop` / 其他最终状态：覆盖为最终完整内容。
 
 `useTypewriterMessages`：
 
-- 初次读取的历史消息直接显示；
+- 历史消息直接显示；
 - 新增或增长助手消息逐字显示；
 - 内容不再增长时停止计时器。
 
@@ -232,10 +390,10 @@ key：
 loong.web.chat-queue
 ```
 
-- 存储以消息 ID 为 key 的对象：`{ [messageId]: PendingMessage }`；
+- 以消息 ID 为 key 保存 `PendingMessage`；
 - 入队、出队、提交前同步；
 - 队列为空时删除 key；
-- `busy` 仅保存在内存中；
+- `busy` 仅保存在内存；
 - 同一时间只允许一条消息在云端执行。
 
 ## 10. 错误处理
@@ -246,19 +404,19 @@ loong.web.chat-queue
 | SSE 读取中断 | 提示；有队列时重连 |
 | 提交失败 | 提示；清除当前 busy，继续下一条 |
 | 未登录 | 不建立订阅 |
-| 未选择会话/模型 | `HomeView` 直接提示 |
+| 未选择工作区/模型 | ChatPage 直接提示，不发送 |
 
 ## 11. 当前限制
 
-- 新建对话使用 UUID 作为 `session_id`；首次发送时由 `WorkspaceView` 创建 session，标题取消息前 5 个字符。
-- `busy` 不持久化，刷新后不恢复“正在执行”状态。
-- 提交失败后出队项不会自动重放。
-- 工具调用、审批、停止生成尚未接入。
-- 仅处理 `assistant` 角色；工具/系统消息暂不展示。
+- 新会话使用 UUID 作为 `session_id`；ChatPage 首次发送创建 session，标题取消息前 10 个字符；
+- `busy` 不持久化，刷新后不恢复“正在执行”状态；
+- 提交失败后出队项不会自动重放；
+- 工具调用、审批、停止生成尚未接入；
+- 仅处理 `assistant` 角色，工具/系统消息暂不展示。
 
 ## 12. 扩展方向
 
-- 接入 sessions API，在首次发送前创建云端 session；
+- 接入远程工具执行与结果回传；
+- 接入工具审批事件；
 - 为提交增加幂等重试与失败队列；
-- 把 `stop` / 审批事件映射为 UI 状态；
-- 持久化 `busy` 与 pending，支持刷新恢复。
+- 持久化 busy 与 pending，支持刷新恢复。

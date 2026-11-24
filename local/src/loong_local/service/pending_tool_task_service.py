@@ -21,6 +21,7 @@ class PendingToolTaskService:
             tool_id: str,
             session_id: str,
             tool_name: str,
+            description: str,
             request_data: dict[str, Any] | str,
             summary: str,
             risk_reason: str | None = None
@@ -61,6 +62,7 @@ class PendingToolTaskService:
                     tool_id=tool_id,
                     session_id=session_id,
                     tool_name=tool_name,
+                    description=description,
                     request_data=request_json,
                     summary=summary,
                     risk_reason=risk_reason or "",

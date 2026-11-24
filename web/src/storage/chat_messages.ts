@@ -10,6 +10,14 @@ import {
 import type { ChatMessage } from "@loong/ui/chat";
 import { MessageStatus, type MessageStatusValue } from "../chat/status";
 
+/** 工具调用信息。 */
+export interface StoredToolCall {
+  id: string;
+  name: string;
+  arguments: Record<string, unknown>;
+  location?: string;
+}
+
 /** 本地聊天消息。 */
 export interface StoredChatMessage extends ChatMessage {
   status?: MessageStatusValue;
@@ -17,6 +25,18 @@ export interface StoredChatMessage extends ChatMessage {
   sessionId?: string;
   /** 从历史存储/分页加载的消息不参与打字机动画。 */
   history?: boolean;
+  /** tool_calling 事件中的待审批工具消息。 */
+  tool_call_messages?: unknown[];
+  /** 全部工具调用。 */
+  tool_calls?: StoredToolCall[];
+  /** 需要当前执行节点处理的工具调用。 */
+  remote_tool_calls?: StoredToolCall[];
+}
+
+export interface StoredToolCallEvent {
+  tool_call_messages?: unknown[];
+  tool_calls?: StoredToolCall[];
+  remote_tool_calls?: StoredToolCall[];
 }
 
 const STORAGE_KEY_PREFIX = "loong.web.chat-messages";
@@ -58,6 +78,23 @@ function normalizeMessage(value: unknown): StoredChatMessage | null {
     sessionId: typeof item.sessionId === "string" ? item.sessionId : undefined,
     // 从 localStorage 读出的消息一律视为历史消息。
     history: true,
+    tool_call_messages: Array.isArray(item.tool_call_messages)
+      ? item.tool_call_messages
+      : [],
+    tool_calls: Array.isArray(item.tool_calls)
+      ? item.tool_calls.filter((call): call is StoredToolCall =>
+        typeof call === "object" && call !== null
+        && typeof (call as StoredToolCall).id === "string"
+        && typeof (call as StoredToolCall).name === "string"
+        && typeof (call as StoredToolCall).arguments === "object")
+      : [],
+    remote_tool_calls: Array.isArray(item.remote_tool_calls)
+      ? item.remote_tool_calls.filter((call): call is StoredToolCall =>
+        typeof call === "object" && call !== null
+        && typeof (call as StoredToolCall).id === "string"
+        && typeof (call as StoredToolCall).name === "string"
+        && typeof (call as StoredToolCall).arguments === "object")
+      : [],
   };
 }
 
@@ -128,7 +165,7 @@ export function upsertAssistantMessage(
       ? current.map((item) => item.id === id
         ? {
           ...item,
-          content,
+          content: content || item.content,
           status: status ?? item.status,
           workspaceId: workspaceId ?? item.workspaceId,
           sessionId,
@@ -143,6 +180,70 @@ export function upsertAssistantMessage(
         sessionId,
         history: false,
         createdAt: new Date().toISOString(),
+      }];
+    persistMessages(sessionId, next);
+    return next;
+  });
+}
+
+/** 追加工具执行结果到对应 assistant 消息。 */
+export function appendToolCallMessage(
+  sessionId: string,
+  messageId: string,
+  result: unknown,
+): void {
+  if (!sessionId || !messageId) return;
+  const store = getStore(sessionId);
+  store.set((current) => {
+    const next = current.map((item) => item.id === messageId
+      ? {
+        ...item,
+        tool_call_messages: [...(item.tool_call_messages ?? []), result],
+      }
+      : item);
+    persistMessages(sessionId, next);
+    return next;
+  });
+}
+
+/** 保存 tool_calling 的工具调用字段，保留已有正文。 */
+export function setAssistantToolCalls(
+  sessionId: string,
+  id: string,
+  content: string,
+  calls: StoredToolCallEvent,
+  status?: MessageStatusValue,
+  workspaceId?: string,
+): void {
+  if (!sessionId) return;
+  const store = getStore(sessionId);
+  store.set((current) => {
+    const patch = {
+      tool_call_messages: calls.tool_call_messages ?? [],
+      tool_calls: calls.tool_calls ?? [],
+      remote_tool_calls: calls.remote_tool_calls ?? [],
+      status,
+      workspaceId,
+      sessionId,
+    };
+    const existing = current.find((item) => item.id === id);
+    const next = existing
+      ? current.map((item) => item.id === id
+        ? {
+          ...item,
+          ...patch,
+          content: content || item.content,
+          status: status ?? item.status,
+          workspaceId: workspaceId ?? item.workspaceId,
+        }
+        : item)
+      : [...current, {
+        id,
+        role: "assistant" as const,
+        content,
+        createdAt: new Date().toISOString(),
+        history: false,
+        ...patch,
       }];
     persistMessages(sessionId, next);
     return next;
@@ -193,7 +294,13 @@ export function markChatSessionHistory(sessionId: string): void {
   store.set((current) => {
     const next = current.map((message) =>
       message.role === "assistant"
-        ? {...message, history: true}
+        ? {
+          ...message,
+          history: true,
+          status: message.status === MessageStatus.TOOL_CALLING
+            ? MessageStatus.STOP
+            : message.status,
+        }
         : message);
     persistMessages(sessionId, next);
     return next;

@@ -11,6 +11,7 @@ import { WorkspaceApi } from "./cloud_workspace";
 import { EventsApi } from "./cloud_events";
 import { SessionApi } from "./cloud_session";
 import { MessageApi } from "./cloud_message";
+import { ToolsApi } from "./local_tools";
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
 
@@ -47,6 +48,7 @@ export interface LocalClient {
   session: SessionApi;
   message: MessageApi;
   events: EventsApi;
+  tools: ToolsApi;
 }
 
 /** 只允许本机网关，拒绝把账号密码发往任意远程地址。 */
@@ -143,6 +145,15 @@ export function createLocalClient(options: LocalClientOptions): LocalClient {
       timeoutMs: options.timeoutMs,
     }),
     events: new EventsApi({
+      baseUrl,
+      prefix,
+      token: options.token,
+      locale,
+      fetch: options.fetch,
+      security_token: options.security_token,
+      timeoutMs: options.timeoutMs,
+    }),
+    tools: new ToolsApi({
       baseUrl,
       prefix,
       token: options.token,

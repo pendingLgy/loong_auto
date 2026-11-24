@@ -23,6 +23,7 @@ def get_tool_tasks_table(metadata: MetaData, prefix: str = "") -> Table:
         Column("session_id", String(128), nullable=False, comment="会话ID"),
 
         Column("tool_name", String(64), nullable=False, comment="工具名称"),
+        Column("description", String(255), nullable=True, comment="操作描述"),
         Column("request_data", Text, nullable=False, comment="工具请求参数 JSON"),
         Column("summary", Text, nullable=False, comment="操作摘要"),
         Column("risk_reason", Text, nullable=True, comment="高风险原因说明"),
