@@ -52,8 +52,47 @@ class AgentLoop:
                 self.config, ModelRequest(messages=messages, tools=self.tools),
             )) as events:
                 async for event in events:
-                    if isinstance(event, Message) and event.status in ["stop", "tool_calling"]:
+                    if isinstance(event, Message) and event.status in [GlobalMessageStatus.ALL_MESSAGES.value]:
                         response = event
+                    elif isinstance(event, Message) and event.status in [GlobalMessageStatus.TOOL_CALLING.value]:
+                        last_message_event = event.status
+                        message = event
+
+                        tool_call_messages: list[Message] = []
+                        remote_calls: list[ToolCall] = []
+                        tool_calls: list[ToolCall] = message.tool_calls
+
+                        for call in message.tool_calls:
+                            if call.location == "local":
+                                tool_response = await self._execute_local(call)
+                                tool_call_messages.append(Message(id=uuid_util.uuid_str(),
+                                                                  created=int(time.time()),
+                                                                  role=GlobalMessageRole.TOOL,
+                                                                  status=GlobalMessageStatus.TOOL_CALLED,
+                                                                  tool_call_id=call.id,
+                                                                  content=tool_response))
+                            else:
+                                remote_calls.append(call)
+
+                        if remote_calls:
+                            yield LoopEvent(client_id=self.client_id,
+                                            session_id=self.session_id,
+                                            messages=[message],
+                                            tool_call_messages=tool_call_messages,
+                                            tool_calls=tool_calls,
+                                            remote_tool_calls=remote_calls,
+                                            last_message_event=last_message_event)
+
+                        else:
+                            messages = build_tool_call_message(messages, tool_call_messages,
+                                                               tool_calls)
+
+                            loop_event = LoopEvent(client_id=self.client_id, session_id=self.session_id,
+                                                   messages=[event], tool_calls=None,
+                                                   remote_tool_calls=None,
+                                                   last_message_event=last_message_event)
+                            yield loop_event
+
                     else:
                         last_message_event = event.status
                         loop_event = LoopEvent(client_id=self.client_id, session_id=self.session_id,
@@ -64,41 +103,18 @@ class AgentLoop:
 
             if response is None:
                 raise RuntimeError("模型流未返回完整响应")
+
             message = response
             messages.append(message)
 
             last_message_event = messages[-1].status
 
-            if not message.tool_calls:
-                yield LoopEvent(client_id=self.client_id, session_id=self.session_id, summary=True,
-                                messages=messages, tool_calls=None,
-                                last_message_event=last_message_event)
-                return
+            yield LoopEvent(client_id=self.client_id, session_id=self.session_id, summary=True,
+                            messages=messages, tool_calls=None,
+                            last_message_event=last_message_event)
+            return
 
-            tool_call_messages: list[Message] = []
-            remote_calls: list[ToolCall] = []
-            tool_calls: list[ToolCall] = message.tool_calls
 
-            for call in message.tool_calls:
-                if call.location == "local":
-                    tool_response = await self._execute_local(call)
-                    tool_call_messages.append(Message(id=uuid_util.uuid_str(),
-                                                      created=int(time.time()),
-                                                      role=GlobalMessageRole.TOOL,
-                                                      status=GlobalMessageStatus.TOOL_CALLED,
-                                                      tool_call_id=call.id,
-                                                      content=tool_response))
-                else:
-                    remote_calls.append(call)
-
-            if remote_calls:
-                yield LoopEvent(client_id=self.client_id, session_id=self.session_id,
-                                messages=messages, tool_call_messages=tool_call_messages,
-                                tool_calls=tool_calls, remote_tool_calls=remote_calls,
-                                last_message_event=last_message_event)
-                return
-            else:
-                messages = build_tool_call_message(messages, tool_call_messages, tool_calls)
 
     async def run_sse(self, messages: list[Message]):
         """供 StreamingResponse 使用；调用结束或取消时关闭上游生成器。"""

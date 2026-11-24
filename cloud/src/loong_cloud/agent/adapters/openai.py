@@ -1,6 +1,7 @@
 """OpenAI Chat Completions 协议及兼容供应商。"""
 
 import json
+import time
 from contextlib import aclosing
 
 from loong_contracts.agent.models import Message, ModelRequest
@@ -8,6 +9,7 @@ from loong_contracts.common.llm_message_constant import GlobalMessageRole, Globa
 
 from loong_cloud.agent.adapters.base import ModelAdapter, ModelError
 from loong_cloud.config.config_model import ModelConfig
+from loong_contracts.utils.uuid_util import uuid_str
 
 
 class OpenAIAdapter(ModelAdapter):
@@ -22,7 +24,7 @@ class OpenAIAdapter(ModelAdapter):
             async with aclosing(self._stream_post("chat/completions", body, headers)) as events:
                 async for data in events:
 
-                    # print(f"data: {json.dumps(data, indent=4, ensure_ascii=False)}")
+                    # print(f"openai_data: {json.dumps(data, ensure_ascii=False)}")
 
                     chunks.append(data)
                     response_id = data.get("id")
@@ -57,6 +59,19 @@ class OpenAIAdapter(ModelAdapter):
                         calls = [self._tool_call(request, item["id"], item["name"],
                                                  json.loads(item["arguments"] or "{}"))
                                  for _, item in sorted(pending.items())]
+
+                        # send tool msg
+                        if calls and len(calls) > 0:
+                            yield Message(id=uuid_str(), created=int(time.time()), model=model,
+                                          role=GlobalMessageRole.ASSISTANT,
+                                          status=GlobalMessageStatus.TOOL_CALLING,
+                                          finish_reason=finish, content="", tool_calls=calls)
+                        else:
+                            yield Message(id=uuid_str(), created=int(time.time()), model=model,
+                                          role=GlobalMessageRole.ASSISTANT,
+                                          status=GlobalMessageStatus.STOP,
+                                          finish_reason=finish, content="", tool_calls=None)
+
                         token_usage = {
                             "input_tokens": usage.get("prompt_tokens", 0),
                             "output_tokens": usage.get("completion_tokens", 0),
@@ -65,9 +80,9 @@ class OpenAIAdapter(ModelAdapter):
                                                           "completion_tokens", 0)),
                         }
                         emitted = True
-                        yield Message(id=response_id, created=created, model=model,
+                        yield Message(id=response_id, created=int(time.time()), model=model,
                                       role=GlobalMessageRole.ASSISTANT,
-                                      status=GlobalMessageStatus.STOP if not calls else GlobalMessageStatus.TOOL_CALLING,
+                                      status=GlobalMessageStatus.ALL_MESSAGES,
                                       raw=data,
                                       finish_reason=finish, content="".join(text), tool_calls=calls,
                                       **token_usage)

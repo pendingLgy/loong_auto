@@ -57,7 +57,7 @@ class TestLoopSSE:
                 ]):
                     event_line, data_line, ending = frame.split("\n", 2)
                     data = json.loads(data_line.removeprefix("data: "))
-                    print(f"\nSSE event:\n{json.dumps(data, ensure_ascii=False)}",
+                    print(f"\nSSE event:{event_line}\n{json.dumps(data, ensure_ascii=False)}",
                           flush=True)
                     events.append(data)
 
@@ -76,19 +76,30 @@ class TestLoopSSE:
 
         tools = [
             ToolDefinition(name="get_client_info", location="remote", description="获取客户端信息")]
+
         async with ModelExecutor(supplier=supplier_model) as executor:
             async with asyncio.timeout(180):
                 frames = []
+                messages: list[Message] = [
+                    Message(role=GlobalMessageRole.USER,content="必须调用 get_client_info，收到结果后回复其中的标记，不要重复调用。")
+                ]
+
                 async for frame in AgentLoop(executor, config, tools,
                                              {"read_test_file": execute_local}, client_id=client_id,
-                                             session_id=session_id).run_sse([
-                    Message(role=GlobalMessageRole.USER,
-                            content="必须调用 get_client_info，收到结果后回复其中的标记，不要重复调用。"),
-                ]):
-                    data = json.loads(frame.split("\n")[1].removeprefix("data: "))
-                    print(f"\nSSE request 1:\n{json.dumps(data, ensure_ascii=False)}",
+                                             session_id=session_id).run_sse(messages):
+                    event_line, data_line, ending = frame.split("\n", 2)
+                    print(f"\nSSE request_1:{event_line}:\n{data_line}",
                           flush=True)
-                    frames.append(data)
+
+                    json_str = data_line.removeprefix("data:").strip()
+                    data: dict = json.loads(json_str)
+
+                    loop_event = LoopEvent.model_validate(data)
+                    if loop_event.last_message_event in [GlobalMessageStatus.TOOL_CALLING]:
+                        messages.extend(loop_event.messages)
+
+                    if loop_event.last_message_event not in [GlobalMessageStatus.ALL_MESSAGES]:
+                        frames.append(data)
 
                 event: LoopEvent = LoopEvent.model_validate(frames[-1])
                 tool_call_messages = event.tool_call_messages
@@ -100,18 +111,18 @@ class TestLoopSSE:
                         content=json.dumps(result, ensure_ascii=False),
                     ))
 
-                next_messages = build_tool_call_message(event.messages, event.tool_call_messages,
+                messages = build_tool_call_message(messages, event.tool_call_messages,
                                                         event.tool_calls)
 
                 # 新请求重新创建 Loop，并以 SSE 接收工具结果后的模型回复。
                 final_frames = []
                 async for frame in AgentLoop(executor, config, tools,
                                              {"read_test_file": execute_local}, client_id=client_id,
-                                             session_id=session_id).run_sse(next_messages):
-                    data = json.loads(frame.split("\n")[1].removeprefix("data: "))
-                    print(f"\nSSE request 2:\n{json.dumps(data, ensure_ascii=False)}",
+                                             session_id=session_id).run_sse(messages):
+                    event_line, data_line, ending = frame.split("\n", 2)
+                    print(f"\nSSE request_2:{event_line}:\n{data_line}",
                           flush=True)
-                    final_frames.append(data)
+                    final_frames.append(data_line)
 
     async def test_live_sse_remote_local_tool_next_request(self, config, tmp_path, supplier_model):
         path = tmp_path / "example2.txt"
@@ -151,10 +162,19 @@ class TestLoopSSE:
                 async for frame in AgentLoop(executor, config, tools,
                                              {"read_test_file": execute_local}, client_id,
                                              session_id).run_sse(messages):
-                    data = json.loads(frame.split("\n")[1].removeprefix("data: "))
-                    print(f"\nSSE request 1:\n{json.dumps(data, ensure_ascii=False)}",
-                          flush=True)
-                    frames.append(data)
+
+                    event_line, data_line, ending = frame.split("\n", 2)
+                    print(f"\nSSE request_1:{event_line}:\n{data_line}",flush=True)
+
+                    json_str = data_line.removeprefix("data:").strip()
+                    data: dict = json.loads(json_str)
+
+                    loop_event = LoopEvent.model_validate(data)
+                    if loop_event.last_message_event in [GlobalMessageStatus.TOOL_CALLING]:
+                        messages.extend(loop_event.messages)
+
+                    if loop_event.last_message_event not in [GlobalMessageStatus.ALL_MESSAGES]:
+                        frames.append(data)
 
                 event: LoopEvent = LoopEvent.model_validate(frames[-1])
                 tool_call_messages = event.tool_call_messages
@@ -166,7 +186,7 @@ class TestLoopSSE:
                         content=json.dumps(result, ensure_ascii=False),
                     ))
 
-                next_messages = build_tool_call_message(event.messages, event.tool_call_messages,
+                next_messages = build_tool_call_message(messages, event.tool_call_messages,
                                                         event.tool_calls)
 
                 # 新请求重新创建 Loop，并以 SSE 接收工具结果后的模型回复。
@@ -174,9 +194,13 @@ class TestLoopSSE:
                 async for frame in AgentLoop(executor, config, tools,
                                              {"read_test_file": execute_local}, client_id,
                                              session_id).run_sse(next_messages):
-                    data = json.loads(frame.split("\n")[1].removeprefix("data: "))
-                    print(f"\nSSE request 2:\n{json.dumps(data, ensure_ascii=False)}",
-                          flush=True)
+
+                    event_line, data_line, ending = frame.split("\n", 2)
+                    print(f"\nSSE request_2:{event_line}:\n{data_line}", flush=True)
+
+                    json_str = data_line.removeprefix("data:").strip()
+                    data: dict = json.loads(json_str)
+
                     final_frames.append(data)
 
 
