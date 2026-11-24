@@ -20,7 +20,7 @@ from uuid import uuid4
 import httpx
 import pytest
 from conftest import PATH_CLOUD_MESSAGE_PREFIX, PATH_CLOUD_SSE_PREFIX, SESSION_CONFIG_PATH, _create_session, _create_workspace
-from loong_contracts.agent.models import Message
+from loong_contracts.agent.models import Message, ToolCall, LoopEvent
 from loong_contracts.common.llm_message_constant import (
     GlobalMessageRole,
     GlobalMessageStatus,
@@ -65,7 +65,7 @@ class SSEStream:
                     return event, data
 
         event, data = await asyncio.wait_for(collect(), timeout=timeout)
-        print(f"\nevent:{event} data:{data}")
+        print(f"\nevent:{event} \ndata:{data}")
         assert data is not None, f"事件 {event} 缺少 data 负载"
         return event, json.loads(data)
 
@@ -146,115 +146,116 @@ async def test_subscribe_execute_tool_and_resubmit(client, settings, tmp_path):
     client_id = None
     tool_executed = False
     final = None
+    answer: list[str] = []
 
-    response = await client.send(client.build_request("GET", PATH_CLOUD_SSE_PREFIX), stream=True)
-    try:
-        stream = SSEStream(response)
+    async with asyncio.timeout(180):
+        response = await client.send(client.build_request("GET", PATH_CLOUD_SSE_PREFIX), stream=True)
+        try:
+            stream = SSEStream(response)
 
-        # 订阅完成后统一由该循环处理：先取 connected 首帧，再提交待发送消息、消费推送。
-        while True:
-            if client_id is None:
-                assert response.status_code == 200, await response.aread()
-                assert response.headers["content-type"].startswith("text/event-stream")
-                event, data = await stream.next_event()
-                assert event == GlobalMessageStatus.CONNECTED.value
-                client_id = data["client_id"]
-                assert client_id
-                continue
+            assert response.status_code == 200, await response.aread()
+            assert response.headers["content-type"].startswith("text/event-stream")
+            event, data = await stream.next_event()
+            assert event == GlobalMessageStatus.CONNECTED.value
 
-            if pending_messages:
-
+            while pending_messages:
                 common_body.messages = pending_messages
-                body = common_body
-
-                payload = body.model_dump(mode="json")
-                # SecretStr 默认脱敏，只在本次提交时显式取出密钥。
+                payload = common_body.model_dump(mode="json")
                 payload["llm"]["api_key"] = api_key
-                submitted = await client.post(PATH_CLOUD_MESSAGE_PREFIX.format(session_id=session_id),
-                                              json=payload)
+                submitted = await client.post(
+                    PATH_CLOUD_MESSAGE_PREFIX.format(session_id=session_id),
+                    json=payload,
+                )
                 assert submitted.status_code == 200
                 assert submitted.json()["code"] == 200
                 pending_messages = None
 
-            event, data = await stream.next_event()
-            if event == GlobalMessageStatus.HEARTBEAT.value:
-                continue
-            assert data.get("session_id") == session_id
+                turn_events: list[tuple[str, dict]] = []
+                while True:
+                    event, data = await stream.next_event()
+                    if event == GlobalMessageStatus.HEARTBEAT.value:
+                        continue
+                    turn_events.append((event, data))
+                    if event in (GlobalMessageStatus.TOOL_CALLING.value,
+                                 GlobalMessageStatus.STOP.value):
+                        break
+                for _, turn_data in turn_events:
+                    assert turn_data.get("session_id") == session_id
+                    loop_event = LoopEvent.model_validate(turn_data)
+                    for message in loop_event.messages or []:
+                        if (message.role == GlobalMessageRole.ASSISTANT
+                                and message.content):
+                            answer.append(message.content)
 
-            tool_calls = data.get("remote_tool_calls")
-            if tool_calls:
-                assert event == GlobalMessageStatus.TOOL_CALLING.value
-                if tool_executed:
-                    pytest.fail("模型在回传工具结果后再次请求工具调用")
-                tool_executed = True
+                tool_event = next((pair for pair in turn_events
+                                   if pair[0] == GlobalMessageStatus.TOOL_CALLING.value), None)
+                if tool_event is not None:
+                    loop_event = LoopEvent.model_validate(tool_event[1])
+                    tool_calls = loop_event.remote_tool_calls or []
+                    assert tool_calls
+                    if tool_executed:
+                        pytest.fail("模型在回传工具结果后再次请求工具调用")
+                    tool_executed = True
 
-                assert len(tool_calls) == 1
-                call = tool_calls[0]
-                assert call["name"] == TOOL_NAME
-                # remote 表示由本地执行，云端不会直接操作用户工作区。
-                assert call["location"] == "remote"
-                assert call["id"]
+                    assert len(tool_calls) == 1
+                    call = tool_calls[0]
+                    assert call.name == TOOL_NAME
+                    assert call.location == "remote"
+                    assert call.id
 
-                # 通过统一执行入口解析并真实执行工具。
-                tool_name = call["name"]
-                tool_id = call["id"]
-                arguments = dict(call["arguments"])
+                    tool_name = call.name
+                    tool_id = call.id
+                    arguments = dict(call.arguments)
 
-                definition = GLOBAL_TOOL_REGISTRY.get_group_definition(tool_name)
-                assert definition.name == TOOL_NAME
+                    definition = GLOBAL_TOOL_REGISTRY.get_group_definition(tool_name)
+                    assert definition.name == TOOL_NAME
 
-                executor = ToolExecutor(
-                    registry=GLOBAL_TOOL_REGISTRY,
-                    tool_guard=ToolGuard(
-                        allowed_tools=GLOBAL_TOOL_REGISTRY.list_tool_names()),
-                    permission_guard=ToolPermissionGuard(),
-                    path_guard=PathGuard(),
-                    sandbox_config=SandboxConfig(),
-                )
-                try:
-                    result = await executor.execute(
-                        ToolCallRequest(tool_id=tool_id, tool_name=tool_name,
-                                        arguments=arguments),
-                        policy=WorkspacePolicy(mode=WorkspaceMode.FULL),
-                        workspaces=(tmp_path,))
-                except ToolSuspendedError as exc:
-                    pytest.fail(f"模型选择了需要人工审批的命令，用例只执行只读命令：{exc.summary}")
+                    executor = ToolExecutor(
+                        registry=GLOBAL_TOOL_REGISTRY,
+                        tool_guard=ToolGuard(
+                            allowed_tools=GLOBAL_TOOL_REGISTRY.list_tool_names()),
+                        permission_guard=ToolPermissionGuard(),
+                        path_guard=PathGuard(),
+                        sandbox_config=SandboxConfig(),
+                    )
+                    try:
+                        result = await executor.execute(
+                            ToolCallRequest(tool_id=tool_id, tool_name=tool_name,
+                                            arguments=arguments),
+                            policy=WorkspacePolicy(mode=WorkspaceMode.FULL),
+                            workspaces=(tmp_path,))
+                    except ToolSuspendedError as exc:
+                        pytest.fail(f"模型选择了需要人工审批的命令，用例只执行只读命令：{exc.summary}")
 
-                assert result.exit_code == 0
-                assert sample.name in result.stdout
+                    assert result.exit_code == 0
+                    assert sample.name in result.stdout
 
-                # 组装回传消息：assistant 调用消息 + tool 结果消息，交给下一轮提交。
-                assistant = Message.model_validate(data["messages"][-1])
-                assert assistant.role == GlobalMessageRole.ASSISTANT
-                assert assistant.tool_calls
-                assert assistant.tool_calls[0].id == call["id"]
+                    tool_message = Message(
+                        id=uuid4().hex,
+                        role=GlobalMessageRole.TOOL,
+                        status=GlobalMessageStatus.TOOL_CALLED,
+                        tool_call_id=call.id,
+                        content=result.model_dump_json(),
+                    )
+                    pending_messages = [tool_message]
+                    continue
 
-                tool_message = Message(
-                    id=uuid4().hex,
-                    role=GlobalMessageRole.TOOL,
-                    status=GlobalMessageStatus.TOOL_CALLED,
-                    tool_call_id=call["id"],
-                    content=result.model_dump_json(),
-                )
-                pending_messages = [assistant, tool_message]
-                continue
-
-            if event == GlobalMessageStatus.STOP.value:
+                stop_event = next((pair for pair in turn_events
+                                   if pair[0] == GlobalMessageStatus.STOP.value), None)
+                assert stop_event is not None
                 assert tool_executed, "模型未触发工具调用，事件流直接结束"
-                final = data
+                assert stop_event[1].get("last_message_event") == GlobalMessageStatus.STOP.value
+                final = stop_event[1]
                 break
-    finally:
-        await response.aclose()
-        # 清理本次会话配置，避免在网关数据库中残留测试数据。
-        await client.delete(f"/api/session-configs/{session_id}")
+        finally:
+            await response.aclose()
+            # 清理本次会话配置，避免在网关数据库中残留测试数据。
+            await client.delete(f"/api/session-configs/{session_id}")
 
     assert final is not None
     assert final["error"] is False
-    messages = final["messages"]
-    assert messages[-1]["role"] == GlobalMessageRole.ASSISTANT.value
-    assert messages[-1]["content"].strip()
-    # 工具结果已写入会话上下文，最终回答基于真实执行结果。
-    assert any(message["role"] == GlobalMessageRole.TOOL.value for message in messages)
+    assert answer
+    assert "".join(answer).strip()
 
 
 async def test_dangerous_tool_call_requires_manual_approval(client, settings, tmp_path):
@@ -304,76 +305,88 @@ async def test_dangerous_tool_call_requires_manual_approval(client, settings, tm
     client_id = None
     tool_executed = False
     final = None
+    answer: list[str] = []
 
-    response = await client.send(client.build_request("GET", PATH_CLOUD_SSE_PREFIX), stream=True)
-    try:
-        stream = SSEStream(response)
+    async with asyncio.timeout(180):
+        response = await client.send(client.build_request("GET", PATH_CLOUD_SSE_PREFIX), stream=True)
+        try:
+            stream = SSEStream(response)
 
-        while True:
-            if client_id is None:
-                assert response.status_code == 200, await response.aread()
-                assert response.headers["content-type"].startswith("text/event-stream")
-                event, data = await stream.next_event()
-                assert event == GlobalMessageStatus.CONNECTED.value
-                client_id = data["client_id"]
-                assert client_id
-                continue
+            assert response.status_code == 200, await response.aread()
+            assert response.headers["content-type"].startswith("text/event-stream")
+            event, data = await stream.next_event()
+            assert event == GlobalMessageStatus.CONNECTED.value
+            assert data["client_id"]
 
-            if pending_messages:
+            while pending_messages:
                 common_body.messages = pending_messages
-                body = common_body
-                payload = body.model_dump(mode="json")
+                payload = common_body.model_dump(mode="json")
                 payload["llm"]["api_key"] = api_key
-                submitted = await client.post(PATH_CLOUD_MESSAGE_PREFIX.format(session_id=session_id),
-                                              json=payload)
+                submitted = await client.post(
+                    PATH_CLOUD_MESSAGE_PREFIX.format(session_id=session_id),
+                    json=payload,
+                )
                 assert submitted.status_code == 200
                 assert submitted.json()["code"] == 200
                 pending_messages = None
 
-            event, data = await stream.next_event()
-            if event == GlobalMessageStatus.HEARTBEAT.value:
-                continue
-            assert data.get("session_id") == session_id
+                turn_events: list[tuple[str, dict]] = []
+                while True:
+                    event, data = await stream.next_event()
+                    if event == GlobalMessageStatus.HEARTBEAT.value:
+                        continue
+                    turn_events.append((event, data))
+                    if event in (GlobalMessageStatus.TOOL_CALLING.value,
+                                 GlobalMessageStatus.STOP.value):
+                        break
+                for _, turn_data in turn_events:
+                    assert turn_data.get("session_id") == session_id
+                    for message in turn_data.get("messages") or []:
+                        if (message.get("role") == GlobalMessageRole.ASSISTANT.value
+                                and message.get("content")):
+                            answer.append(message["content"])
 
-            tool_calls = data.get("remote_tool_calls")
-            if tool_calls:
-                assert event == GlobalMessageStatus.TOOL_CALLING.value
-                if tool_executed:
-                    pytest.fail("模型在回传工具结果后再次请求工具调用")
+                tool_event = next((pair for pair in turn_events
+                                   if pair[0] == GlobalMessageStatus.TOOL_CALLING.value), None)
+                if tool_event is not None:
+                    data = tool_event[1]
+                    tool_calls = [ToolCall.model_validate(item)
+                                  for item in data.get("remote_tool_calls") or []]
+                    assert tool_calls
+                    if tool_executed:
+                        pytest.fail("模型在回传工具结果后再次请求工具调用")
 
-                assert len(tool_calls) == 1
-                call = tool_calls[0]
-                assert call["name"] == TOOL_NAME
-                # 审批前不应产生任何副作用。
-                assert not marker.exists(), "危险命令在人工审批前被执行了"
+                    assert len(tool_calls) == 1
+                    call = tool_calls[0]
+                    assert call.name == TOOL_NAME
+                    assert not marker.exists(), "危险命令在人工审批前被执行了"
 
-                tool_message = await approve_pending_tool(client, session_id, call["id"])
-                assert tool_message["role"] == GlobalMessageRole.TOOL.value
-                assert tool_message["tool_call_id"] == call["id"]
-                assert "Run tool failed" not in tool_message["content"]
-                # 审批通过后才真正执行。
-                assert marker.exists(), "审批通过后命令仍未执行"
+                    tool_message = await approve_pending_tool(client, session_id, call.id)
+                    assert tool_message["role"] == GlobalMessageRole.TOOL.value
+                    assert tool_message["tool_call_id"] == call.id
+                    assert "Run tool failed" not in tool_message["content"]
+                    assert marker.exists(), "审批通过后命令仍未执行"
 
-                tool_executed = True
-                assistant = Message.model_validate(data["messages"][-1])
-                assert assistant.role == GlobalMessageRole.ASSISTANT
-                pending_messages = [assistant, Message.model_validate(tool_message)]
-                continue
+                    tool_executed = True
+                    assistant = Message.model_validate(data["messages"][-1])
+                    assert assistant.role == GlobalMessageRole.ASSISTANT
+                    pending_messages = [assistant, Message.model_validate(tool_message)]
+                    continue
 
-            if event == GlobalMessageStatus.STOP.value:
+                stop_event = next((pair for pair in turn_events
+                                   if pair[0] == GlobalMessageStatus.STOP.value), None)
+                assert stop_event is not None
                 assert tool_executed, "模型未触发工具调用，事件流直接结束"
-                final = data
+                final = stop_event[1]
                 break
-    finally:
-        await response.aclose()
-        await client.delete(f"/api/session-configs/{session_id}")
+        finally:
+            await response.aclose()
+            await client.delete(f"/api/session-configs/{session_id}")
 
     assert final is not None
     assert final["error"] is False
-    messages = final["messages"]
-    assert messages[-1]["role"] == GlobalMessageRole.ASSISTANT.value
-    assert messages[-1]["content"].strip()
-    assert any(message["role"] == GlobalMessageRole.TOOL.value for message in messages)
+    assert answer
+    assert "".join(answer).strip()
 
 
 async def test_mixed_tool_calls_execute_in_tool_call_order(client, settings, tmp_path):
@@ -421,6 +434,7 @@ async def test_mixed_tool_calls_execute_in_tool_call_order(client, settings, tmp
     client_id = None
     mixed_executed = False
     final = None
+    answer: list[str] = []
 
     executor = ToolExecutor(
         registry=GLOBAL_TOOL_REGISTRY,
@@ -430,91 +444,103 @@ async def test_mixed_tool_calls_execute_in_tool_call_order(client, settings, tmp
         sandbox_config=SandboxConfig(),
     )
 
-    response = await client.send(client.build_request("GET", PATH_CLOUD_SSE_PREFIX), stream=True)
-    try:
-        stream = SSEStream(response)
+    async with asyncio.timeout(180):
+        response = await client.send(client.build_request("GET", PATH_CLOUD_SSE_PREFIX), stream=True)
+        try:
+            stream = SSEStream(response)
 
-        while True:
-            if client_id is None:
-                assert response.status_code == 200, await response.aread()
-                assert response.headers["content-type"].startswith("text/event-stream")
-                event, data = await stream.next_event()
-                assert event == GlobalMessageStatus.CONNECTED.value
-                client_id = data["client_id"]
-                assert client_id
-                continue
+            assert response.status_code == 200, await response.aread()
+            assert response.headers["content-type"].startswith("text/event-stream")
+            event, data = await stream.next_event()
+            assert event == GlobalMessageStatus.CONNECTED.value
+            assert data["client_id"]
 
-            if pending_messages:
+            while pending_messages:
                 common_body.messages = pending_messages
-                body = common_body
-                payload = body.model_dump(mode="json")
+                payload = common_body.model_dump(mode="json")
                 payload["llm"]["api_key"] = api_key
-                submitted = await client.post(PATH_CLOUD_MESSAGE_PREFIX.format(session_id=session_id),
-                                              json=payload)
+                submitted = await client.post(
+                    PATH_CLOUD_MESSAGE_PREFIX.format(session_id=session_id),
+                    json=payload,
+                )
                 assert submitted.status_code == 200
                 assert submitted.json()["code"] == 200
                 pending_messages = None
 
-            event, data = await stream.next_event()
-            if event == GlobalMessageStatus.HEARTBEAT.value:
-                continue
-            assert data.get("session_id") == session_id
+                turn_events: list[tuple[str, dict]] = []
+                while True:
+                    event, data = await stream.next_event()
+                    if event == GlobalMessageStatus.HEARTBEAT.value:
+                        continue
+                    turn_events.append((event, data))
+                    if event in (GlobalMessageStatus.TOOL_CALLING.value,
+                                 GlobalMessageStatus.STOP.value):
+                        break
+                for _, turn_data in turn_events:
+                    assert turn_data.get("session_id") == session_id
+                    for message in turn_data.get("messages") or []:
+                        if (message.get("role") == GlobalMessageRole.ASSISTANT.value
+                                and message.get("content")):
+                            answer.append(message["content"])
 
-            tool_calls = data.get("remote_tool_calls")
-            if tool_calls:
-                assert event == GlobalMessageStatus.TOOL_CALLING.value
-                if mixed_executed:
-                    pytest.fail("模型在回传工具结果后再次请求工具调用")
+                tool_event = next((pair for pair in turn_events
+                                   if pair[0] == GlobalMessageStatus.TOOL_CALLING.value), None)
+                if tool_event is not None:
+                    data = tool_event[1]
+                    tool_calls = [ToolCall.model_validate(item)
+                                  for item in data.get("remote_tool_calls") or []]
+                    assert tool_calls
+                    if mixed_executed:
+                        pytest.fail("模型在回传工具结果后再次请求工具调用")
 
-                names = [call["name"] for call in tool_calls]
-                assert set(names) == {"read_file", "write_file"}, f"模型未按预期调用工具：{names}"
+                    names = [call.name for call in tool_calls]
+                    assert set(names) == {"read_file", "write_file"}, \
+                        f"模型未按预期调用工具：{names}"
 
-                assistant = Message.model_validate(data["messages"][-1])
-                assert assistant.role == GlobalMessageRole.ASSISTANT
+                    assistant = Message.model_validate(data["messages"][-1])
+                    assert assistant.role == GlobalMessageRole.ASSISTANT
 
-                tool_messages: list[Message] = []
-                for call in tool_calls:
-                    tool = GLOBAL_TOOL_REGISTRY.create_tool_instance(call["name"])
-                    if tool.requires_approval:
-                        # 危险工具：必须走人工审批，由审批接口执行。
-                        message = await approve_pending_tool(client, session_id, call["id"])
-                    else:
-                        # 只读工具：直接执行，不触发审批。
-                        result = await executor.execute(
-                            ToolCallRequest(tool_id=call["id"], tool_name=call["name"],
-                                            arguments=call["arguments"]),
-                            policy=WorkspacePolicy(mode=WorkspaceMode.WORKSPACE_WRITE),
-                            workspaces=(tmp_path,))
-                        message = Message(id=uuid4().hex, role=GlobalMessageRole.TOOL,
-                                          status=GlobalMessageStatus.TOOL_CALLED,
-                                          tool_call_id=call["id"],
-                                          content=result.model_dump_json()).model_dump(mode="json")
-                    assert message["tool_call_id"] == call["id"]
-                    tool_messages.append(Message.model_validate(message))
+                    tool_messages: list[Message] = []
+                    for call in tool_calls:
+                        tool = GLOBAL_TOOL_REGISTRY.create_tool_instance(call.name)
+                        if tool.requires_approval:
+                            message = await approve_pending_tool(client, session_id, call.id)
+                        else:
+                            result = await executor.execute(
+                                ToolCallRequest(tool_id=call.id, tool_name=call.name,
+                                                arguments=call.arguments),
+                                policy=WorkspacePolicy(mode=WorkspaceMode.WORKSPACE_WRITE),
+                                workspaces=(tmp_path,))
+                            message = Message(
+                                id=uuid4().hex,
+                                role=GlobalMessageRole.TOOL,
+                                status=GlobalMessageStatus.TOOL_CALLED,
+                                tool_call_id=call.id,
+                                content=result.model_dump_json(),
+                            ).model_dump(mode="json")
+                        assert message["tool_call_id"] == call.id
+                        tool_messages.append(Message.model_validate(message))
 
-                # 严格按 tool_calls 顺序返回结果。
-                assert [message.tool_call_id for message in tool_messages] == \
-                       [call["id"] for call in tool_calls]
-                # 危险工具必须审批后才落盘。
-                assert written.exists()
-                mixed_executed = True
-                pending_messages = [assistant, *tool_messages]
-                continue
+                    assert [message.tool_call_id for message in tool_messages] == \
+                           [call.id for call in tool_calls]
+                    assert written.exists()
+                    mixed_executed = True
+                    pending_messages = [assistant, *tool_messages]
+                    continue
 
-            if event == GlobalMessageStatus.STOP.value:
+                stop_event = next((pair for pair in turn_events
+                                   if pair[0] == GlobalMessageStatus.STOP.value), None)
+                assert stop_event is not None
                 assert mixed_executed, "模型未触发工具调用，事件流直接结束"
-                final = data
+                final = stop_event[1]
                 break
-    finally:
-        await response.aclose()
-        await client.delete(f"/api/session-configs/{session_id}")
+        finally:
+            await response.aclose()
+            await client.delete(f"/api/session-configs/{session_id}")
 
     assert final is not None
     assert final["error"] is False
     assert written.exists()
     assert written.read_text(encoding="utf-8") == "approved"
-    messages = final["messages"]
-    assert messages[-1]["role"] == GlobalMessageRole.ASSISTANT.value
-    tool_message_ids = [message["tool_call_id"] for message in messages
-                        if message["role"] == GlobalMessageRole.TOOL.value]
-    assert tool_message_ids
+    assert answer
+    assert "".join(answer).strip()

@@ -179,10 +179,11 @@ async def _run_dialogue(
     tools: list[ToolDefinition] | None,
     message_store: MessageStore,
     llm:LLMParamRequest,
+    enable_summary: bool,
 ) -> None:
     try:
         async with ModelExecutor(supplier=supplier) as executor:
-            loop = AgentLoop(executor, config, tools, DEFAULT_LOCAL_TOOLS, session_id=session_id,client_id=client_id)
+            loop = AgentLoop(executor, config, tools, DEFAULT_LOCAL_TOOLS, session_id=session_id,client_id=client_id, enable_summary=enable_summary)
             async with aclosing(loop.run_sse(messages)) as stream:
                 async for frame in stream:
                     await channel.queue.put(frame)
@@ -381,7 +382,9 @@ async def submit_message(
                           config=config,
                           tools=tools,
                           message_store=message_store,
-                          llm=llm),
+                          llm=llm,
+                          enable_summary=body.enable_summary,
+                          ),
             name=f"dialogue:{session_id}",
         )
     except BaseException:

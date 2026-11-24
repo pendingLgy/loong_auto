@@ -135,6 +135,69 @@ async def test_submit_requires_sse_connection(client):
         await cloud.events.submit(client_id, session_id, body)
 
 
+async def test_disable_summary__sse(client, settings):
+    key = settings("DEEPSEEK_API_KEY")
+    if not key:
+        pytest.skip("真实对话测试需要配置 DEEPSEEK_API_KEY")
+
+    client_id = "client-" + uuid4().hex
+
+    cloud = _cloud(client)
+
+    workspace = await _create_workspace(cloud, "session-update")
+    session = await _create_session(cloud, workspace.id, "session-update")
+
+    session_id = session.session_id
+    body = AddMessageRequest(
+        tenant_id=0,
+        user_id=0,
+        session_id=session_id,
+        workspace_id=workspace.id,
+        session_title="sessions-api-test-" + uuid4().hex,
+        llm=LLMParamRequest(provider="deepseek", model="deepseek-chat", temperature=0, api_key=key),
+        tools=[],
+        messages=[Message(id=str(time.time_ns() // 1000), role=GlobalMessageRole.USER, content="请只回复 OK")],
+        enable_summary=False
+    )
+    payload = body.model_dump(mode="json")
+    payload["llm"]["api_key"] = body.llm.api_key.get_secret_value()
+
+
+    async with asyncio.timeout(180):
+
+        response = await cloud.events.subscribe(client_id)
+        assert response.status_code == 200
+
+        lines = response.aiter_lines()
+        event, connected = await read_event(lines)
+        assert event == "connected"
+        assert connected["client_id"] == client_id
+
+        submitted:BaseResponse = await cloud.events.submit(client_id, session_id, body)
+        assert submitted.code == 200
+
+        while True:
+            event, result = await read_event(lines)
+
+            if event == "heartbeat":
+                continue
+
+            assert result["session_id"] == session_id
+            assert not result["error"], "对话执行失败"
+            assert event not in [GlobalMessageStatus.ALL_MESSAGES.value]
+
+            if event == GlobalMessageStatus.STOP.value:
+                final_message = result["messages"][-1]
+                assert final_message["role"] == "assistant"
+                assert final_message["content"].strip()
+                break
+
+
+        # 完整对话结束后，订阅仍保持连接并继续发送心跳。
+        event, heartbeat = await read_event(lines)
+        assert event == "heartbeat"
+        assert heartbeat["client_id"] == client_id
+
 
 async def test_submit_message_pushes_dialogue_to_sse(client, settings):
     key = settings("DEEPSEEK_API_KEY")

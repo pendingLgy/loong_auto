@@ -21,3 +21,4 @@ class AddMessageRequest(BaseModel):
     llm: LLMParamRequest | None = None
     tools: list[ToolDefinition] | None = None
     messages: list[Message]
+    enable_summary: bool | None = True

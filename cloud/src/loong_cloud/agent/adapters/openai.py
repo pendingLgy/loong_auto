@@ -6,7 +6,6 @@ from contextlib import aclosing
 
 from loguru import logger
 
-from core.logging import log_exception
 from loong_contracts.agent.models import Message, ModelRequest
 from loong_contracts.common.llm_message_constant import GlobalMessageRole, GlobalMessageStatus
 
@@ -63,18 +62,6 @@ class OpenAIAdapter(ModelAdapter):
                                                  json.loads(item["arguments"] or "{}"))
                                  for _, item in sorted(pending.items())]
 
-                        # send tool msg
-                        if calls and len(calls) > 0:
-                            yield Message(id=uuid_str(), created=int(time.time()), model=model,
-                                          role=GlobalMessageRole.ASSISTANT,
-                                          status=GlobalMessageStatus.TOOL_CALLING,
-                                          finish_reason=finish, content="", tool_calls=calls)
-                        else:
-                            yield Message(id=uuid_str(), created=int(time.time()), model=model,
-                                          role=GlobalMessageRole.ASSISTANT,
-                                          status=GlobalMessageStatus.STOP,
-                                          finish_reason=finish, content="", tool_calls=None)
-
                         token_usage = {
                             "input_tokens": usage.get("prompt_tokens", 0),
                             "output_tokens": usage.get("completion_tokens", 0),
@@ -82,13 +69,24 @@ class OpenAIAdapter(ModelAdapter):
                                                       usage.get("prompt_tokens", 0) + usage.get(
                                                           "completion_tokens", 0)),
                         }
+
+                        # send tool msg
+                        if calls and len(calls) > 0:
+                            yield Message(id=uuid_str(), created=int(time.time()), model=model,
+                                          role=GlobalMessageRole.ASSISTANT,
+                                          status=GlobalMessageStatus.TOOL_CALLING,
+                                          finish_reason=finish, content="".join(text), tool_calls=calls,
+                                          **token_usage)
+                        else:
+                            yield Message(id=uuid_str(), created=int(time.time()), model=model,
+                                          role=GlobalMessageRole.ASSISTANT,
+                                          status=GlobalMessageStatus.STOP,
+                                          finish_reason=finish, content="".join(text), tool_calls=None,
+                                          **token_usage)
+
+
                         emitted = True
-                        yield Message(id=response_id, created=int(time.time()), model=model,
-                                      role=GlobalMessageRole.ASSISTANT,
-                                      status=GlobalMessageStatus.ALL_MESSAGES,
-                                      raw=data,
-                                      finish_reason=finish, content="".join(text), tool_calls=calls,
-                                      **token_usage)
+
 
             if finish is None or not emitted:
                 raise ModelError("模型流在完成前中断")

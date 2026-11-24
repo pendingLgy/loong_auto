@@ -80,7 +80,7 @@ class SSEStream:
                     return event, data
 
         event, data = await asyncio.wait_for(collect(), timeout=timeout)
-        print(f"\nevent:{event} data:{data}")
+        print(f"\nevent:{event} \ndata:{data}")
         assert data is not None, f"事件 {event} 缺少 data 负载"
         return event, json.loads(data)
 
@@ -92,40 +92,43 @@ async def test_subscribe_streams_heartbeat_when_idle(client, tmp_path):
     workspace_id = await _create_workspace(client, str(tmp_path))
     await ensure_session_config(client, session_id, workspace_id, tmp_path)
 
-    response = await client.send(client.build_request("GET", PATH_CLOUD_SSE_PREFIX), stream=True)
-    try:
-        assert response.status_code == 200, await response.aread()
-        assert response.headers["content-type"].startswith("text/event-stream")
-        stream = SSEStream(response)
+    async with asyncio.timeout(180):
 
-        event, connected = await stream.next_event()
-        assert event == GlobalMessageStatus.CONNECTED.value
-        client_id = connected["client_id"]
-        assert client_id
+        response = await client.send(client.build_request("GET", PATH_CLOUD_SSE_PREFIX), stream=True)
 
-        event, heartbeat = await stream.next_event(timeout=HEARTBEAT_WAIT_SECONDS)
-        assert event == GlobalMessageStatus.HEARTBEAT.value
-        assert heartbeat["last_message_event"] == GlobalMessageStatus.HEARTBEAT.value
-        assert heartbeat["client_id"] == client_id
-        assert heartbeat["time"]
-        # 心跳是连接级事件，不属于任何业务会话。
-        assert "session_id" not in heartbeat
+        try:
+            assert response.status_code == 200, await response.aread()
+            assert response.headers["content-type"].startswith("text/event-stream")
+            stream = SSEStream(response)
 
-        started = time.monotonic()
-        event, second = await stream.next_event(timeout=HEARTBEAT_WAIT_SECONDS)
-        interval = time.monotonic() - started
+            event, connected = await stream.next_event()
+            assert event == GlobalMessageStatus.CONNECTED.value
+            client_id = connected["client_id"]
+            assert client_id
 
-        assert event == GlobalMessageStatus.HEARTBEAT.value
-        assert second["client_id"] == client_id
-        assert HEARTBEAT_MIN_INTERVAL_SECONDS <= interval <= HEARTBEAT_MAX_INTERVAL_SECONDS, \
-            f"心跳间隔 {interval:.1f}s 偏离预期 {HEARTBEAT_INTERVAL_SECONDS}s"
-    finally:
-        await response.aclose()
-        await drop_session_config(client, session_id)
+            event, heartbeat = await stream.next_event(timeout=HEARTBEAT_WAIT_SECONDS)
+            assert event == GlobalMessageStatus.HEARTBEAT.value
+            assert heartbeat["last_message_event"] == GlobalMessageStatus.HEARTBEAT.value
+            assert heartbeat["client_id"] == client_id
+            assert heartbeat["time"]
+            # 心跳是连接级事件，不属于任何业务会话。
+            assert "session_id" not in heartbeat
+
+            started = time.monotonic()
+            event, second = await stream.next_event(timeout=HEARTBEAT_WAIT_SECONDS)
+            interval = time.monotonic() - started
+
+            assert event == GlobalMessageStatus.HEARTBEAT.value
+            assert second["client_id"] == client_id
+            assert HEARTBEAT_MIN_INTERVAL_SECONDS <= interval <= HEARTBEAT_MAX_INTERVAL_SECONDS, \
+                f"心跳间隔 {interval:.1f}s 偏离预期 {HEARTBEAT_INTERVAL_SECONDS}s"
+        finally:
+            await response.aclose()
+            await drop_session_config(client, session_id)
 
 
 async def test_subscribe_then_submit_message(client, settings, tmp_path):
-    """订阅事件流后提交一条消息，事件流应收到本次会话的真实模型输出与 stop 帧。"""
+    """订阅事件流后提交一条消息，应收到真实模型增量并在 stop 帧结束。"""
     api_key = settings("DEEPSEEK_API_KEY").strip()
     if not api_key:
         pytest.skip("未配置 DEEPSEEK_API_KEY，跳过真实模型测试")
@@ -140,54 +143,71 @@ async def test_subscribe_then_submit_message(client, settings, tmp_path):
     provider = settings("SSE_TEST_PROVIDER", "deepseek")
     model = settings("SSE_TEST_MODEL", "deepseek-chat")
 
-    response = await client.send(client.build_request("GET", PATH_CLOUD_SSE_PREFIX), stream=True)
-    try:
-        assert response.status_code == 200, await response.aread()
-        assert response.headers["content-type"].startswith("text/event-stream")
-        stream = SSEStream(response)
+    async with asyncio.timeout(180):
+        response = await client.send(client.build_request("GET", PATH_CLOUD_SSE_PREFIX), stream=True)
+        try:
+            assert response.status_code == 200, await response.aread()
+            assert response.headers["content-type"].startswith("text/event-stream")
+            stream = SSEStream(response)
 
-        event, connected = await stream.next_event()
-        assert event == GlobalMessageStatus.CONNECTED.value
-        client_id = connected["client_id"]
-        assert client_id
+            event, connected = await stream.next_event()
+            assert event == GlobalMessageStatus.CONNECTED.value
+            client_id = connected["client_id"]
+            assert client_id
 
-        body = AddMessageRequest(
-            # 云端以认证身份覆盖这两个字段，这里只需满足契约校验。
-            tenant_id=0,
-            user_id=0,
-            session_id=session_id,
-            workspace_id=workspace_id,
-            session_title="SSE 订阅测试",
-            llm=LLMParamRequest(provider=provider, model=model, temperature=0,
-                                api_key=SecretStr(api_key)),
-            tools=[],
-            messages=[Message(id=uuid4().hex, role=GlobalMessageRole.USER, content="请只回复 ok")],
-        )
-        payload = body.model_dump(mode="json")
-        # SecretStr 默认脱敏，只在本次提交时显式取出密钥。
-        payload["llm"]["api_key"] = api_key
+            body = AddMessageRequest(
+                # 云端以认证身份覆盖这两个字段，这里只需满足契约校验。
+                tenant_id=0,
+                user_id=0,
+                session_id=session_id,
+                workspace_id=workspace_id,
+                session_title="SSE 订阅测试",
+                llm=LLMParamRequest(provider=provider, model=model, temperature=0,
+                                    api_key=SecretStr(api_key)),
+                tools=[],
+                messages=[Message(id=uuid4().hex, role=GlobalMessageRole.USER, content="请只回复 ok")],
+            )
+            payload = body.model_dump(mode="json")
+            # SecretStr 默认脱敏，只在本次提交时显式取出密钥。
+            payload["llm"]["api_key"] = api_key
 
-        submitted = await client.post(PATH_CLOUD_MESSAGE_PREFIX.format(session_id=session_id), json=payload)
-        assert submitted.status_code == 200
-        accepted = submitted.json()
-        assert accepted["code"] == 200
+            answer: list[str] = []
+            pending_messages = body.messages
+            while pending_messages:
+                body.messages = pending_messages
+                payload = body.model_dump(mode="json")
+                payload["llm"]["api_key"] = api_key
+                submitted = await client.post(
+                    PATH_CLOUD_MESSAGE_PREFIX.format(session_id=session_id),
+                    json=payload,
+                )
+                assert submitted.status_code == 200
+                assert submitted.json()["code"] == 200
+                pending_messages = []
 
-        events: list[tuple[str, dict]] = []
-        while True:
-            event, data = await stream.next_event()
-            if event == GlobalMessageStatus.HEARTBEAT.value:
-                continue
-            events.append((event, data))
-            assert data.get("session_id") == session_id
-            if event == GlobalMessageStatus.STOP.value:
-                break
+                turn_events: list[tuple[str, dict]] = []
+                while True:
+                    event, data = await stream.next_event()
+                    if event == GlobalMessageStatus.HEARTBEAT.value:
+                        continue
+                    turn_events.append((event, data))
+                    if event == GlobalMessageStatus.STOP.value:
+                        break
+                for _, turn_data in turn_events:
+                    assert turn_data.get("session_id") == session_id
+                    for message in turn_data.get("messages") or []:
+                        if (message.get("role") == GlobalMessageRole.ASSISTANT.value
+                                and message.get("content")):
+                            answer.append(message["content"])
 
-        stop_event = events[-1][1]
-        assert stop_event["summary"] is True
-        assert stop_event["error"] is False
-        assert stop_event["messages"]
-        assert stop_event["messages"][-1]["role"] == GlobalMessageRole.ASSISTANT.value
-        assert stop_event["messages"][-1]["content"]
-    finally:
-        await response.aclose()
-        await drop_session_config(client, session_id)
+                stop_event = next((pair for pair in turn_events
+                                   if pair[0] == GlobalMessageStatus.STOP.value), None)
+                assert stop_event is not None
+                assert stop_event[1]["last_message_event"] == GlobalMessageStatus.STOP.value
+                assert stop_event[1]["error"] is False
+
+            assert answer
+            assert "".join(answer).strip()
+        finally:
+            await response.aclose()
+            await drop_session_config(client, session_id)

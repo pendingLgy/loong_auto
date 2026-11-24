@@ -109,10 +109,10 @@ class TestExecutor:
         async with ModelExecutor(supplier=supplier_model) as executor:
             async with asyncio.timeout(180):
                 async for message in executor.stream(config, request):
-                    print('\nevents:\n' + json.dumps(message.model_dump(mode='json'), indent=4,ensure_ascii=False))
+                    print('\nevents:\n' + json.dumps(message.model_dump(mode='json'), ensure_ascii=False))
                     events.append(message)
 
-        # print('stream events:\n' + json.dumps([event.model_dump(mode='json') for event in events], indent=4, ensure_ascii=False))
+        # print('stream events:\n' + json.dumps([event.model_dump(mode='json') for event in events],  ensure_ascii=False))
 
     async def test_deepseek_live_local_and_remote_tools_stream(self, deepseek_api_key, supplier_model):
         """验证流式工具调用返回增量 Message，并以最终 Message 收束。"""

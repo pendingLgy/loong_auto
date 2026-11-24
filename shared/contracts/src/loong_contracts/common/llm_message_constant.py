@@ -18,3 +18,4 @@ class GlobalMessageStatus(str, Enum):
     TOOL_APPROVAL_REQUIRED = "tool_approval_required"
     TOOL_CALLED = "tool_called"
     STOP = "stop"
+    ALL_MESSAGES = "all_messages"

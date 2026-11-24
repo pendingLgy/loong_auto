@@ -23,6 +23,7 @@ class AgentLoop:
         local_executor: dict[str, Callable[[ToolCall], Awaitable[str]]],
         client_id: str,
         session_id: str,
+        enable_summary: bool = True,
     ):
         self.executor = executor
         self.client_id = client_id
@@ -30,6 +31,7 @@ class AgentLoop:
         self.config = config
         self.tools = tools
         self.local_executors = local_executor
+        self.enable_summary = enable_summary
 
     async def _execute_local(self, call: ToolCall) -> str:
         """从本地执行器集合中选择支持该工具的执行器。"""
@@ -52,9 +54,22 @@ class AgentLoop:
                 self.config, ModelRequest(messages=messages, tools=self.tools),
             )) as events:
                 async for event in events:
-                    if isinstance(event, Message) and event.status in [GlobalMessageStatus.ALL_MESSAGES.value]:
+                    if isinstance(event, Message) and event.status in [GlobalMessageStatus.STOP.value]:
                         response = event
+
+                        last_message_event = event.status
+                        message = event
+                        yield LoopEvent(client_id=self.client_id,
+                                        session_id=self.session_id,
+                                        messages=[message],
+                                        tool_call_messages=None,
+                                        tool_calls=None,
+                                        remote_tool_calls=None,
+                                        last_message_event=last_message_event)
+
                     elif isinstance(event, Message) and event.status in [GlobalMessageStatus.TOOL_CALLING.value]:
+                        response = event
+
                         last_message_event = event.status
                         message = event
 
@@ -104,14 +119,15 @@ class AgentLoop:
             if response is None:
                 raise RuntimeError("模型流未返回完整响应")
 
+            if not self.enable_summary:
+                return
+
             message = response
             messages.append(message)
 
-            last_message_event = messages[-1].status
-
             yield LoopEvent(client_id=self.client_id, session_id=self.session_id, summary=True,
                             messages=messages, tool_calls=None,
-                            last_message_event=last_message_event)
+                            last_message_event=GlobalMessageStatus.ALL_MESSAGES)
             return
 
 

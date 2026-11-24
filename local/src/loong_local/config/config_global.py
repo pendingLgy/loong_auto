@@ -19,6 +19,10 @@ class GlobalConfig(BaseModel):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(default="INFO", description="日志level")
 
     enable_security_token: bool = Field(default=False, description="是否开启token校验")
+    enable_summary: bool = Field(
+        default=True,
+        description="SSE 对话结束后是否返回全量消息汇总；关闭可减少带宽",
+    )
     security_token: str = Field(default="", description="本地网关访问令牌；为空时启动生成随机令牌")
 
     gateway_config: GatewayConfig = Field(default_factory=GatewayConfig, description="gateway配置")

@@ -4,6 +4,8 @@ import httpx
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, Request
 from loguru import logger
+
+from loong_contracts.agent.models import ToolDefinition
 from loong_contracts.request.message import AddMessageRequest, LLMParamRequest
 from loong_contracts.response import BaseResponse
 from loong_contracts.utils import Response
@@ -13,6 +15,7 @@ from loong_local.commons.rebuild_header import rebuild_cloud_request_header
 from loong_local.core.context import SSEContext
 from loong_local.core.exceptions import CloudHttpError
 from loong_local.service.supplier_config_service import SupplierConfigService
+from loong_local.tools import GLOBAL_TOOL_REGISTRY
 
 router = APIRouter(prefix="/session", tags=["消息提交接口转发"])
 
@@ -37,6 +40,10 @@ async def submit_message(request: Request, session_id: str, body: AddMessageRequ
             return Response.fail(request,msg="未配置api_key")
         llm.api_key = SecretStr(api_key)
 
+    all_tools:list[ToolDefinition] = GLOBAL_TOOL_REGISTRY.get_all_definitions()
+
+    body.tools = all_tools
+    body.enable_summary = request.app.state.global_config.enable_summary
     try:
         result: BaseResponse = await cloud_client.events.submit(
             context.client_id, session_id, body=body, headers=headers

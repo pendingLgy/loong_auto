@@ -113,19 +113,16 @@ async def subscribe(
     async def generate_proxy_stream():
         try:
             async for raw_chunk in upstream_response.aiter_raw():
-                yield raw_chunk
 
                 # 拼接缓冲区并按行切分，防止网络分包截断 JSON
                 data_content = raw_chunk.decode("utf-8", errors="ignore").strip()
                 lines = data_content.split("\n")
-
                 if not lines:
                     continue
 
-                current_event = None
-                if lines[0].startswith("event:"):
-                    current_event = lines[0][len("event:"):].strip()
+                yield raw_chunk
 
+                current_event = lines[0][len("event:"):].strip()
                 if current_event in [GlobalMessageStatus.TOOL_CALLING.value]:
                     try:
                         if len(lines) > 1 and lines[1].startswith("data:"):
