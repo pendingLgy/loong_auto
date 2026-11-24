@@ -26,6 +26,7 @@ def get_tool_tasks_table(metadata: MetaData, prefix: str = "") -> Table:
         Column("description", String(255), nullable=True, comment="操作描述"),
         Column("request_data", Text, nullable=False, comment="工具请求参数 JSON"),
         Column("summary", Text, nullable=False, comment="操作摘要"),
+        Column("dangerous", Boolean, default=False, nullable=False, comment="危险操作"),
         Column("risk_reason", Text, nullable=True, comment="高风险原因说明"),
         Column("status", String(32), default="pending", nullable=False, index=True, comment="任务状态"),
         Column("created_at", DateTime, default=None, nullable=True, comment="挂起创建时间"),

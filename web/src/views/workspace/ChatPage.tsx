@@ -13,7 +13,13 @@ import { WorkspaceCreate, WorkspaceSelect, type WorkspaceCreateInput } from "@lo
 import { Effect } from "effect";
 
 import { createApiClient } from "../../api";
-import { enqueueChatMessage, isChatStreaming, startChatExecutor } from "../../chat/executor";
+import {
+  enqueueChatContinuation,
+  enqueueChatMessage,
+  ensureChatConnection,
+  isChatStreaming,
+  startChatExecutor,
+} from "../../chat/executor";
 import { MessageStatus } from "../../chat/status";
 import { showNotice } from "../../storage/app_notice";
 import {
@@ -86,6 +92,7 @@ export function ChatPage(props: ChatPageProps) {
   );
   const sessionCreations = new Map<string, Promise<void>>();
   const approvedTools = new Set<string>();
+  const submittedToolContinuations = new Set<string>();
   let loadedWorkspaceNameId = "";
 
   const sessionId = () => props.sessionId;
@@ -93,6 +100,57 @@ export function ChatPage(props: ChatPageProps) {
   const chatSource = () => chatMessages(sessionId())();
   const typedMessages = useTypewriterMessages(chatSource, sessionId);
 
+
+  const devSubmitToolResults = (message: StoredChatMessage) => {
+    const user = currentUser();
+    const workspace = workspaceId();
+    const model = selectedModel().trim();
+    if (!user || !workspace || !model) return;
+
+    const resultsById = new Map<string, Record<string, unknown>>();
+    for (const item of message.tool_call_messages ?? []) {
+      if (typeof item !== "object" || item === null) continue;
+      const result = item as Record<string, unknown>;
+      const toolId = result.tool_call_id;
+      if (typeof toolId !== "string" || resultsById.has(toolId)) continue;
+      // 执行失败的结果不进入发送队列。
+      if (typeof result.content === "string"
+          && result.content.includes("Run tool failed")) continue;
+      resultsById.set(toolId, result);
+    }
+
+    // 按 tool_calls 顺序发送，并忽略没有对应结果或重复的条目。
+    const results = (message.tool_calls ?? [])
+      .map((call) => resultsById.get(call.id))
+      .filter((item): item is Record<string, unknown> => item !== undefined);
+
+    enqueueChatContinuation({
+      tenantId: user.tenantId,
+      userId: user.id,
+      workspaceId: workspace,
+      sessionId: sessionId(),
+      sessionTitle: workspaceName() || "工具调用",
+      provider: selectedProvider().trim() || "openai",
+      model,
+      // 只提交工具执行结果，assistant 工具调用消息不重复发送。
+      messages: results,
+    });
+  };
+
+  const devEnqueueToolContinuation = async (message: StoredChatMessage) => {
+    if (submittedToolContinuations.has(message.id)) return;
+    if (!await ensureChatConnection()) {
+      showNotice("error", "SSE 连接未建立");
+      return;
+    }
+    if (submittedToolContinuations.has(message.id)) return;
+    submittedToolContinuations.add(message.id);
+    devSubmitToolResults(message);
+  };
+
+  const devSendToolContinuation = (message: StoredChatMessage) => {
+    return devEnqueueToolContinuation(message);
+  };
 
   const latestToolCallMessage = () => {
     const list = chatSource();
@@ -116,6 +174,11 @@ export function ChatPage(props: ChatPageProps) {
           toolId,
           {approved: true},
         ));
+        if (result.content.includes("Run tool failed")) {
+          approvedTools.delete(toolId);
+          showNotice("error", "执行工具失败");
+          return false;
+        }
         appendToolCallMessage(sessionId(), messageId, result);
         return true;
       } catch (error) {
@@ -460,6 +523,26 @@ export function ChatPage(props: ChatPageProps) {
     }
   });
 
+  createEffect(() => {
+    const message = latestToolCallMessage();
+    if (!message || message.history) return;
+
+    const calls = message.tool_calls ?? [];
+    const results = message.tool_call_messages ?? [];
+    if (calls.length === 0) return;
+
+    const allDone = calls.every((call) => results.some((item) => {
+      if (typeof item !== "object" || item === null) return false;
+      const result = item as Record<string, unknown>;
+      return result.tool_call_id === call.id
+        && !(typeof result.content === "string"
+          && result.content.includes("Run tool failed"));
+    }));
+    if (!allDone || submittedToolContinuations.has(message.id)) return;
+
+    void devEnqueueToolContinuation(message);
+  });
+
   onMount(() => {
     void loadModelGroups();
     void loadWorkspaces();
@@ -491,6 +574,8 @@ export function ChatPage(props: ChatPageProps) {
               calls={stored.tool_calls ?? []}
               toolCallMessages={stored.tool_call_messages ?? []}
               onRunTool={(toolId) => approveTool(stored.id, toolId)}
+              devMode={import.meta.env.DEV}
+              onDevSend={() => devSendToolContinuation(stored)}
             />
           );
         }}

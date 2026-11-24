@@ -12,21 +12,16 @@ from loong_contracts.common.tool_constant import ToolTaskStatus
 from loong_contracts.response import BaseResponse
 from loong_contracts.utils import Response
 from loong_contracts.utils.uuid_util import uuid_str
-from pydantic import BaseModel, Field
 
 from loong_local.core.context import SSEContext
 from loong_local.core.logging import log_exception
 from loong_local.schema.model import PendingToolTaskModel
+from loong_local.schema.request import ApprovalDecisionRequest
 from loong_local.service.pending_tool_task_service import PendingToolTaskService
 from loong_local.service.session_config_service import SessionConfigService
 from loong_local.tools.tool_executor import ToolCallRequest
 
 router = APIRouter(prefix="/tools", tags=["工具审批"])
-
-
-class ApprovalDecisionRequest(BaseModel):
-    """前端提交审批决定的请求体"""
-    approved: bool = Field(description="true 表示同意执行，false 表示拒绝执行")
 
 
 def _tool_message(tool_id: str, content: str) -> Message:
@@ -81,6 +76,6 @@ async def resume_tool_endpoint(
         await pending_tool_task_service.update_status(session_id, tool_id, status=ToolTaskStatus.FAILED)
         return Response.ok(request, _tool_message(tool_id, "Run tool failed"))
 
-    await pending_tool_task_service.remove_task(session_id, tool_id)
+    # await pending_tool_task_service.remove_task(session_id, tool_id)
     return Response.ok(request, _tool_message(tool_id,
                                               json.dumps(result.model_dump(), ensure_ascii=False)))

@@ -24,6 +24,7 @@ class PendingToolTaskService:
             description: str,
             request_data: dict[str, Any] | str,
             summary: str,
+            dangerous: bool | None = False,
             risk_reason: str | None = None
     ) -> None:
         request_json = json.dumps(request_data, ensure_ascii=False)
@@ -50,6 +51,7 @@ class PendingToolTaskService:
                         tool_name=tool_name,
                         request_data=request_json,
                         summary=summary,
+                        dangerous=dangerous,
                         risk_reason=risk_reason or "",
                         status=ToolTaskStatus.PENDING.value,
                         updated_at=now
@@ -65,6 +67,7 @@ class PendingToolTaskService:
                     description=description,
                     request_data=request_json,
                     summary=summary,
+                    dangerous=dangerous,
                     risk_reason=risk_reason or "",
                     status=ToolTaskStatus.PENDING.value,
                     created_at=now,

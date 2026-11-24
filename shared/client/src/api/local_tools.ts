@@ -22,7 +22,7 @@ function toToolMessage(payload: RawToolApprovalMessagePayload): ToolApprovalMess
     role: asNullableText(payload.role) ?? "tool",
     status: asNullableText(payload.status),
     content: typeof payload.content === "string" ? payload.content : "",
-    toolCallId: asNullableText(payload.tool_call_id),
+    tool_call_id: asNullableText(payload.tool_call_id),
   };
 }
 

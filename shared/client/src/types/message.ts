@@ -61,7 +61,7 @@ export interface ToolApprovalMessage {
   role: string;
   status: string | null;
   content: string;
-  toolCallId: string | null;
+  tool_call_id: string | null;
 }
 
 /** 工具审批接口的原始 message 字段。 */

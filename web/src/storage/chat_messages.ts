@@ -194,13 +194,22 @@ export function appendToolCallMessage(
 ): void {
   if (!sessionId || !messageId) return;
   const store = getStore(sessionId);
+  const toolId = typeof result === "object" && result !== null
+    ? (result as Record<string, unknown>).tool_call_id
+    : undefined;
+
   store.set((current) => {
-    const next = current.map((item) => item.id === messageId
-      ? {
-        ...item,
-        tool_call_messages: [...(item.tool_call_messages ?? []), result],
+    const next = current.map((item) => {
+      if (item.id !== messageId) return item;
+      const results = item.tool_call_messages ?? [];
+      if (typeof toolId === "string" && results.some((entry) => {
+        if (typeof entry !== "object" || entry === null) return false;
+        return (entry as Record<string, unknown>).tool_call_id === toolId;
+      })) {
+        return item;
       }
-      : item);
+      return {...item, tool_call_messages: [...results, result]};
+    });
     persistMessages(sessionId, next);
     return next;
   });

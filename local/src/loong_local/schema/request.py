@@ -63,3 +63,9 @@ class SupplierModelOptionSaveRequest(BaseModel):
     provider: str = Field(min_length=1, max_length=64, description="模型供应商")
     model: str = Field(min_length=1, max_length=128, description="模型名称")
     enabled: bool = Field(default=True, description="模型是否启用")
+
+
+class ApprovalDecisionRequest(BaseModel):
+    """前端提交审批决定的请求体"""
+
+    approved: bool = Field(description="true 表示同意执行，false 表示拒绝执行")

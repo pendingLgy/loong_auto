@@ -37,6 +37,8 @@ export interface ChatSendRequest {
 interface PendingMessage extends ChatSendRequest {
   /** 本地用户消息 ID，同时作为云端消息 ID。 */
   id: string;
+  /** 工具续传等场景直接提交的消息批次。 */
+  messages?: Array<Record<string, unknown>>;
 }
 
 interface LoopMessage {
@@ -97,7 +99,8 @@ function isPendingMessage(value: unknown): value is PendingMessage {
     && typeof item.provider === "string"
     && typeof item.model === "string"
     && typeof item.content === "string"
-    && (item.sessionReady === undefined || typeof item.sessionReady === "boolean");
+    && (item.sessionReady === undefined || typeof item.sessionReady === "boolean")
+    && (item.messages === undefined || Array.isArray(item.messages));
 }
 
 function loadQueues(): void {
@@ -373,7 +376,7 @@ async function submitPending(message: PendingMessage): Promise<void> {
           model: message.model,
         },
         tools: [],
-        messages: [{
+        messages: message.messages ?? [{
           id: message.id,
           role: "user",
           status: MessageStatus.START,
@@ -415,6 +418,37 @@ export function isChatStreaming(sessionId: string): boolean {
   return false;
 }
 
+/** 直接提交一批消息（工具结果续传）。 */
+export interface ChatContinuationRequest {
+  sessionId: string;
+  workspaceId: string;
+  tenantId: string;
+  userId: string;
+  sessionTitle: string;
+  provider: string;
+  model: string;
+  messages: Array<Record<string, unknown>>;
+}
+
+/** 将工具结果续传加入发送队列。 */
+export function enqueueChatContinuation(request: ChatContinuationRequest): void {
+  loadQueues();
+  const id = `continuation-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  queues.set(id, {
+    ...request,
+    id,
+    content: "",
+    sessionReady: true,
+    messages: request.messages,
+  });
+  sessionWorkspaceIds.set(request.sessionId, request.workspaceId);
+  persistQueues();
+  touch();
+
+  if (connection) cancelIdleTimer(connection);
+  void ensureConnection().then(drain);
+}
+
 /** 添加用户消息到本地并进入发送队列。 */
 export function enqueueChatMessage(request: ChatSendRequest): void {
   loadQueues();
@@ -437,6 +471,19 @@ export function enqueueChatMessage(request: ChatSendRequest): void {
 
   if (connection) cancelIdleTimer(connection);
   void ensureConnection().then(drain);
+}
+
+/** 确保 SSE 连接已建立，供工具结果提交前等待。 */
+export async function ensureChatConnection(timeoutMs = 5000): Promise<boolean> {
+  if (!isLoggedIn()) return false;
+  loadQueues();
+  await ensureConnection();
+
+  const deadline = Date.now() + timeoutMs;
+  while (!connection?.connected && Date.now() < deadline) {
+    await new Promise((resolve) => window.setTimeout(resolve, 50));
+  }
+  return connection?.connected === true;
 }
 
 /** 页面打开时恢复待发送队列与 SSE 订阅。 */

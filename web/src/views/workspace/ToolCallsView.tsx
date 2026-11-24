@@ -8,6 +8,10 @@ export interface ToolCallsViewProps {
   toolCallMessages?: unknown[];
   /** 执行尚未完成的工具调用。 */
   onRunTool?: (toolId: string) => void | Promise<boolean>;
+  /** 开发环境显示手动发送按钮。 */
+  devMode?: boolean;
+  /** 开发环境下手动提交当前工具调用消息。 */
+  onDevSend?: () => void | Promise<void>;
 }
 
 function toolLabel(call: StoredToolCall): string {
@@ -30,8 +34,13 @@ export function ToolCallsView(props: ToolCallsViewProps) {
   const hasResult = (toolId: string) => (props.toolCallMessages ?? []).some((item) => {
     if (typeof item !== "object" || item === null) return false;
     const result = item as Record<string, unknown>;
-    return result.tool_call_id === toolId || result.toolCallId === toolId;
+    return result.tool_call_id === toolId
+      && !(typeof result.content === "string"
+        && result.content.includes("Run tool failed"));
   });
+
+  const allDone = () => props.calls.length > 0
+    && props.calls.every((call) => hasResult(call.id));
 
   const runTool = async (toolId: string) => {
     if (hasResult(toolId) || runningId()) return;
@@ -56,8 +65,21 @@ export function ToolCallsView(props: ToolCallsViewProps) {
             工具调用
           </span>
           <span class="ml-auto shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
-            {props.calls.length}
+            {allDone() ? "已完成" : props.calls.length}
           </span>
+          <Show when={props.devMode && props.onDevSend}>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                void props.onDevSend?.();
+              }}
+              class="shrink-0 rounded-md border border-sky-300 bg-white/80 px-2 py-0.5 text-[11px] font-medium text-sky-700 outline-none transition hover:bg-sky-50 focus-visible:ring-2 focus-visible:ring-sky-500/40 dark:border-sky-500/30 dark:bg-slate-900/60 dark:text-sky-300 dark:hover:bg-sky-500/10"
+            >
+              发送
+            </button>
+          </Show>
           <span class="shrink-0 text-[10px] text-amber-600 dark:text-amber-400" aria-hidden="true">
             {expanded() ? "▴" : "▾"}
           </span>

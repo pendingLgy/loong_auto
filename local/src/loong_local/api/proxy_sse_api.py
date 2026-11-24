@@ -84,6 +84,7 @@ async def subscribe(
             description=pending.tool_call.arguments["description"],
             request_data=inspection.request.model_dump(mode="json"),
             summary=inspection.summary,
+            dangerous=inspection.needs_approval,
             risk_reason=inspection.risk_reason if inspection.needs_approval else None,
         )
 
