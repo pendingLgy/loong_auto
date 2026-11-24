@@ -4,6 +4,9 @@ import json
 import time
 from contextlib import aclosing
 
+from loguru import logger
+
+from core.logging import log_exception
 from loong_contracts.agent.models import Message, ModelRequest
 from loong_contracts.common.llm_message_constant import GlobalMessageRole, GlobalMessageStatus
 
@@ -89,7 +92,8 @@ class OpenAIAdapter(ModelAdapter):
 
             if finish is None or not emitted:
                 raise ModelError("模型流在完成前中断")
-        except (KeyError, IndexError, TypeError, ValueError):
+        except (KeyError, IndexError, TypeError, ValueError) as e:
+            logger.error("sse error:{}",str(e))
             raise ModelError("OpenAI 兼容接口返回了无效流式响应") from None
 
     def _prepare(self, request: ModelRequest, config: ModelConfig | None = None):

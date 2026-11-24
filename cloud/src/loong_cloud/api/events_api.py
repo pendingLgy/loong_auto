@@ -1,6 +1,7 @@
 """提交对话消息，通过独立的 SSE 长连接推送执行结果。"""
 
 import asyncio
+import json
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import aclosing, suppress
 from dataclasses import dataclass, field
@@ -92,11 +93,11 @@ class HeartbeatStreamingResponse(StreamingResponse):
             # 每个队列元素是一帧 SSE；保存操作在发送重试循环外只执行一次。
             body = message.get("body", b"").decode(self.charset)
             lines = body.splitlines()
-            if "event: stop" in lines:
+            if f"event: {GlobalMessageStatus.ALL_MESSAGES.value}" in lines:
                 data = "\n".join(line[5:].lstrip() for line in lines if line.startswith("data:"))
                 event = LoopEvent.model_validate_json(data)
                 if not event.error:
-                    task = asyncio.create_task(handle_stop(event), name=f"sse-stop:{self.client_id}")
+                    task = asyncio.create_task(handle_stop(event), name=f"sse-all_messages:{self.client_id}")
                     self.stop_tasks.add(task)
                     task.add_done_callback(self.stop_tasks.discard)
 

@@ -18,7 +18,7 @@ import pytest
 from conftest import _cloud
 from httpx import HTTPStatusError
 from loong_cloud_client import CloudClient
-from loong_contracts.agent.models import Message, ToolDefinition
+from loong_contracts.agent.models import Message, ToolDefinition, LoopEvent, ToolCall
 from loong_contracts.common.llm_message_constant import GlobalMessageRole, GlobalMessageStatus
 from loong_contracts.request.message import AddMessageRequest, LLMParamRequest
 from loong_contracts.request.session import CreateSessionRequest
@@ -72,7 +72,7 @@ async def read_event(lines):
         if not line:
             if data:
                 payload = json.loads("\n".join(data))
-                print(f"\nSSE event={event} data={json.dumps(payload, ensure_ascii=False)}")
+                print(f"\nSSE event:{event} \ndata:{json.dumps(payload, ensure_ascii=False)}")
                 return event, payload
             event = "message"
         elif line.startswith("event:"):
@@ -255,6 +255,7 @@ async def test_multiple_remote_tools_across_dialogue_rounds(client, settings):
         assert event == "connected"
         assert connected["client_id"] == client_id
 
+        remote_tool_calls:list[ToolCall] = []
         # 初始提交 + 三轮远程工具结果提交；每次仅追加本轮产生的消息。
         for round_index in range(4):
 
@@ -263,22 +264,28 @@ async def test_multiple_remote_tools_across_dialogue_rounds(client, settings):
 
             while True:
                 event, result = await read_event(lines)
-                if event == "heartbeat":
+
+                loop_event = LoopEvent.model_validate(result)
+
+                if loop_event.last_message_event == GlobalMessageStatus.HEARTBEAT:
                     continue
-                assert result["session_id"] == session_id
-                assert not result["error"], "多轮工具执行失败，请检查服务端日志"
-                if result["summary"] or result.get("remote_tool_calls") is not None:
+
+                assert loop_event.session_id == session_id
+                assert not loop_event.error, "多轮工具执行失败，请检查服务端日志"
+
+                if loop_event.last_message_event == GlobalMessageStatus.TOOL_CALLING:
+                    remote_tool_calls= loop_event.remote_tool_calls
+
+                if loop_event.last_message_event == GlobalMessageStatus.ALL_MESSAGES:
                     break
 
             if round_index == 3:
-                assert result["summary"]
-                assert result.get("remote_tool_calls",None) is None
-                assert result["messages"][-1]["content"].strip()
+                assert loop_event.last_message_event == GlobalMessageStatus.ALL_MESSAGES
                 break
 
-            calls = result.get("remote_tool_calls",[])
+            calls = remote_tool_calls
             assert len(calls) == 1, "依赖工具必须在不同轮次逐个执行"
-            call = calls[0]
+            call = calls[0].model_dump()
             assert call["name"] == expected[round_index]
             assert call["location"] == "remote"
             executed.append(call["name"])
@@ -296,7 +303,7 @@ async def test_multiple_remote_tools_across_dialogue_rounds(client, settings):
             assistant = dict(result["messages"][-1])
             assistant["id"] = str(time.time_ns() // 1000)
             body.messages = [
-                Message.model_validate(assistant),
+                # Message.model_validate(assistant),
                 Message(
                     id=str(time.time_ns() // 1000 + 1), role=GlobalMessageRole.TOOL, status=GlobalMessageStatus.TOOL_CALLED,
                     tool_call_id=call["id"], content=json.dumps(tool_result, ensure_ascii=False),
@@ -376,6 +383,7 @@ async def test_dialogue_parallel_and_sequential_remote_tools(client, settings):
         assert event == "connected"
         assert connected["client_id"] == client_id
 
+        loop_event_list: list[LoopEvent] = []
         for stage, (prompt, expected_tools) in enumerate(stages, start=1):
             if prompt is not None:
                 body.messages = [Message(
@@ -391,38 +399,46 @@ async def test_dialogue_parallel_and_sequential_remote_tools(client, settings):
 
             while True:
                 event, result = await read_event(lines)
-                if event == "heartbeat":
+
+                loop_event = LoopEvent.model_validate(result)
+                if loop_event.last_message_event == GlobalMessageStatus.HEARTBEAT:
                     continue
-                assert result["session_id"] == session_id
-                assert not result["error"], f"阶段 {stage} 执行失败，请查看服务端日志"
-                if result["summary"] or result.get("remote_tool_calls") is not None:
+
+                assert loop_event.session_id == session_id
+                assert not loop_event.error, f"阶段 {stage} 执行失败，请查看服务端日志"
+
+                if loop_event.last_message_event != GlobalMessageStatus.ALL_MESSAGES:
+                    loop_event_list.append(loop_event)
+
+                if loop_event.last_message_event == GlobalMessageStatus.ALL_MESSAGES:
                     break
 
-            calls = result.get("remote_tool_calls",[])
-            names = [call["name"] for call in calls]
+            if loop_event_list[-1].last_message_event != GlobalMessageStatus.TOOL_CALLING:
+                continue
+
+            last_loop_event = loop_event_list[-1]
+            calls:list[ToolCall] = last_loop_event.remote_tool_calls
+
+            names = [call.model_dump()["name"] for call in calls]
             print(f"阶段 {stage}：期望工具={expected_tools}，实际工具={names}")
             assert sorted(names) == sorted(expected_tools)
             if not expected_tools:
-                assert result["summary"]
-                assert result["messages"][-1]["role"] == "assistant"
-                assert result["messages"][-1]["content"].strip()
+                assert loop_event.last_message_event == GlobalMessageStatus.ALL_MESSAGES
                 continue
 
-            assert not result["summary"]
             batches.append(names)
-            assistant = dict(result["messages"][-1])
-            assistant["id"] = str(time.time_ns() // 1000)
-            assert {call["id"] for call in assistant["tool_calls"]} == {call["id"] for call in calls}
-            pending_results = [Message.model_validate(assistant)]
+
+            pending_results = []
             # 按模型 tool_calls 的原始顺序追加结果，双工具在同次请求中回传。
-            for index, call in enumerate(result["tool_calls"], start=1):
-                assert call["location"] == "remote"
-                if call["name"] == "read_file":
-                    assert call["arguments"]["path"] == file_path
+            for index, call in enumerate(calls, start=1):
+
+                assert call.location == "remote"
+                if call.name == "read_file":
+                    assert call.arguments["path"] == file_path
                 pending_results.append(Message(
                     id=str(time.time_ns() // 1000 + index),
-                    role=GlobalMessageRole.TOOL, status=GlobalMessageStatus.TOOL_CALLED, tool_call_id=call["id"],
-                    content=json.dumps(tool_results[call["name"]], ensure_ascii=False),
+                    role=GlobalMessageRole.TOOL, status=GlobalMessageStatus.TOOL_CALLED, tool_call_id=call.id,
+                    content=json.dumps(tool_results[call.name], ensure_ascii=False),
                 ))
 
     assert len(batches) == 3
@@ -489,6 +505,8 @@ async def test_remote_file_edit_failure_then_retry(client, settings):
             assert event == "connected"
             assert connected["client_id"] == client_id
 
+            loop_event_list: list[LoopEvent] = []
+
             # 由 LLM 返回的最终汇总判断完成，不预设对话轮数。
             while True:
 
@@ -497,25 +515,34 @@ async def test_remote_file_edit_failure_then_retry(client, settings):
 
                 while True:
                     event, result = await read_event(lines)
-                    if event == "heartbeat":
+                    loop_event = LoopEvent.model_validate(result)
+                    if loop_event.last_message_event == GlobalMessageStatus.HEARTBEAT:
                         continue
-                    assert result["session_id"] == session_id
-                    assert not result["error"], "文件编辑对话失败，请检查服务端日志"
-                    if result["summary"] or result.get("remote_tool_calls") is not None:
+
+                    assert loop_event.session_id == session_id
+                    assert not loop_event.error, "文件编辑对话失败，请检查服务端日志"
+
+                    if loop_event.last_message_event != GlobalMessageStatus.ALL_MESSAGES:
+                        loop_event_list.append(loop_event)
+
+                    if loop_event.last_message_event == GlobalMessageStatus.ALL_MESSAGES:
                         break
 
-                if result["summary"]:
+                final = loop_event.messages[-1].model_dump()
+                if "FILE_EDIT_SUCCESS" in final["content"]:
                     assert result.get("remote_tool_calls",None) is None
-                    final = result["messages"][-1]
+                    final = loop_event.messages[-1].model_dump()
                     assert final["role"] == "assistant"
                     assert "FILE_EDIT_SUCCESS" in final["content"]
                     assert expected_content in final["content"]
                     print("最终编辑结果：", final["content"])
                     break
 
-                calls = result["remote_tool_calls"]
+                last_loop_event = loop_event_list[-1]
+                calls: list[ToolCall] = last_loop_event.remote_tool_calls
+
                 assert len(calls) == 1
-                call = calls[0]
+                call = calls[0].model_dump()
                 assert call["name"] == "edit_file"
                 assert call["location"] == "remote"
                 assert call["id"] not in call_ids
@@ -544,10 +571,7 @@ async def test_remote_file_edit_failure_then_retry(client, settings):
                     assert not target.exists()
                 print(f"编辑第 {len(results)} 次结果：{json.dumps(tool_result, ensure_ascii=False)}")
 
-                assistant = dict(result["messages"][-1])
-                assistant["id"] = str(time.time_ns() // 1000)
                 body.messages = [
-                    Message.model_validate(assistant),
                     Message(
                         id=str(time.time_ns() // 1000 + 1), role=GlobalMessageRole.TOOL, status=GlobalMessageStatus.TOOL_CALLED,
                         tool_call_id=call["id"], content=json.dumps(tool_result, ensure_ascii=False),
