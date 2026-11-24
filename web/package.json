@@ -14,7 +14,8 @@
     "@loong/ui": "workspace:*",
     "solid-js": "catalog:",
     "@solidjs/router": "catalog:",
-    "eventsource-parser": "catalog:"
+    "eventsource-parser": "catalog:",
+    "@solid-primitives/event-listener": "catalog:"
   },
   "devDependencies": {
     "@tailwindcss/vite": "catalog:",

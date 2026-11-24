@@ -40,7 +40,9 @@
       "dependencies": {
         "@loong/client": "workspace:*",
         "@loong/ui": "workspace:*",
+        "@solid-primitives/event-listener": "catalog:",
         "@solidjs/router": "catalog:",
+        "eventsource-parser": "catalog:",
         "solid-js": "catalog:",
       },
       "devDependencies": {
@@ -54,6 +56,7 @@
   },
   "catalog": {
     "@astrojs/markdown-remark": "^7.3.10",
+    "@solid-primitives/event-listener": "^2.4.0",
     "@solid-primitives/i18n": "^3.0.0",
     "@solidjs/router": "^0.15.4",
     "@tailwindcss/vite": "^4.3.5",
@@ -247,7 +250,11 @@
 
     "@shikijs/vscode-textmate": ["@shikijs/vscode-textmate@10.1.0", "", {}, "sha512-cVBuhDQjBZaNMTwBquYfPydrUP+E3hE6oYGasx8h6ZrODIM7/r+gxLDXdd66oszbrggZHEntdE6j+5gYIVyMWQ=="],
 
+    "@solid-primitives/event-listener": ["@solid-primitives/event-listener@2.4.6", "", { "dependencies": { "@solid-primitives/utils": "^6.4.1" }, "peerDependencies": { "solid-js": "^1.6.12" } }, "sha512-5I0YJcTVYIWoMmgBSROBZGcz+ymhew/pGTg2dHW74BUjFKsV8Li4bOZYl0YAGP4mHw5o4UBd9/BEesqBci3wxw=="],
+
     "@solid-primitives/i18n": ["@solid-primitives/i18n@3.0.0", "", { "peerDependencies": { "@solidjs/web": "^2.0.0", "solid-js": "^2.0.0" } }, "sha512-f3FkhbnjvldpKWNaTM0ChBjWfHqgeX/f691Qp2Cib5F0LKg9k6reqoQdD4YpLgEDkqYEvGQPZwKViVJUmL0M1Q=="],
+
+    "@solid-primitives/utils": ["@solid-primitives/utils@6.4.1", "", { "peerDependencies": { "solid-js": "^1.6.12" } }, "sha512-ISSB5QX1qP2ynrheIpYwc4oKR5Ny4siNuUyf1qZniy+Il+p/PtDB0QK1Dnle8noiHpwRD3gpPdubOC3qI/Zamg=="],
 
     "@solidjs/router": ["@solidjs/router@0.15.4", "", { "peerDependencies": { "solid-js": "^1.8.6" } }, "sha512-WOpgg9a9T638cR+5FGbFi/IV4l2FpmBs1GpIMSPa0Ce9vyJN7Wts+X2PqMf9IYn0zUj2MlSJtm1gp7/HI/n5TQ=="],
 

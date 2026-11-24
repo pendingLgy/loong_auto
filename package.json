@@ -20,7 +20,8 @@
       "@solid-primitives/i18n": "^3.0.0",
       "@solidjs/router": "^0.15.4",
       "@tanstack/solid-virtual": "^3.13.53",
-      "@astrojs/markdown-remark": "^7.3.10"
+      "@astrojs/markdown-remark": "^7.3.10",
+      "@solid-primitives/event-listener": "^2.4.0"
     }
   },
   "scripts": {

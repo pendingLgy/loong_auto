@@ -1,8 +1,14 @@
-import { createEffect, createSignal, on, onCleanup, onMount } from "solid-js";
+import { createEffect, createSignal, on, onMount } from "solid-js";
 
 import type { MessageRecord } from "@loong/client";
 import { LlmChat, type ChatModelGroup } from "@loong/ui/chat";
 import type { ManagedModel, ManagedProvider, ProviderOption } from "@loong/ui/model-picker";
+import { createEventListener } from "@solid-primitives/event-listener";
+import {
+  notifySessionCreated,
+  SESSION_CONFIG_EVENT,
+  type SessionConfigEventDetail,
+} from "../../events";
 import { WorkspaceCreate, WorkspaceSelect, type WorkspaceCreateInput } from "@loong/ui/workspace-picker";
 import { Effect } from "effect";
 
@@ -283,14 +289,12 @@ export function ChatPage(props: ChatPageProps) {
           sessionTitle,
           workspaceId: workspace,
         })).then(() => {
-          window.dispatchEvent(new CustomEvent("loong:session-created", {
-            detail: {
-              workspaceId: workspace,
-              workspaceName: workspaceName(),
-              sessionId: id,
-              title: sessionTitle,
-            },
-          }));
+          notifySessionCreated({
+            workspaceId: workspace,
+            workspaceName: workspaceName(),
+            sessionId: id,
+            title: sessionTitle,
+          });
         }).finally(() => {
           sessionCreations.delete(id);
         });
@@ -349,13 +353,12 @@ export function ChatPage(props: ChatPageProps) {
     void loadModelGroups();
     void loadWorkspaces();
     const onConfigChanged = (event: Event) => {
-      const detail = (event as CustomEvent<{sessionId?: string}>).detail;
+      const detail = (event as CustomEvent<SessionConfigEventDetail>).detail;
       if (detail?.sessionId === sessionId()) {
         setConfigVersion((current) => current + 1);
       }
     };
-    window.addEventListener("loong:session-config", onConfigChanged);
-    onCleanup(() => window.removeEventListener("loong:session-config", onConfigChanged));
+    createEventListener(window, SESSION_CONFIG_EVENT, onConfigChanged);
   });
 
   return (

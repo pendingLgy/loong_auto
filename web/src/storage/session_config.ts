@@ -1,3 +1,5 @@
+import { notifySessionConfig } from "../events";
+
 /** 每个会话使用的模型与工作区配置。 */
 
 export interface SessionConfig {
@@ -51,9 +53,7 @@ export function saveSessionConfig(sessionId: string, patch: SessionConfig): void
     }
     window.localStorage.setItem(storageKey(sessionId), JSON.stringify(next));
     if (changed) {
-      window.dispatchEvent(new CustomEvent("loong:session-config", {
-        detail: {sessionId},
-      }));
+      notifySessionConfig({sessionId});
     }
   } catch {
     // 忽略存储异常。

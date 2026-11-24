@@ -1,6 +1,11 @@
-import {For, Show, createEffect, createSignal, onCleanup, onMount} from "solid-js";
+import {For, Show, createEffect, createSignal, onMount} from "solid-js";
 
 import {useNavigate, useParams} from "@solidjs/router";
+import {createEventListener} from "@solid-primitives/event-listener";
+import {
+  SESSION_CREATED_EVENT,
+  type SessionCreatedEventDetail,
+} from "../../events";
 
 import {WorkspaceCreate, type WorkspaceCreateInput} from "@loong/ui/workspace-picker";
 import {Dialog} from "@loong/ui/dialog";
@@ -82,12 +87,8 @@ export function WorkspaceView(props: WorkspaceViewProps) {
     }
   });
 
-  onMount(() => {
-    const handleResize = () => {
-      setNarrowLayout(window.innerWidth < NARROW_LAYOUT_WIDTH);
-    };
-    window.addEventListener("resize", handleResize);
-    onCleanup(() => window.removeEventListener("resize", handleResize));
+  createEventListener(window, "resize", () => {
+    setNarrowLayout(window.innerWidth < NARROW_LAYOUT_WIDTH);
   });
 
   createEffect(() => {
@@ -159,11 +160,7 @@ export function WorkspaceView(props: WorkspaceViewProps) {
     startChatExecutor();
 
     const onSessionCreated = (event: Event) => {
-      const detail = (event as CustomEvent<{
-        workspaceId?: string;
-        sessionId?: string;
-        title?: string;
-      }>).detail;
+      const detail = (event as CustomEvent<SessionCreatedEventDetail>).detail;
       if (!detail?.workspaceId || !detail.sessionId || !detail.title) return;
       setWorkspaces((list) => list.map((workspace) => {
         const conversations = workspace.conversations.filter(
@@ -180,8 +177,7 @@ export function WorkspaceView(props: WorkspaceViewProps) {
           : {...workspace, conversations};
       }));
     };
-    window.addEventListener("loong:session-created", onSessionCreated);
-    onCleanup(() => window.removeEventListener("loong:session-created", onSessionCreated));
+    createEventListener(window, SESSION_CREATED_EVENT, onSessionCreated);
   });
 
   const userData = (): SideNavUserData | undefined => {

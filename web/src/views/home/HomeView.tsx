@@ -1,5 +1,10 @@
-import { Show, createEffect, createSignal, onCleanup, onMount } from "solid-js";
+import { Show, createEffect, createSignal } from "solid-js";
 import { useNavigate, useParams } from "@solidjs/router";
+import { createEventListener } from "@solid-primitives/event-listener";
+import {
+  SESSION_CREATED_EVENT,
+  type SessionCreatedEventDetail,
+} from "../../events";
 
 import { Effect } from "effect";
 
@@ -54,14 +59,8 @@ export function HomeView() {
     saveWorkspaceTabs(tabs(), activeTab(), pinnedKeys());
   });
 
-  onMount(() => {
-    const onSessionCreated = (event: Event) => {
-      const detail = (event as CustomEvent<{
-        workspaceId?: string;
-        workspaceName?: string;
-        sessionId?: string;
-        title?: string;
-      }>).detail;
+  const onSessionCreated = (event: Event) => {
+      const detail = (event as CustomEvent<SessionCreatedEventDetail>).detail;
       if (!detail?.sessionId || !detail.title) return;
       setTabs((list) => list.map((tab) =>
         tab.conversationId === detail.sessionId
@@ -76,9 +75,7 @@ export function HomeView() {
           }
           : tab));
     };
-    window.addEventListener("loong:session-created", onSessionCreated);
-    onCleanup(() => window.removeEventListener("loong:session-created", onSessionCreated));
-  });
+  createEventListener(window, SESSION_CREATED_EVENT, onSessionCreated);
 
   const logout = async () => {
     try {
