@@ -2,7 +2,7 @@
 import time
 from typing import List
 
-from loong_contracts.agent.models import Message
+from loong_contracts.agent.models import Message, ToolDetail
 from loong_contracts.request.message import AddMessageRequest
 from loong_contracts.response.base import BasePageResponse
 from loong_contracts.response.message import RawMessageResponse
@@ -64,7 +64,7 @@ class MessageStore:
         )
         return latest_messages
 
-    async def add_message(self, request: AddMessageRequest) -> list[Message] | None:
+    async def add_message(self, request: AddMessageRequest, *,tool_detail: ToolDetail | None = None) -> list[Message] | None:
         tenant_id = request.tenant_id
         user_id = request.user_id
         session_id = request.session_id
@@ -115,6 +115,8 @@ class MessageStore:
                 serialized_message = message.model_dump(mode="json")
                 add_session_message.append(message)
 
+                tool_detail_json = tool_detail.model_dump(mode="json") if tool_detail else {}
+
                 value = {
                     "id": next_id(),
                     "tenant_id": tenant_id,
@@ -131,10 +133,14 @@ class MessageStore:
                     "output_tokens": message_request.output_tokens,
                     "total_tokens": message_request.total_tokens,
                     "content": message_request.content,
-                    "tool_calls": serialized_message["tool_calls"] or [],
+                    "tool_calls": serialized_message["tool_calls"] or None,
                     "tool_call_id": message_request.tool_call_id,
+                    "tool_call_messages": tool_detail_json.get("tool_call_messages",None),
+                    "remote_tool_calls": tool_detail_json.get("remote_tool_calls",None),
                     "created_at": utcnow(),
                 }
+
+
 
                 values_list.append(value)
 

@@ -21,7 +21,7 @@ from loong_cloud.agent.tools import DEFAULT_LOCAL_TOOLS
 from loong_cloud.config.config_model import ModelConfig
 from loong_cloud.core.logging import log_exception
 from loong_cloud.storage.message_store import MessageStore
-from loong_contracts.agent.models import LoopEvent, Message, ToolDefinition
+from loong_contracts.agent.models import LoopEvent, Message, ToolDefinition, ToolDetail
 from loong_contracts.common.llm_message_constant import GlobalMessageRole, GlobalMessageStatus
 from loong_contracts.request.message import AddMessageRequest, LLMParamRequest
 from loong_contracts.response.login import UserInfoResponse
@@ -93,13 +93,15 @@ class HeartbeatStreamingResponse(StreamingResponse):
             # 每个队列元素是一帧 SSE；保存操作在发送重试循环外只执行一次。
             body = message.get("body", b"").decode(self.charset)
             lines = body.splitlines()
-            if f"event: {GlobalMessageStatus.ALL_MESSAGES.value}" in lines:
-                data = "\n".join(line[5:].lstrip() for line in lines if line.startswith("data:"))
+
+            event = lines[0][6:].strip()
+
+            if event in [GlobalMessageStatus.STOP.value,GlobalMessageStatus.TOOL_CALLING.value]:
+                data = lines[1][5:].strip()
                 event = LoopEvent.model_validate_json(data)
-                if not event.error:
-                    task = asyncio.create_task(handle_stop(event), name=f"sse-all_messages:{self.client_id}")
-                    self.stop_tasks.add(task)
-                    task.add_done_callback(self.stop_tasks.discard)
+                task = asyncio.create_task(handle_stop(event), name=f"sse-done_messages:{self.client_id}")
+                self.stop_tasks.add(task)
+                task.add_done_callback(self.stop_tasks.discard)
 
             for attempt in range(1, HEARTBEAT_MAX_FAILURES + 1):
                 try:
@@ -261,10 +263,16 @@ async def chat_sse(request: Request, client_id: str,
         context = channel.save_contexts.pop(event.session_id, None)
         if context is None or not event.messages:
             return
-        final_message = event.messages[-1]
-        if final_message.role != GlobalMessageRole.ASSISTANT:
+
+        if event.last_message_event not in [GlobalMessageStatus.STOP,GlobalMessageStatus.TOOL_CALLING]:
             return
-        # 模型响应 ID 通常是字符串，存储契约要求数值消息 ID；原始响应保留在 raw。
+
+        final_message = event.messages[-1]
+
+        tool_detail:ToolDetail = None
+        if event.last_message_event == GlobalMessageStatus.TOOL_CALLING:
+            tool_detail = ToolDetail(tool_calls=event.tool_calls,tool_call_messages=event.tool_call_messages,remote_tool_calls=event.remote_tool_calls)
+
         try:
 
             exist_session = await session_store.get_by_session_id(
@@ -287,7 +295,7 @@ async def chat_sse(request: Request, client_id: str,
                 messages=[final_message],
             )
 
-            await message_store.add_message(saved)
+            await message_store.add_message(saved,tool_detail=tool_detail)
         except Exception:
             logger.exception("保存 SSE 结束消息失败，session_id={}", event.session_id)
             raise

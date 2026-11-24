@@ -34,6 +34,8 @@ def message_table(metadata: MetaData, prefix: str = "") -> Table:
         Column("content", Text, nullable=False, default=""),
         Column("tool_calls", JSON, nullable=True),
         Column("tool_call_id", String(128), nullable=True),
+        Column("tool_call_messages", JSON, nullable=True),
+        Column("remote_tool_calls", JSON, nullable=True),
         Column("created_at", DateTime(timezone=True), nullable=False),
         Index(f"idx_{prefix}message_identity", "tenant_id", "user_id", "session_id", "id"),
     )

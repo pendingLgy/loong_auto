@@ -39,6 +39,10 @@ class Message(BaseModel):
     tool_calls: list[ToolCall] | None = Field(default=None)
     tool_call_id: str | None = None
 
+class ToolDetail(BaseModel):
+    tool_call_messages: list[Message] | None = Field(default=None)
+    tool_calls: list[ToolCall] | None = Field(default=None)
+    remote_tool_calls: list[ToolCall] | None = Field(default=None)
 
 class ToolDefinition(BaseModel):
     model_config = ConfigDict(extra="forbid")
