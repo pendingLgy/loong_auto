@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 
-import { ClientError } from "../types/errors";
-import type { Locale } from "../i18n";
+import {ClientError, HttpTimeoutError} from "../types/errors";
+import {DEFAULT_LOCALE, Locale, translate} from "../i18n";
 import { parseEnvelope } from "./response";
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -155,7 +155,9 @@ export function requestJson<T>(
         return parseEnvelope<T>(response, client.locale);
       } catch (cause) {
         if (request.timedOut()) {
-          throw new ClientError("请求超时", 408);
+          let locale = (client.locale) ? client.locale : DEFAULT_LOCALE
+          let msg = translate(locale, "client.errors.httpRequestTimeout", "请求超时")
+          throw new HttpTimeoutError(msg);
         }
         throw cause;
       } finally {

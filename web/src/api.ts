@@ -1,9 +1,10 @@
 import {Effect} from "effect";
 
 import {
-  createLocalClient,
-  isUnauthorized,
   ClientError,
+  createLocalClient,
+  HttpTimeoutError,
+  isUnauthorized,
   type LocalClient,
   type Locale,
   UnauthorizedError,
@@ -139,26 +140,27 @@ function wrapNamespace<T extends object>(
 
         const execute = () => invoke().pipe(
           Effect.catchAll((error) => {
-
-            if (error instanceof ClientError){
+            if (error instanceof HttpTimeoutError) {
               showNotice("error", error.message);
               return Effect.fail(error);
-            }
-
-            if (!isUnauthorized(error)) {
+            } else if (error instanceof UnauthorizedError) {
+              return refreshAccessToken(origin, locale).pipe(
+                Effect.flatMap((token) => invoke(token)),
+                Effect.catchAll((refreshError) => {
+                  if (isUnauthorized(refreshError)) {
+                    clearUser();
+                    markAuthExpired();
+                  }
+                  return Effect.fail(refreshError);
+                }),
+              );
+            } else if (error instanceof ClientError) {
+              showNotice("error", error.message);
+              return Effect.fail(error);
+            } else {
               return Effect.fail(error);
             }
 
-            return refreshAccessToken(origin, locale).pipe(
-              Effect.flatMap((token) => invoke(token)),
-              Effect.catchAll((refreshError) => {
-                if (isUnauthorized(refreshError)) {
-                  clearUser();
-                  markAuthExpired();
-                }
-                return Effect.fail(refreshError);
-              }),
-            );
           }),
           Effect.tap(() => Effect.sync(() => lastRequests.delete(cacheKey))),
         );

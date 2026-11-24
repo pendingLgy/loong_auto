@@ -312,9 +312,10 @@ async function submitPending(message: PendingMessage): Promise<void> {
         }],
       }),
     );
-  } catch {
+  } catch(e) {
     busySessions.delete(message.sessionId);
-    showNotice("error", "消息发送失败");
+    let msg = (e instanceof ClientError) ? e.message:"消息发送失败"
+    showNotice("error", msg);
     touch();
     drain();
   }
@@ -348,7 +349,7 @@ export function isChatStreaming(sessionId: string): boolean {
 /** 添加用户消息到本地并进入发送队列。 */
 export function enqueueChatMessage(request: ChatSendRequest): void {
   loadQueues();
-  const id = `user-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const message: StoredChatMessage = {
     id,
     role: "user",

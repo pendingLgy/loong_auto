@@ -21,6 +21,7 @@ export const enUS = {
   "client.errors.missingTokens": "Login response is missing tokens",
   "client.errors.missingAccessToken": "Refresh response is missing the access token",
   "client.errors.invalidSessionConfig": "Session config response is invalid",
+  "client.errors.httpRequestTimeout": "Request Timeout",
 } as const;
 
 export type MessageKey = keyof typeof enUS;

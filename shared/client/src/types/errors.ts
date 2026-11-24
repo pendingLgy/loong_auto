@@ -1,6 +1,4 @@
 
-import { Cause, Option } from "effect";
-import { isFiberFailure } from "effect/Runtime";
 
 /** 本地网关调用错误；`status` 为 HTTP 状态码，`code` 为云端信封 code。 */
 export class ClientError extends Error {
@@ -11,6 +9,16 @@ export class ClientError extends Error {
   ) {
     super(message);
     this.name = "ClientError";
+  }
+}
+
+/**
+ * 408：Http请求超时
+ */
+export class HttpTimeoutError extends ClientError {
+  constructor(message = "请求超时") {
+    super(message, 408, 408);
+    this.name = "HttpTimeoutError";
   }
 }
 
@@ -32,5 +40,3 @@ export function isUnauthorized(error: unknown): error is UnauthorizedError {
   return error instanceof UnauthorizedError;
 }
 
-/** 兼容旧命名。 */
-export { ClientError as LoginError };
