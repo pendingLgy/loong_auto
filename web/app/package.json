@@ -1,0 +1,45 @@
+{
+  "name": "@loong/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@kobalte/core": "catalog:",
+    "@loong/ui": "workspace:*",
+    "@sentry/solid": "catalog:",
+    "@solidjs/router": "catalog:",
+    "@solidjs/web": "catalog:",
+    "@tanstack/solid-query": "catalog:",
+    "@tanstack/solid-virtual": "catalog:",
+    "effect": "catalog:",
+    "eventsource-parser": "catalog:",
+    "solid-js": "catalog:",
+    "@solid-primitives/event-listener": "catalog:",
+    "@loong/web-api": "workspace:*"
+  },
+  "devDependencies": {
+    "@happy-dom/global-registrator": "catalog:",
+    "@hona/strobe": "catalog:",
+    "@playwright/test": "catalog:",
+    "@sentry/vite-plugin": "catalog:",
+    "@tailwindcss/vite": "catalog:",
+    "@types/bun": "catalog:",
+    "@types/node": "catalog:",
+    "diff": "catalog:",
+    "happy-dom": "catalog:",
+    "knobs": "catalog:",
+    "tailwindcss": "catalog:",
+    "tw-animate-css": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plugin-pwa": "catalog:",
+    "@typescript/native": "catalog:",
+    "@solidjs/vite-plugin": "catalog:"
+  }
+}

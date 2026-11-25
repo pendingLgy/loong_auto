@@ -1,7 +1,7 @@
 # 工程模块结构
 
-版本：v0.2  
-日期：2026-11-15  
+版本：v0.3  
+日期：2026-11-26  
 关联文档：[整体架构](architecture-design.md)、[技术栈](technology-stack.md)
 
 ## 1. 范围
@@ -21,9 +21,9 @@ loong_auto/
 │   ├── views/                  # 终端视图
 │   └── components/             # 终端交互组件
 ├── web/                        # 浏览器界面模块
-│   ├── app/                    # 应用入口与路由
-│   ├── pages/                  # 业务页面
-│   └── assets/                 # Web 静态资源
+│   ├── app/                    # @loong/web 页面、布局与运行时
+│   ├── api/                    # @loong/web-api 接口契约与客户端入口
+│   └── ui/                     # @loong/ui 组件库与预览
 ├── desktop/                    # Electron 桌面模块
 │   ├── main/                   # 桌面宿主与本地服务管理
 │   ├── preload/                # 受限宿主接口
@@ -55,9 +55,7 @@ loong_auto/
 │   └── tests/                  # 云端单元测试及真实服务集成测试
 ├── shared/                     # 共享能力模块
 │   ├── contracts/              # 协议定义、Schema 与生成类型
-│   ├── cloud_client/           # Python HTTPX 云端 SDK，复用 contracts
-│   ├── client/                 # TypeScript 本地服务 SDK
-│   └── ui/                     # Web 与桌面共享 DOM 组件
+│   └── cloud_client/           # Python HTTPX 云端 SDK，复用 contracts
 ├── engineering/                # 工程与交付模块
 │   ├── workspace/              # 跨模块工程配置
 │   ├── scripts/                # 开发与生成脚本
@@ -78,12 +76,12 @@ loong_auto/
 
 | 工程模块 | 技术方向 | 职责边界 |
 | --- | --- | --- |
-| tui | TypeScript、SolidJS、@opentui/solid、Bun | 终端界面，通过共享客户端访问本地服务 |
-| web | TypeScript、SolidJS、Effect、Vite | 浏览器界面，并提供桌面共享界面能力 |
+| tui | TypeScript、SolidJS、@opentui/solid、Bun | 终端界面，通过本地接口访问本地服务 |
+| web | TypeScript、SolidJS、Effect、Vite | 浏览器界面，包含页面、接口契约与组件库 |
 | desktop | Electron、TypeScript | 桌面宿主，启动或复用本地网关 |
 | local | Python、uv | 本地网关、权限、执行、日志与状态管理 |
 | cloud | Python、uv | 云端接入、推理、任务编排和持久化 |
-| shared | Python 契约与 TypeScript 客户端、组件 | 共享跨端契约、客户端能力及 DOM 组件 |
+| shared | Python 契约 | 共享跨端协议与生成类型 |
 | engineering | 工程配置与自动化工具 | 开发、验证、打包与部署支持 |
 | docs | Markdown | 架构、模块设计与决策记录 |
 
@@ -92,27 +90,29 @@ loong_auto/
 ## 4. 依赖关系
 
 ```text
-tui --------------------> shared/client
-web --------------------> shared/client + shared/ui
-desktop/renderer -------> Web 共享界面
+tui --------------------> local/api
+web/app ----------------> web/api + web/ui
+web/api ----------------> local/api
+desktop/renderer -------> web/app
 desktop/main -----------> 本地服务生命周期
                                 |
-shared/client ------------------+----> local/api
-                                          |
-                                          +----> local/access
-                                          +----> local/executor ----> local/tools
-                                          +----> local/storage
-                                          +----> local/logger
-                                          +----> cloud/api
-                                                     |
-                                                     v
-                                                cloud/agent
-                                                     |
-                                                     v
-                                                cloud/storage
-                                                     |
-                                                     v
-                                           cloud/db + cloud/schema
+                                v
+                             local/api
+                                |
+                                +----> local/access
+                                +----> local/executor ----> local/tools
+                                +----> local/storage
+                                +----> local/logger
+                                +----> cloud/api
+                                           |
+                                           v
+                                      cloud/agent
+                                           |
+                                           v
+                                      cloud/storage
+                                           |
+                                           v
+                                 cloud/db + cloud/schema
 
 local 与 cloud 的网络边界使用 shared/contracts
 local 的系统能力通过 local/platform 适配
