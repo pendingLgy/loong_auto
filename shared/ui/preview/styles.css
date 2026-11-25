@@ -1,7 +1,0 @@
-@import "tailwindcss";
-
-/* 预览页只扫描共享组件源码，保证与消费端构建结果一致。 */
-@source "../src";
-
-/* 预览用 class 控制深色模式（消费端仍按系统偏好），便于手动切换主题。 */
-@custom-variant dark (&:where(.dark, .dark *));
