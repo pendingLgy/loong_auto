@@ -136,7 +136,15 @@ web/app/
     │   └── theme.ts
     └── view/
         ├── IndexView.tsx
-        └── layout/MainLayout.tsx
+        ├── setting/
+        │   ├── AppearanceSettings.tsx
+        │   ├── ClientSettings.tsx
+        │   ├── LanguageSettings.tsx
+        │   ├── SettingsDialog.tsx
+        │   └── classes.ts
+        └── layout/
+            ├── MainLayout.tsx
+            └── SideNav.tsx
 ```
 
 ## 关键模块

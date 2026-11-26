@@ -24,7 +24,10 @@ src/
 ├── store/
 └── view/
     ├── IndexView.tsx
-    └── layout/MainLayout.tsx
+    ├── setting/SettingsDialog.tsx
+    └── layout/
+        ├── MainLayout.tsx
+        └── SideNav.tsx
 ```
 
 - `view/`：页面；`view/layout/` 只负责区域结构。
@@ -48,6 +51,7 @@ src/
 - `LayoutContext`：左右宽度、折叠状态、拖动事件。
 - `LocaleContext`：语言状态、词典、`t()`。
 - `ServerContext`：服务器地址、健康检查、配置弹窗。
+- `SideNavContext`：左侧导航下拉、退出确认与设置面板状态。
 - `store` 只做持久化；Context 负责运行时组合。
 
 ### Provider 层级
@@ -58,6 +62,9 @@ GlobalProvider
     └── ServerProvider
         └── LocaleProvider
             └── LayoutProvider
+                └── MainLayout
+                    └── SideNavProvider
+                        └── SideNav
 ```
 
 ## 国际化
