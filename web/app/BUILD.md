@@ -126,7 +126,7 @@ web/app/
     ├── runtime/
     │   ├── http/
     │   │   ├── index.ts
-    │   │   └── request_client.ts
+    │   │   └── request.ts
     │   └── i18n/
     │       └── en-US.ts
     ├── store/
@@ -179,7 +179,7 @@ loong.web.auth
 
 ### HTTP
 
-`runtime/http/request_client.ts` 提供：
+`runtime/http/request.ts` 提供：
 
 ```ts
 createHttpClient({

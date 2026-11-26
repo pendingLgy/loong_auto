@@ -1,14 +1,13 @@
-import { createSignal } from "solid-js";
-
 export interface ServerConfig {
   url: string;
   securityToken: string;
 }
 
 const STORAGE_KEY = "loong.web.server-config";
-const DEFAULT_SERVER_URL = "http://127.0.0.1:9528";
+export const DEFAULT_SERVER_URL = "http://127.0.0.1:9528";
 
-function readServerConfig(): ServerConfig | null {
+/** 读取持久化的客户端配置。 */
+export function readServerConfig(): ServerConfig | null {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
@@ -26,47 +25,25 @@ function readServerConfig(): ServerConfig | null {
   }
 }
 
-const initial = readServerConfig();
-const [serverUrl, setServerUrlSignal] = createSignal(
-  initial?.url ?? DEFAULT_SERVER_URL,
-);
-const [securityToken, setSecurityTokenSignal] = createSignal(
-  initial?.securityToken ?? "",
-);
-const [serverConfigured, setServerConfigured] = createSignal(initial !== null);
+/** 保存客户端配置并返回规范化结果。 */
+export function saveServerConfig(config: ServerConfig): ServerConfig {
+  const normalized = {
+    url: config.url.trim() || DEFAULT_SERVER_URL,
+    securityToken: config.securityToken.trim(),
+  };
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+  } catch {
+    // 存储不可用时由调用方保留内存状态。
+  }
+  return normalized;
+}
 
-export {
-  DEFAULT_SERVER_URL,
-  securityToken,
-  serverConfigured,
-  serverUrl,
-};
-
-/** 清除客户端配置。 */
+/** 清除持久化的客户端配置。 */
 export function clearServerConfig(): void {
-  setServerUrlSignal(DEFAULT_SERVER_URL);
-  setSecurityTokenSignal("");
-  setServerConfigured(false);
   try {
     window.localStorage.removeItem(STORAGE_KEY);
   } catch {
-    // 存储不可用时仅保留内存状态。
-  }
-}
-
-/** 保存客户端配置并持久化。 */
-export function saveServerConfig(config: ServerConfig): void {
-  const url = config.url.trim() || DEFAULT_SERVER_URL;
-  const token = config.securityToken.trim();
-  setServerUrlSignal(url);
-  setSecurityTokenSignal(token);
-  setServerConfigured(true);
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      url,
-      securityToken: token,
-    }));
-  } catch {
-    // 存储不可用时仅保留内存状态。
+    // 存储不可用时无需额外处理。
   }
 }

@@ -1,5 +1,3 @@
-import { createSignal } from "solid-js";
-
 export interface LayoutSettings {
   leftWidth: number;
   rightWidth: number;
@@ -9,14 +7,15 @@ export interface LayoutSettings {
 
 const STORAGE_KEY = "loong.web.layout";
 
-const DEFAULT_LAYOUT: LayoutSettings = {
+export const DEFAULT_LAYOUT: LayoutSettings = {
   leftWidth: 256,
   rightWidth: 288,
   leftOpen: true,
   rightOpen: true,
 };
 
-function readLayout(): LayoutSettings {
+/** 读取持久化的布局设置。 */
+export function readLayout(): LayoutSettings {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_LAYOUT;
@@ -36,36 +35,11 @@ function readLayout(): LayoutSettings {
   }
 }
 
-const [layout, setLayoutSignal] = createSignal<LayoutSettings>(readLayout());
-
-/** 当前布局设置。 */
-export {layout};
-
-function save(next: LayoutSettings): void {
-  setLayoutSignal(next);
+/** 保存布局设置。 */
+export function saveLayout(layout: LayoutSettings): void {
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(layout));
   } catch {
-    // 存储不可用时仅保留内存状态。
+    // 存储不可用时由调用方保留内存状态。
   }
-}
-
-/** 更新左侧宽度。 */
-export function setLeftWidth(width: number): void {
-  save({...layout(), leftWidth: width});
-}
-
-/** 更新右侧宽度。 */
-export function setRightWidth(width: number): void {
-  save({...layout(), rightWidth: width});
-}
-
-/** 更新左侧展开状态。 */
-export function setLeftOpen(open: boolean): void {
-  save({...layout(), leftOpen: open});
-}
-
-/** 更新右侧展开状态。 */
-export function setRightOpen(open: boolean): void {
-  save({...layout(), rightOpen: open});
 }

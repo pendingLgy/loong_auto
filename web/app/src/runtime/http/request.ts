@@ -1,4 +1,6 @@
-import type { MessageKey } from "../i18n/en-US";
+import type {MessageKey} from "../i18n/en-US";
+
+import {HttpRequestError, HttpTimeoutError} from "./errors";
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -6,6 +8,7 @@ type TranslateParams = Record<string, string | number>;
 
 export interface HttpTranslate {
   (key: MessageKey, fallback?: string, params?: TranslateParams): string;
+
   (key: MessageKey, params?: TranslateParams): string;
 }
 
@@ -39,18 +42,6 @@ export interface HttpRequestOptions {
   timeoutMs?: number;
 }
 
-/** HTTP 请求错误。 */
-export class HttpError extends Error {
-  constructor(
-    message: string,
-    readonly status?: number,
-    readonly data?: unknown,
-  ) {
-    super(message);
-    this.name = "HttpError";
-  }
-}
-
 const DEFAULT_TIMEOUT_MS = 5_000;
 
 function buildUrl(
@@ -74,35 +65,29 @@ function isBodyInit(value: unknown): value is BodyInit {
     || value instanceof URLSearchParams;
 }
 
-async function parseResponse(response: Response): Promise<unknown> {
-  if (response.status === 204) return undefined;
-  const contentType = response.headers.get("content-type") ?? "";
-  if (contentType.includes("application/json")) {
-    return response.json();
-  }
-  return response.text();
-}
 
 /** 带超时、JSON 序列化与统一错误处理的 HTTP 客户端。 */
 export class HttpClient {
   private readonly baseUrl: string;
   private readonly timeoutMs: number;
   private readonly headers: HeadersInit | undefined;
-  private readonly fetcher: typeof fetch;
   private readonly translate: HttpTranslate;
 
   constructor(config: HttpClientConfig) {
     this.baseUrl = config.baseUrl;
     this.timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.headers = config.headers;
-    this.fetcher = config.fetch ?? fetch;
     this.translate = config.translate ?? defaultTranslate;
   }
 
-  async request<T>(path: string, options: HttpRequestOptions = {}): Promise<T> {
+  async request(path: string, options: HttpRequestOptions = {}): Promise<Response> {
     const controller = new AbortController();
+    let timedOut = false;
     const timeout = window.setTimeout(
-      () => controller.abort(new Error("timeout")),
+      () => {
+        timedOut = true;
+        controller.abort(new Error("timeout"));
+      },
       options.timeoutMs ?? this.timeoutMs,
     );
 
@@ -127,7 +112,7 @@ export class HttpClient {
     }
 
     try {
-      const response = await this.fetcher(
+      return await fetch(
         buildUrl(this.baseUrl, path, options.query),
         {
           method: options.method ?? "GET",
@@ -136,55 +121,23 @@ export class HttpClient {
           signal: controller.signal,
         },
       );
-      const data = await parseResponse(response);
-      if (!response.ok) {
-        throw new HttpError(
-          this.translate("http.error", "请求失败：{status} {statusText}", {
-            status: response.status,
-            statusText: response.statusText,
-          }),
-          response.status,
-          data,
-        );
-      }
-      return data as T;
     } catch (error) {
-      if (error instanceof HttpError) throw error;
+      if (error instanceof HttpRequestError) throw error;
       if (controller.signal.aborted) {
-        throw new HttpError(
-          options.signal?.aborted
-            ? this.translate("http.cancelled", "请求已取消")
-            : this.translate("http.timeout", "请求超时"),
-          options.signal?.aborted ? undefined : 408,
-        );
+        if (options.signal?.aborted) {
+          throw new HttpRequestError(this.translate("http.cancelled", "请求已取消"));
+        }
+        if (timedOut) {
+          throw new HttpTimeoutError(this.translate("http.timeout", "请求超时"));
+        }
       }
-      throw new HttpError(
+      throw new HttpRequestError(
         error instanceof Error ? error.message : String(error),
       );
     } finally {
       window.clearTimeout(timeout);
       options.signal?.removeEventListener("abort", abort);
     }
-  }
-
-  get<T>(path: string, options: Omit<HttpRequestOptions, "method" | "body"> = {}) {
-    return this.request<T>(path, {...options, method: "GET"});
-  }
-
-  post<T>(path: string, body?: unknown, options: Omit<HttpRequestOptions, "method" | "body"> = {}) {
-    return this.request<T>(path, {...options, method: "POST", body});
-  }
-
-  put<T>(path: string, body?: unknown, options: Omit<HttpRequestOptions, "method" | "body"> = {}) {
-    return this.request<T>(path, {...options, method: "PUT", body});
-  }
-
-  patch<T>(path: string, body?: unknown, options: Omit<HttpRequestOptions, "method" | "body"> = {}) {
-    return this.request<T>(path, {...options, method: "PATCH", body});
-  }
-
-  delete<T>(path: string, options: Omit<HttpRequestOptions, "method" | "body"> = {}) {
-    return this.request<T>(path, {...options, method: "DELETE"});
   }
 }
 

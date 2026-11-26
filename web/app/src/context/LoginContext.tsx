@@ -6,8 +6,6 @@ import {
   type Accessor,
   type ParentProps,
 } from "solid-js";
-import { Effect } from "effect";
-import { createLocalClient, type LoginResponse, type UserInfo } from "@loong/web-api";
 
 import {
   clearAuthSession,
@@ -15,103 +13,40 @@ import {
   saveAuthSession,
   type AuthSession,
 } from "../store/auth";
-import { LoginDialog } from "../view/login/LoginDialog";
 import { useServerContext } from "./ServerContext";
+import { LoginDialog } from "../view/login/LoginDialog";
 
 interface LoginContextValue {
   session: Accessor<AuthSession | null>;
-  user: Accessor<UserInfo | null>;
+  user: Accessor<AuthSession["user"] | null>;
   accessToken: Accessor<string | null>;
   authenticated: Accessor<boolean>;
   loading: Accessor<boolean>;
   error: Accessor<string | null>;
-  login: (username: string, password: string) => Promise<boolean>;
-  register: (username: string, password: string, name?: string) => Promise<boolean>;
-  logout: () => Promise<void>;
-  clearError: () => void;
+  completeLogin: (session: AuthSession) => void;
+  clearSession: () => void;
+  setLoading: (loading: boolean) => void;
+  setError: (message: string | null) => void;
 }
 
 const LoginContext = createContext<LoginContextValue>();
 
-function toSession(response: LoginResponse): AuthSession {
-  return {
-    accessToken: response.accessToken,
-    refreshToken: response.refreshToken,
-    tokenType: response.tokenType,
-    expiresIn: response.expiresIn,
-    user: response.user,
-  };
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-/** 登录上下文：会话恢复、登录、注册与退出。 */
+/** 登录上下文：只负责会话状态与持久化。 */
 export function LoginProvider(props: ParentProps) {
-  const {serverUrl, securityToken, configured} = useServerContext();
+  const {configured} = useServerContext();
   const [session, setSession] = createSignal<AuthSession | null>(readAuthSession());
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
 
-  const client = () => createLocalClient({
-    origin: serverUrl(),
-    security_token: securityToken(),
-  });
-
-  const login = async (username: string, password: string): Promise<boolean> => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await Effect.runPromise(client().auth.login({
-        username,
-        password,
-        platform: "web",
-      }));
-      const next = toSession(response);
-      setSession(next);
-      saveAuthSession(next);
-      return true;
-    } catch (reason) {
-      setError(errorMessage(reason));
-      return false;
-    } finally {
-      setLoading(false);
-    }
+  const completeLogin = (next: AuthSession) => {
+    setSession(next);
+    saveAuthSession(next);
   };
 
-  const register = async (
-    username: string,
-    password: string,
-    name?: string,
-  ): Promise<boolean> => {
-    setLoading(true);
+  const clearSession = () => {
+    clearAuthSession();
+    setSession(null);
     setError(null);
-    try {
-      await Effect.runPromise(client().auth.register({username, password, name}));
-    } catch (reason) {
-      setError(errorMessage(reason));
-      setLoading(false);
-      return false;
-    }
-    setLoading(false);
-    return login(username, password);
-  };
-
-  const logout = async (): Promise<void> => {
-    setLoading(true);
-    try {
-      if (session()) {
-        await Effect.runPromise(client().auth.logout());
-      }
-    } catch {
-      // 本地会话仍然需要清除，网关退出失败不阻塞登出。
-    } finally {
-      clearAuthSession();
-      setSession(null);
-      setError(null);
-      setLoading(false);
-    }
   };
 
   const authenticated = () => session() !== null;
@@ -125,23 +60,43 @@ export function LoginProvider(props: ParentProps) {
         authenticated,
         loading,
         error,
-        login,
-        register,
-        logout,
-        clearError: () => setError(null),
+        completeLogin,
+        clearSession,
+        setLoading,
+        setError,
       }}
     >
       {props.children}
-      <Show when={!authenticated() && configured()}>
-        <LoginDialog
-          loading={loading()}
-          error={error()}
-          onLogin={login}
-          onRegister={register}
-          onClearError={() => setError(null)}
-        />
-      </Show>
+      <ShowLoginDialog
+        open={!authenticated() && configured()}
+        loading={loading()}
+        error={error()}
+        onComplete={completeLogin}
+        onLoadingChange={setLoading}
+        onError={setError}
+      />
     </LoginContext>
+  );
+}
+
+function ShowLoginDialog(props: {
+  open: boolean;
+  loading: boolean;
+  error: string | null;
+  onComplete: (session: AuthSession) => void;
+  onLoadingChange: (loading: boolean) => void;
+  onError: (message: string | null) => void;
+}) {
+  return (
+    <Show when={props.open}>
+      <LoginDialog
+        loading={props.loading}
+        error={props.error}
+        onComplete={props.onComplete}
+        onLoadingChange={props.onLoadingChange}
+        onError={props.onError}
+      />
+    </Show>
   );
 }
 

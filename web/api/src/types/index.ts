@@ -7,4 +7,3 @@ export * from "./workspace";
 export * from "./session";
 export * from "./message";
 export * from "./event";
-export * from "./errors";

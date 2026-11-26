@@ -1,4 +1,3 @@
-export * from "./config";
+export * from "./core";
 export * from "./types";
-export * from "./sdk";
-export * from "./client";
+export * from "./endpoints";

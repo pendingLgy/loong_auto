@@ -1,4 +1,5 @@
 import { Show, createSignal } from "solid-js";
+import { api_client } from "../../runtime/http";
 
 import { createEventListener } from "@solid-primitives/event-listener";
 import { Dialog } from "@kobalte/core/dialog";
@@ -22,7 +23,7 @@ import { ProfileDialog } from "../user/ProfileDialog";
 /** 左侧导航：客户端信息、语言、主题、用户与设置入口。 */
 export function SideNav() {
   const {layout} = useLayoutContext();
-  const {user, logout} = useLoginContext();
+  const {user, session, clearSession, setLoading} = useLoginContext();
   const {resolvedTheme, toggleTheme} = useGlobalContext();
   const {locale, setLocale, t} = useLocaleContext();
   const {serverUrl, securityToken, connected, setDialogOpen, disconnectServer} = useServerContext();
@@ -58,6 +59,25 @@ export function SideNav() {
       ? user()?.username ?? t("user.localDescription", "本地账户")
       : t("user.localDescription", "本地账户");
   const avatarText = () => displayName().trim().charAt(0).toUpperCase() || "U";
+
+  const logout = async () => {
+    setLoading(true);
+    try {
+      if (session()) {
+        await api_client({
+          baseUrl: serverUrl(),
+          securityToken: securityToken(),
+          locale: locale(),
+          translate: t,
+        }).auth.logout();
+      }
+    } catch {
+      // 网关退出失败不阻塞本地会话清理。
+    } finally {
+      clearSession();
+      setLoading(false);
+    }
+  };
 
   return (
     <>
@@ -319,6 +339,7 @@ export function SideNav() {
                 type="button"
                 onClick={() => {
                   disconnectServer();
+                  clearSession();
                   setExitConfirm(false);
                 }}
                 class="rounded-lg bg-red-600 px-3 py-1.5 text-[13px] font-medium text-white outline-none transition hover:bg-red-500 focus-visible:ring-2 focus-visible:ring-red-500/40"

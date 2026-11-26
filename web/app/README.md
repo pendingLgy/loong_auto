@@ -65,6 +65,8 @@ web/app/
     ├── App.tsx
     ├── main.tsx
     ├── styles.css
+    ├── api/
+    │   └── client.ts
     ├── assets/icons/
     ├── context/
     │   ├── GlobalContext.tsx
@@ -107,8 +109,8 @@ web/app/
 ```text
 GlobalProvider
 └── IndexView
-    └── ServerProvider
-        └── LocaleProvider
+    └── LocaleProvider
+        └── ServerProvider
             └── LoginProvider
                 └── LayoutProvider
                     └── MainLayout

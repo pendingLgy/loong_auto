@@ -7,55 +7,68 @@ import {
   type Accessor,
   type ParentProps,
 } from "solid-js";
-import { Effect } from "effect";
-import { createLocalClient } from "@loong/web-api";
+import { HttpRequestError, api_client } from "../runtime/http";
 import { Button } from "@kobalte/core/button";
 import { Dialog } from "@kobalte/core/dialog";
 
 import { useLocaleContext } from "./LocaleContext";
 
 import {
+  DEFAULT_SERVER_URL,
   clearServerConfig,
+  readServerConfig,
   saveServerConfig,
-  securityToken,
-  serverConfigured,
-  serverUrl,
 } from "../store/server";
 
 export interface ServerConfigDialogProps {
-  initialUrl: string;
-  initialToken: string;
-  checking: boolean;
-  closable: boolean;
+  initialUrl: Accessor<string>;
+  initialToken: Accessor<string>;
+  checking: Accessor<boolean>;
+  closable: Accessor<boolean>;
   onClose: () => void;
   onTest: (url: string, token: string) => Promise<boolean>;
   onSave: (url: string, token: string) => Promise<boolean>;
 }
 
+function errorMessage(error: unknown): string {
+  return error instanceof HttpRequestError
+    ? error.message
+    : error instanceof Error ? error.message : String(error);
+}
+
 /** 本地网关配置弹窗。 */
 export function ServerConfigDialog(props: ServerConfigDialogProps) {
-  const {t} = useLocaleContext();
-  const [url, setUrl] = createSignal(props.initialUrl);
-  const [token, setToken] = createSignal(props.initialToken);
+  const {locale, t} = useLocaleContext();
+  const [url, setUrl] = createSignal(props.initialUrl());
+  const [token, setToken] = createSignal(props.initialToken());
   const [error, setError] = createSignal("");
   const [message, setMessage] = createSignal("");
 
   const test = async () => {
     setError("");
     setMessage(t("server.config.checking", "正在检查连接…"));
-    const ok = await props.onTest(url().trim(), token().trim());
-    setMessage(ok
-      ? t("server.config.success", "连接成功")
-      : t("server.config.failed", "连接失败，请检查客户端地址或访问令牌"));
-    if (!ok) setError(t("server.config.failed", "连接失败，请检查客户端地址或访问令牌"));
+    try {
+      const ok = await props.onTest(url().trim(), token().trim());
+      setMessage(ok
+        ? t("server.config.success", "连接成功")
+        : t("server.config.failed", "连接失败，请检查客户端地址或访问令牌"));
+      if (!ok) setError(t("server.config.failed", "连接失败，请检查客户端地址或访问令牌"));
+    } catch (reason) {
+      setMessage("");
+      setError(errorMessage(reason));
+    }
   };
 
   const save = async () => {
     setError("");
     setMessage("");
-    const ok = await props.onSave(url().trim(), token().trim());
-    if (!ok) {
-      setError(t("server.config.saveFailed", "连接失败，无法保存客户端配置"));
+    try {
+      const ok = await props.onSave(url().trim(), token().trim());
+      if (!ok) {
+        setError(t("server.config.saveFailed", "连接失败，无法保存客户端配置"));
+      }
+    } catch (reason) {
+      setError(errorMessage(reason));
     }
   };
 
@@ -64,7 +77,7 @@ export function ServerConfigDialog(props: ServerConfigDialogProps) {
       open
       modal
       onOpenChange={(open) => {
-        if (!open && props.closable && !props.checking) props.onClose();
+        if (!open && props.closable() && !props.checking()) props.onClose();
       }}
     >
       <Dialog.Portal>
@@ -72,19 +85,19 @@ export function ServerConfigDialog(props: ServerConfigDialogProps) {
         <Dialog.Content
           class="fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl outline-none dark:border-slate-700 dark:bg-slate-900"
           onPointerDownOutside={(event) => {
-            if (!props.closable || props.checking) event.preventDefault();
+            if (!props.closable() || props.checking()) event.preventDefault();
           }}
           onEscapeKeyDown={(event) => {
-            if (!props.closable || props.checking) event.preventDefault();
+            if (!props.closable() || props.checking()) event.preventDefault();
           }}
         >
           <header class="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-4 dark:border-slate-800">
             <Dialog.Title class="m-0 text-base font-semibold">
               {t("server.config.title", "配置客户端")}
             </Dialog.Title>
-            <Show when={props.closable}>
+            <Show when={props.closable()}>
               <Dialog.CloseButton
-                disabled={props.checking}
+                disabled={props.checking()}
                 aria-label={t("server.config.close", "关闭配置")}
                 title={t("server.config.close", "关闭配置")}
                 class="grid h-8 w-8 place-items-center rounded-md text-slate-400 outline-none transition hover:bg-slate-100 hover:text-slate-700 focus-visible:ring-2 focus-visible:ring-indigo-500/40 disabled:opacity-50 dark:hover:bg-slate-800 dark:hover:text-slate-200"
@@ -143,16 +156,16 @@ export function ServerConfigDialog(props: ServerConfigDialogProps) {
               <Button
                 type="button"
                 onClick={() => void test()}
-                disabled={props.checking}
+                disabled={props.checking()}
                 class="h-9 rounded-lg border border-slate-300 px-3 text-[13px] font-medium text-slate-700 outline-none transition hover:bg-slate-900/5 focus-visible:ring-2 focus-visible:ring-indigo-500/40 disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-white/5"
               >
-                {props.checking
+                {props.checking()
                   ? t("server.config.testing", "检查中…")
                   : t("server.config.test", "测试连接")}
               </Button>
               <Button
                 type="submit"
-                disabled={props.checking}
+                disabled={props.checking()}
                 class="inline-flex h-9 items-center justify-center rounded-lg bg-indigo-500 px-4 text-[13px] font-medium text-white outline-none transition hover:bg-indigo-600 focus-visible:ring-2 focus-visible:ring-indigo-500/40 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {t("server.config.save", "保存并连接")}
@@ -183,6 +196,11 @@ const ServerContext = createContext<ServerContextValue>();
 
 /** 服务器连接上下文：启动检查、配置弹窗与测试连接。 */
 export function ServerProvider(props: ParentProps) {
+  const {locale, t} = useLocaleContext();
+  const initial = readServerConfig();
+  const [serverUrl, setServerUrl] = createSignal(initial?.url ?? DEFAULT_SERVER_URL);
+  const [securityToken, setSecurityToken] = createSignal(initial?.securityToken ?? "");
+  const [serverConfigured, setServerConfigured] = createSignal(initial !== null);
   const [connected, setConnected] = createSignal(false);
   const [checking, setChecking] = createSignal(false);
   const [dialogOpen, setDialogOpen] = createSignal(false);
@@ -190,15 +208,12 @@ export function ServerProvider(props: ParentProps) {
   const testConnection = async (url: string, token: string): Promise<boolean> => {
     setChecking(true);
     try {
-      await Effect.runPromise(createLocalClient({
-        origin: url,
-        security_token: token,
-      }).health.security_token());
+      await api_client({baseUrl: url, securityToken: token, locale: locale(), translate: t}).health.securityToken();
       setConnected(true);
       return true;
-    } catch {
+    } catch (error) {
       setConnected(false);
-      return false;
+      throw error;
     } finally {
       setChecking(false);
     }
@@ -209,21 +224,32 @@ export function ServerProvider(props: ParentProps) {
       setDialogOpen(true);
       return false;
     }
-    const ok = await testConnection(serverUrl(), securityToken());
-    if (!ok) setDialogOpen(true);
-    return ok;
+    try {
+      const ok = await testConnection(serverUrl(), securityToken());
+      if (!ok) setDialogOpen(true);
+      return ok;
+    } catch {
+      setDialogOpen(true);
+      return false;
+    }
   };
 
   const saveAndConnect = async (url: string, token: string): Promise<boolean> => {
     const ok = await testConnection(url, token);
     if (!ok) return false;
-    saveServerConfig({url, securityToken: token});
+    const saved = saveServerConfig({url, securityToken: token});
+    setServerUrl(saved.url);
+    setSecurityToken(saved.securityToken);
+    setServerConfigured(true);
     setDialogOpen(false);
     return true;
   };
 
   const disconnectServer = (): void => {
     clearServerConfig();
+    setServerUrl(DEFAULT_SERVER_URL);
+    setSecurityToken("");
+    setServerConfigured(false);
     setConnected(false);
     setDialogOpen(true);
   };
@@ -251,10 +277,10 @@ export function ServerProvider(props: ParentProps) {
       {props.children}
       <Show when={dialogOpen()}>
         <ServerConfigDialog
-          initialUrl={serverUrl()}
-          initialToken={securityToken()}
-          checking={checking()}
-          closable={serverConfigured()}
+          initialUrl={serverUrl}
+          initialToken={securityToken}
+          checking={checking}
+          closable={serverConfigured}
           onClose={() => setDialogOpen(false)}
           onTest={testConnection}
           onSave={saveAndConnect}

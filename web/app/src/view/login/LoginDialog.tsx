@@ -2,18 +2,59 @@ import { Show, createSignal } from "solid-js";
 import { Dialog } from "@kobalte/core/dialog";
 
 import { useLocaleContext } from "../../context/LocaleContext";
+import { useServerContext } from "../../context/ServerContext";
+import { type LoginResponse } from "@loong/web-api";
+import { HttpRequestError, api_client } from "../../runtime/http";
+import type { AuthSession } from "../../store/auth";
 
 export interface LoginDialogProps {
   loading: boolean;
   error: string | null;
-  onLogin: (username: string, password: string) => Promise<boolean>;
-  onRegister: (username: string, password: string, name?: string) => Promise<boolean>;
-  onClearError: () => void;
+  onComplete: (session: AuthSession) => void;
+  onLoadingChange: (loading: boolean) => void;
+  onError: (message: string | null) => void;
+}
+
+function toSession(response: LoginResponse): AuthSession {
+  const data = response as unknown as Record<string, unknown>;
+  const rawUser = (data.user ?? data.user_info) as Record<string, unknown> | undefined;
+  const accessToken = data.accessToken ?? data.access_token;
+  const refreshToken = data.refreshToken ?? data.refresh_token;
+  if (typeof accessToken !== "string" || !accessToken
+      || typeof refreshToken !== "string" || !refreshToken) {
+    throw new Error("登录响应缺少令牌");
+  }
+  return {
+    accessToken,
+    refreshToken,
+    tokenType: typeof data.tokenType === "string"
+      ? data.tokenType
+      : typeof data.token_type === "string" ? data.token_type : "bearer",
+    expiresIn: typeof data.expiresIn === "number"
+      ? data.expiresIn
+      : typeof data.expires_in === "number" ? data.expires_in : 0,
+    user: {
+      id: typeof rawUser?.id === "string" ? rawUser.id : String(rawUser?.id ?? ""),
+      tenantId: typeof rawUser?.tenantId === "string"
+        ? rawUser.tenantId
+        : typeof rawUser?.tenant_id === "string" ? rawUser.tenant_id : "",
+      username: typeof rawUser?.username === "string" ? rawUser.username : "",
+      name: typeof rawUser?.name === "string" ? rawUser.name : null,
+      role: typeof rawUser?.role === "string" ? rawUser.role : null,
+    },
+  };
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof HttpRequestError
+    ? error.message
+    : error instanceof Error ? error.message : String(error);
 }
 
 /** 未登录时的登录 / 注册弹窗。 */
 export function LoginDialog(props: LoginDialogProps) {
-  const {t} = useLocaleContext();
+  const {locale, t} = useLocaleContext();
+  const {serverUrl, securityToken} = useServerContext();
   const [mode, setMode] = createSignal<"login" | "register">("login");
   const [username, setUsername] = createSignal("");
   const [password, setPassword] = createSignal("");
@@ -21,23 +62,67 @@ export function LoginDialog(props: LoginDialogProps) {
   const [name, setName] = createSignal("");
   const [localError, setLocalError] = createSignal<string | null>(null);
 
+  const client = () => api_client({
+    baseUrl: serverUrl(),
+    securityToken: securityToken(),
+    locale: locale(),
+    translate: t,
+  });
+
   const switchMode = (next: "login" | "register") => {
     setMode(next);
     setLocalError(null);
-    props.onClearError();
+    props.onError(null);
+  };
+
+  const login = async (): Promise<boolean> => {
+    props.onLoadingChange(true);
+    props.onError(null);
+    try {
+      const response = await client().auth.login({
+        username: username().trim(),
+        password: password(),
+        platform: "web",
+      });
+      props.onComplete(toSession(response));
+      return true;
+    } catch (reason) {
+      props.onError(errorMessage(reason));
+      return false;
+    } finally {
+      props.onLoadingChange(false);
+    }
+  };
+
+  const register = async (): Promise<boolean> => {
+    props.onLoadingChange(true);
+    props.onError(null);
+    try {
+      await client().auth.register({
+        username: username().trim(),
+        password: password(),
+        name: name().trim() || undefined,
+      });
+    } catch (reason) {
+      props.onError(errorMessage(reason));
+      props.onLoadingChange(false);
+      return false;
+    }
+    props.onLoadingChange(false);
+    return login();
   };
 
   const submit = async (event: SubmitEvent) => {
     event.preventDefault();
     setLocalError(null);
     if (mode() === "login") {
-      await props.onLogin(username().trim(), password());
+      await login();
     } else {
       if (password() !== confirmPassword()) {
         setLocalError(t("login.passwordMismatch", "两次输入的密码不一致"));
         return;
       }
-      await props.onRegister(username().trim(), password(), name().trim() || undefined);
+      await register();
     }
   };
 

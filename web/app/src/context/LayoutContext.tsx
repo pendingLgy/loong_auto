@@ -8,11 +8,8 @@ import {
 import { createEventListener } from "@solid-primitives/event-listener";
 
 import {
-  layout,
-  setLeftOpen,
-  setLeftWidth,
-  setRightOpen,
-  setRightWidth,
+  readLayout,
+  saveLayout,
   type LayoutSettings,
 } from "../store/layout";
 
@@ -39,6 +36,16 @@ function clamp(value: number, min: number, max: number): number {
 
 /** 布局上下文；宽度、折叠状态与拖动事件统一在这里管理。 */
 export function LayoutProvider(props: ParentProps) {
+  const [layout, setLayout] = createSignal<LayoutSettings>(readLayout());
+  const update = (next: LayoutSettings) => {
+    setLayout(next);
+    saveLayout(next);
+  };
+  const setLeftWidth = (width: number) => update({...layout(), leftWidth: width});
+  const setRightWidth = (width: number) => update({...layout(), rightWidth: width});
+  const setLeftOpen = (open: boolean) => update({...layout(), leftOpen: open});
+  const setRightOpen = (open: boolean) => update({...layout(), rightOpen: open});
+
   const [drag, setDrag] = createSignal<{
     side: ResizeSide;
     startX: number;
