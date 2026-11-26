@@ -306,7 +306,10 @@ export function SideNav() {
           </div>
           <button
             type="button"
-            onClick={() => setSettingsOpen(true)}
+            onClick={(event) => {
+              event.currentTarget.blur();
+              setSettingsOpen(true);
+            }}
             aria-label={t("settings.open", "设置")}
             title={t("settings.open", "设置")}
             class="grid h-7 w-7 shrink-0 place-items-center rounded-md text-slate-400 outline-none transition hover:bg-slate-100 hover:text-slate-700 focus-visible:ring-2 focus-visible:ring-indigo-500/40 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
