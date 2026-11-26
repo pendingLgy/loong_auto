@@ -1,10 +1,10 @@
 import { defineEndpoint } from "../core";
-import type { ToolApprovalMessage, ToolApprovalRequest } from "../types";
+import type { ToolApprovalResponse, ToolApprovalRequest } from "../types";
 
 export const TOOL_ENDPOINTS = {
   approve: defineEndpoint<
     {sessionId: string; toolId: string; request: ToolApprovalRequest},
-    ToolApprovalMessage
+    ToolApprovalResponse
   >(
     "POST",
     "/api/tools/{sessionId}/approved/{toolId}",

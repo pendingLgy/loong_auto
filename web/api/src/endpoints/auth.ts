@@ -4,7 +4,7 @@ import type {
   LoginResponse,
   RefreshTokenRequest,
   RegisterRequest,
-  UserInfo,
+  UserInfoResponse,
 } from "../types";
 
 export const AUTH_ENDPOINTS = {
@@ -12,7 +12,7 @@ export const AUTH_ENDPOINTS = {
     "POST",
     "/api/cloud/common/api/auth/login",
   ),
-  register: defineEndpoint<RegisterRequest, UserInfo>(
+  register: defineEndpoint<RegisterRequest, UserInfoResponse>(
     "POST",
     "/api/cloud/common/api/auth/register",
   ),
@@ -20,7 +20,7 @@ export const AUTH_ENDPOINTS = {
     "POST",
     "/api/cloud/common/api/auth/refresh_token",
   ),
-  me: defineEndpoint<void, UserInfo>(
+  me: defineEndpoint<void, UserInfoResponse>(
     "GET",
     "/api/cloud/common/api/auth/me",
   ),

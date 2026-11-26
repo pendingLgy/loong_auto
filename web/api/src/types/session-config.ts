@@ -3,29 +3,29 @@
 export type WorkspaceMode = "read_only" | "workspace_write" | "full";
 
 /** session_config 接口返回的会话配置。 */
-export interface SessionConfig {
-  sessionId: string;
-  workspaceMode: WorkspaceMode;
+export interface SessionConfigResponse {
+  session_id: string;
+  workspace_mode: WorkspaceMode;
   workspaces: string[];
-  createdAt: string | null;
-  updatedAt: string | null;
+  created_at: string | null;
+  updated_at: string | null;
 }
 
 /** 创建或覆盖会话配置。 */
 export interface SessionConfigSaveRequest {
-  workspaceId: string | number;
-  workspaceMode: WorkspaceMode;
+  workspace_id: string | number;
+  workspace_mode: WorkspaceMode;
   workspaces: string[];
 }
 
 /** 局部更新会话配置：只提交需要修改的字段。 */
 export interface SessionConfigUpdateRequest {
-  workspaceMode?: WorkspaceMode;
+  workspace_mode?: WorkspaceMode;
   workspaces?: string[];
 }
 
 /** 云端/网关原始会话配置字段。 */
-export interface RawSessionConfigPayload {
+export interface RawSessionConfigResponse {
   session_id?: unknown;
   workspace_mode?: unknown;
   workspaces?: unknown;

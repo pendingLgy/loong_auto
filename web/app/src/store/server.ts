@@ -1,6 +1,6 @@
 export interface ServerConfig {
   url: string;
-  securityToken: string;
+  security_token: string;
 }
 
 const STORAGE_KEY = "loong.web.server-config";
@@ -16,8 +16,8 @@ export function readServerConfig(): ServerConfig | null {
     if (!url) return null;
     return {
       url,
-      securityToken: typeof parsed?.securityToken === "string"
-        ? parsed.securityToken
+      security_token: typeof parsed?.security_token === "string"
+        ? parsed.security_token
         : "",
     };
   } catch {
@@ -29,7 +29,7 @@ export function readServerConfig(): ServerConfig | null {
 export function saveServerConfig(config: ServerConfig): ServerConfig {
   const normalized = {
     url: config.url.trim() || DEFAULT_SERVER_URL,
-    securityToken: config.securityToken.trim(),
+    security_token: config.security_token.trim(),
   };
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));

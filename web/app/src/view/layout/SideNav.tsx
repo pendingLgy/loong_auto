@@ -50,8 +50,8 @@ export function SideNav() {
     if (!userMenu?.contains(event.target as Node)) setUserMenuOpen(false);
   });
 
-  const leftWidth = () => layout().leftWidth;
-  const leftOpen = () => layout().leftOpen;
+  const left_width = () => layout().left_width;
+  const left_open = () => layout().left_open;
   const displayName = () =>
     user()?.name || user()?.username || t("user.guest", "未登录");
   const displayDescription = () =>
@@ -83,12 +83,12 @@ export function SideNav() {
     <>
       <aside
         aria-label="左侧导航"
-        aria-hidden={leftOpen() ? "false" : "true"}
+        aria-hidden={left_open() ? "false" : "true"}
         style={{
-          width: leftOpen() ? `${leftWidth()}px` : "0px",
-          "min-width": leftOpen() ? "200px" : "0px",
+          width: left_open() ? `${left_width()}px` : "0px",
+          "min-width": left_open() ? "200px" : "0px",
         }}
-        class={`${leftOpen() ? "max-lg:hidden lg:flex opacity-100" : "flex opacity-0 pointer-events-none"} shrink-0 flex-col overflow-hidden rounded-xl bg-white/70 shadow-sm transition-[width,min-width,opacity] duration-200 ease-out dark:bg-slate-900/60`}
+        class={`${left_open() ? "max-lg:hidden lg:flex opacity-100" : "flex opacity-0 pointer-events-none"} shrink-0 flex-col overflow-hidden rounded-xl bg-white/70 shadow-sm transition-[width,min-width,opacity] duration-200 ease-out dark:bg-slate-900/60`}
       >
         <header class="flex h-14 min-w-[200px] shrink-0 items-center justify-between gap-3 border-b border-slate-200 px-4 shadow-sm dark:border-slate-800">
           <div ref={serverMenu} class="relative shrink-0">

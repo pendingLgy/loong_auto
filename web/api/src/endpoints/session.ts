@@ -1,31 +1,31 @@
 import { defineEndpoint } from "../core";
 import type {
-  Session,
+  SessionResponse,
   SessionCreateRequest,
-  SessionListParams,
-  SessionPage,
+  SessionListRequest,
+  SessionPageResponse,
   SessionUpdateRequest,
 } from "../types";
 
 export const SESSION_ENDPOINTS = {
-  list: defineEndpoint<SessionListParams, SessionPage>(
+  list: defineEndpoint<SessionListRequest, SessionPageResponse>(
     "GET",
     "/api/cloud/common/api/sessions",
   ),
-  create: defineEndpoint<SessionCreateRequest, Session>(
+  create: defineEndpoint<SessionCreateRequest, SessionResponse>(
     "POST",
     "/api/cloud/common/api/sessions",
   ),
   get: defineEndpoint<
     {sessionId: string; workspaceId: string | number},
-    Session
+    SessionResponse
   >(
     "GET",
     "/api/cloud/common/api/sessions/{sessionId}",
   ),
   update: defineEndpoint<
     {sessionId: string; request: SessionUpdateRequest},
-    Session
+    SessionResponse
   >(
     "PUT",
     "/api/cloud/common/api/sessions/{sessionId}",

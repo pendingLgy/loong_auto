@@ -19,6 +19,7 @@ import {createHttpClient, type HttpClientConfig} from "./request";
 export interface ApiConfig extends HttpClientConfig {
   timeoutMs: number;
   token?: string;
+  userToken?: string;
   securityToken?: string;
   locale?: string;
 }
@@ -65,6 +66,7 @@ async function send<TReq, TRes>(
   const headers = new Headers(config.headers);
   new Headers(init?.headers).forEach((value, key) => headers.set(key, value));
   if (config.token) headers.set("Authorization", `Bearer ${config.token}`);
+  if (config.userToken) headers.set("X-User-Token", config.userToken);
   if (config.securityToken) headers.set("X-Security-Token", config.securityToken);
   if (config.locale) headers.set("Accept-Language", config.locale);
 
@@ -142,7 +144,8 @@ function bindModule<T extends Record<string, Endpoint<any, any>>>(
 export function api_client(override?: Partial<ApiConfig>) {
   const config: ApiConfig = {
     ...DEFAULT_API_CONFIG,
-    token: readAuthSession()?.accessToken,
+    token: readAuthSession()?.access_token,
+    userToken: readAuthSession()?.user_token,
     locale: readLocale(),
     ...override,
   };

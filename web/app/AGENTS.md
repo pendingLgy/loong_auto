@@ -45,13 +45,21 @@ Global → Locale → Server → Login → Layout → MainLayout → SideNav
 
 - `LoginContext` 只管理会话与持久化，不直接调用 API。
 - 登录 / 注册调用在 `LoginDialog`，退出调用在 `SideNav`。
-- 会话保存到 `loong.web.auth`。
+- 会话保存到 `loong.web.auth`，`user_token = sha256(id + ":" + username)`。
+
+## 持久化
+
+- `store` 中写入浏览器的对象字段统一使用下划线命名。
+- `loong.web.layout`：`left_width`、`right_width`、`left_open`、`right_open`。
+- `loong.web.auth`：`access_token`、`refresh_token`、`token_type`、`expires_in`、`user`、`user_token`。
+- `loong.web.server-config`：`url`、`security_token`。
+- 旧版驼峰字段数据不兼容，不做迁移；缺失字段使用默认值。
 
 ## 请求与国际化
 
 - `request.ts` 只发送请求并返回 `Response`。
 - `api_client.ts` 负责绑定 endpoint、解析信封、错误处理。
-- 自动携带 `Authorization`、`X-Security-Token`、`Accept-Language`。
+- 自动携带 `Authorization`、`X-Security-Token`、`X-User-Token`、`Accept-Language`。
 - 捕获 `HttpRequestError` 时优先使用其 `message`。
 - 中文使用 fallback：`t(key, "中文")`。
 

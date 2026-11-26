@@ -1,13 +1,13 @@
 /** 工作目录（cloud `/api/workspace`）相关类型。 */
 
-export interface Workspace {
+export interface WorkspaceResponse {
   id: string;
-  tenantId: string;
-  userId: string;
+  tenant_id: string;
+  user_id: string;
   name: string | null;
   path: string[];
-  createdAt: string | null;
-  updatedAt: string | null;
+  created_at: string | null;
+  updated_at: string | null;
 }
 
 export interface WorkspaceCreateRequest {
@@ -22,20 +22,20 @@ export interface WorkspaceUpdateRequest {
   path: string[];
 }
 
-export interface WorkspaceListParams {
+export interface WorkspaceListRequest {
   page?: number;
-  pageSize?: number;
+  page_size?: number;
 }
 
-export interface WorkspacePage {
+export interface WorkspacePageResponse {
   total: number | null;
   page: number | null;
-  pageSize: number | null;
-  rows: Workspace[];
+  page_size: number | null;
+  rows: WorkspaceResponse[];
 }
 
 /** 云端原始工作目录字段。 */
-export interface RawWorkspacePayload {
+export interface RawWorkspaceResponse {
   id?: unknown;
   tenant_id?: unknown;
   user_id?: unknown;
@@ -46,7 +46,7 @@ export interface RawWorkspacePayload {
 }
 
 /** 云端原始分页字段。 */
-export interface RawWorkspacePagePayload {
+export interface RawWorkspacePageResponse {
   total?: unknown;
   page?: unknown;
   page_size?: unknown;

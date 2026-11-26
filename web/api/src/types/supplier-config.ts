@@ -1,53 +1,67 @@
 /** 供应商配置与模型启用配置类型。 */
 
-export interface SupplierConfig {
+export interface SupplierConfigResponse {
   id: string;
   provider: string;
   alias: string | null;
   popular: boolean;
   description: string;
-  baseUrl: string | null;
-  configFlag: boolean;
-  createdAt: string | null;
-  updatedAt: string | null;
+  base_url: string | null;
+  config_flag: boolean;
+  created_at: string | null;
+  updated_at: string | null;
 }
 
-export interface SupplierModelOption {
+export interface SupplierModelOptionResponse {
   id: string;
   provider: string;
   model: string;
   enabled: boolean;
-  createdAt: string | null;
-  updatedAt: string | null;
+  created_at: string | null;
+  updated_at: string | null;
 }
 
 export interface SupplierConfigSaveRequest {
   provider: string;
-  apiKey: string;
-  baseUrl?: string;
+  api_key: string;
+  base_url?: string;
 }
 
-export interface SupplierModelItem {
+export interface SupplierConfigDeleteRequest {
+  provider: string;
+}
+
+export interface SupplierConfigApiKeyRequest {
+  provider: string;
+  api_key: string;
+}
+
+export interface SupplierConfigRenameRequest {
+  provider: string;
+  alias: string;
+}
+
+export interface SupplierModelItemResponse {
   model: string;
   enabled: boolean;
-  reasoningEffort: string[];
+  reasoning_effort: string[];
 }
 
-export interface SupplierProviderModels {
+export interface SupplierProviderModelsResponse {
   provider: string;
   alias: string | null;
-  baseUrl: string | null;
-  models: SupplierModelItem[];
+  base_url: string | null;
+  models: SupplierModelItemResponse[];
 }
 
-export interface RawSupplierProviderModelsPayload {
+export interface RawSupplierProviderModelsResponse {
   provider?: unknown;
   alias?: unknown;
   base_url?: unknown;
   models?: unknown;
 }
 
-export interface RawSupplierModelItemPayload {
+export interface RawSupplierModelItemResponse {
   model?: unknown;
   enabled?: unknown;
   reasoning_effort?: unknown;
@@ -59,8 +73,17 @@ export interface SupplierModelOptionSaveRequest {
   enabled: boolean;
 }
 
+export interface SupplierModelOptionDeleteRequest {
+  provider: string;
+  model: string;
+}
+
+export interface SupplierConfigOptionsRequest {
+  provider?: string;
+}
+
 /** 云端/local 原始供应商配置字段。 */
-export interface RawSupplierConfigPayload {
+export interface RawSupplierConfigResponse {
   id?: unknown;
   provider?: unknown;
   alias?: unknown;
@@ -73,7 +96,7 @@ export interface RawSupplierConfigPayload {
 }
 
 /** 原始模型启用配置字段。 */
-export interface RawSupplierModelOptionPayload {
+export interface RawSupplierModelOptionResponse {
   id?: unknown;
   provider?: unknown;
   model?: unknown;

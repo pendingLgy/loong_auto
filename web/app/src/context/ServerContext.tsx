@@ -199,7 +199,7 @@ export function ServerProvider(props: ParentProps) {
   const {locale, t} = useLocaleContext();
   const initial = readServerConfig();
   const [serverUrl, setServerUrl] = createSignal(initial?.url ?? DEFAULT_SERVER_URL);
-  const [securityToken, setSecurityToken] = createSignal(initial?.securityToken ?? "");
+  const [securityToken, setSecurityToken] = createSignal(initial?.security_token ?? "");
   const [serverConfigured, setServerConfigured] = createSignal(initial !== null);
   const [connected, setConnected] = createSignal(false);
   const [checking, setChecking] = createSignal(false);
@@ -237,9 +237,9 @@ export function ServerProvider(props: ParentProps) {
   const saveAndConnect = async (url: string, token: string): Promise<boolean> => {
     const ok = await testConnection(url, token);
     if (!ok) return false;
-    const saved = saveServerConfig({url, securityToken: token});
+    const saved = saveServerConfig({url, security_token: token});
     setServerUrl(saved.url);
-    setSecurityToken(saved.securityToken);
+    setSecurityToken(saved.security_token);
     setServerConfigured(true);
     setDialogOpen(false);
     return true;

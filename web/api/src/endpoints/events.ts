@@ -1,5 +1,5 @@
 import { defineEndpoint } from "../core";
-import type { AddMessageRequest, EventSubmitHeaders } from "../types";
+import type { AddMessageRequest, EventSubmitHeadersRequest } from "../types";
 
 export const EVENT_ENDPOINTS = {
   subscribe: defineEndpoint<
@@ -14,7 +14,7 @@ export const EVENT_ENDPOINTS = {
       clientId: string;
       sessionId: string;
       request: AddMessageRequest;
-      headers?: EventSubmitHeaders;
+      headers?: EventSubmitHeadersRequest;
     },
     void
   >(

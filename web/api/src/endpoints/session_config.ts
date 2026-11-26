@@ -1,20 +1,20 @@
 import { defineEndpoint } from "../core";
 import type {
-  SessionConfig,
+  SessionConfigResponse,
   SessionConfigSaveRequest,
   SessionConfigUpdateRequest,
 } from "../types";
 
 export const SESSION_CONFIG_ENDPOINTS = {
-  get: defineEndpoint<void, SessionConfig>(
+  get: defineEndpoint<void, SessionConfigResponse>(
     "GET",
     "/api/session-configs/{sessionId}",
   ),
-  save: defineEndpoint<SessionConfigSaveRequest, SessionConfig>(
+  save: defineEndpoint<SessionConfigSaveRequest, SessionConfigResponse>(
     "PUT",
     "/api/session-configs/{sessionId}",
   ),
-  update: defineEndpoint<SessionConfigUpdateRequest, SessionConfig>(
+  update: defineEndpoint<SessionConfigUpdateRequest, SessionConfigResponse>(
     "PATCH",
     "/api/session-configs/{sessionId}",
   ),

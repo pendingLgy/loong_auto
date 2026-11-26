@@ -23,13 +23,21 @@ interface LoginContextValue {
   authenticated: Accessor<boolean>;
   loading: Accessor<boolean>;
   error: Accessor<string | null>;
-  completeLogin: (session: AuthSession) => void;
+  completeLogin: (session: Omit<AuthSession, "user_token">) => Promise<void>;
   clearSession: () => void;
   setLoading: (loading: boolean) => void;
   setError: (message: string | null) => void;
 }
 
 const LoginContext = createContext<LoginContextValue>();
+
+async function hashUserToken(user: AuthSession["user"]): Promise<string> {
+  const data = new TextEncoder().encode(`${user.id}:${user.username}`);
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
 
 /** 登录上下文：只负责会话状态与持久化。 */
 export function LoginProvider(props: ParentProps) {
@@ -38,9 +46,11 @@ export function LoginProvider(props: ParentProps) {
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
 
-  const completeLogin = (next: AuthSession) => {
-    setSession(next);
-    saveAuthSession(next);
+  const completeLogin = async (next: Omit<AuthSession, "user_token">) => {
+    const userToken = await hashUserToken(next.user);
+    const session = {...next, user_token: userToken};
+    setSession(session);
+    saveAuthSession(session);
   };
 
   const clearSession = () => {
@@ -56,7 +66,7 @@ export function LoginProvider(props: ParentProps) {
       value={{
         session,
         user: () => session()?.user ?? null,
-        accessToken: () => session()?.accessToken ?? null,
+        accessToken: () => session()?.access_token ?? null,
         authenticated,
         loading,
         error,
@@ -83,7 +93,7 @@ function ShowLoginDialog(props: {
   open: boolean;
   loading: boolean;
   error: string | null;
-  onComplete: (session: AuthSession) => void;
+  onComplete: (session: Omit<AuthSession, "user_token">) => Promise<void>;
   onLoadingChange: (loading: boolean) => void;
   onError: (message: string | null) => void;
 }) {

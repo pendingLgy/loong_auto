@@ -18,13 +18,13 @@ export interface RegisterRequest {
 
 /** 刷新令牌请求参数。 */
 export interface RefreshTokenRequest {
-  refreshToken: string;
+  refresh_token: string;
 }
 
 /** 登录用户信息。 */
-export interface UserInfo {
+export interface UserInfoResponse {
   id: string;
-  tenantId: string;
+  tenant_id: string;
   username: string;
   name: string | null;
   role: string | null;
@@ -32,11 +32,11 @@ export interface UserInfo {
 
 /** 登录响应（客户端领域模型）。 */
 export interface LoginResponse {
-  accessToken: string;
-  refreshToken: string;
-  tokenType: string;
-  expiresIn: number;
-  user: UserInfo;
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  expires_in: number;
+  user: UserInfoResponse;
 }
 
 /** 云端原始登录响应字段。 */

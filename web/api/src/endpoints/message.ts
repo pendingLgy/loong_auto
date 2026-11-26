@@ -1,10 +1,10 @@
 import { defineEndpoint } from "../core";
-import type { MessageListParams, MessagePage } from "../types";
+import type { MessageListRequest, MessagePageResponse } from "../types";
 
 export const MESSAGE_ENDPOINTS = {
   list: defineEndpoint<
-    {sessionId: string; params?: MessageListParams},
-    MessagePage
+    {sessionId: string; params?: MessageListRequest},
+    MessagePageResponse
   >(
     "GET",
     "/api/cloud/common/api/messages",

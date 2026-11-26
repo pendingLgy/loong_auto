@@ -1,28 +1,28 @@
 import { defineEndpoint } from "../core";
 import type {
-  Workspace,
+  WorkspaceResponse,
   WorkspaceCreateRequest,
-  WorkspaceListParams,
-  WorkspacePage,
+  WorkspaceListRequest,
+  WorkspacePageResponse,
   WorkspaceUpdateRequest,
 } from "../types";
 
 export const WORKSPACE_ENDPOINTS = {
-  list: defineEndpoint<WorkspaceListParams, WorkspacePage>(
+  list: defineEndpoint<WorkspaceListRequest, WorkspacePageResponse>(
     "GET",
     "/api/cloud/common/api/workspace",
   ),
-  create: defineEndpoint<WorkspaceCreateRequest, Workspace>(
+  create: defineEndpoint<WorkspaceCreateRequest, WorkspaceResponse>(
     "POST",
     "/api/cloud/common/api/workspace",
   ),
-  get: defineEndpoint<{id: number | string}, Workspace>(
+  get: defineEndpoint<{id: number | string}, WorkspaceResponse>(
     "GET",
     "/api/cloud/common/api/workspace/{id}",
   ),
   update: defineEndpoint<
     {id: number | string; request: WorkspaceUpdateRequest},
-    Workspace
+    WorkspaceResponse
   >(
     "PUT",
     "/api/cloud/common/api/workspace/{id}",

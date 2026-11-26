@@ -1,11 +1,12 @@
-import type { UserInfo } from "@loong/web-api";
+import type { UserInfoResponse } from "@loong/web-api";
 
 export interface AuthSession {
-  accessToken: string;
-  refreshToken: string;
-  tokenType: string;
-  expiresIn: number;
-  user: UserInfo;
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  expires_in: number;
+  user: UserInfoResponse;
+  user_token: string;
 }
 
 const STORAGE_KEY = "loong.web.auth";
@@ -17,20 +18,23 @@ export function readAuthSession(): AuthSession | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<AuthSession> | null;
     if (
-      typeof parsed?.accessToken !== "string"
-      || !parsed.accessToken
-      || typeof parsed.refreshToken !== "string"
+      typeof parsed?.access_token !== "string"
+      || !parsed.access_token
+      || typeof parsed.refresh_token !== "string"
       || typeof parsed.user !== "object"
       || parsed.user === null
+      || typeof parsed.user_token !== "string"
+      || !parsed.user_token
     ) {
       return null;
     }
     return {
-      accessToken: parsed.accessToken,
-      refreshToken: parsed.refreshToken,
-      tokenType: typeof parsed.tokenType === "string" ? parsed.tokenType : "bearer",
-      expiresIn: typeof parsed.expiresIn === "number" ? parsed.expiresIn : 0,
-      user: parsed.user as UserInfo,
+      access_token: parsed.access_token,
+      refresh_token: parsed.refresh_token,
+      token_type: typeof parsed.token_type === "string" ? parsed.token_type : "bearer",
+      expires_in: typeof parsed.expires_in === "number" ? parsed.expires_in : 0,
+      user: parsed.user as UserInfoResponse,
+      user_token: parsed.user_token,
     };
   } catch {
     return null;

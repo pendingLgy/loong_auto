@@ -41,10 +41,10 @@ export function LayoutProvider(props: ParentProps) {
     setLayout(next);
     saveLayout(next);
   };
-  const setLeftWidth = (width: number) => update({...layout(), leftWidth: width});
-  const setRightWidth = (width: number) => update({...layout(), rightWidth: width});
-  const setLeftOpen = (open: boolean) => update({...layout(), leftOpen: open});
-  const setRightOpen = (open: boolean) => update({...layout(), rightOpen: open});
+  const setLeftWidth = (width: number) => update({...layout(), left_width: width});
+  const setRightWidth = (width: number) => update({...layout(), right_width: width});
+  const setLeftOpen = (open: boolean) => update({...layout(), left_open: open});
+  const setRightOpen = (open: boolean) => update({...layout(), right_open: open});
 
   const [drag, setDrag] = createSignal<{
     side: ResizeSide;
@@ -57,7 +57,7 @@ export function LayoutProvider(props: ParentProps) {
     setDrag({
       side,
       startX: event.clientX,
-      startWidth: side === "left" ? layout().leftWidth : layout().rightWidth,
+      startWidth: side === "left" ? layout().left_width : layout().right_width,
     });
   };
 
@@ -68,10 +68,10 @@ export function LayoutProvider(props: ParentProps) {
     const delta = event.clientX - current.startX;
     if (current.side === "left") {
       const max = window.innerWidth - MIN_CENTER_WIDTH
-        - (layout().rightOpen ? layout().rightWidth : 0) - 40;
+        - (layout().right_open ? layout().right_width : 0) - 40;
       setLeftWidth(clamp(current.startWidth + delta, MIN_LEFT_WIDTH, max));
     } else {
-      const max = window.innerWidth - MIN_CENTER_WIDTH - layout().leftWidth - 40;
+      const max = window.innerWidth - MIN_CENTER_WIDTH - layout().left_width - 40;
       setRightWidth(clamp(current.startWidth - delta, MIN_RIGHT_WIDTH, max));
     }
   });

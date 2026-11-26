@@ -1,33 +1,33 @@
 /** 消息（cloud `/api/messages`）相关类型。 */
 
-export interface MessageRecord {
+export interface MessageResponse {
   id: string;
-  tenantId: string;
-  userId: string;
-  sessionId: string;
+  tenant_id: string;
+  user_id: string;
+  session_id: string;
   model: string | null;
-  messageId: string | null;
+  message_id: string | null;
   created: string | null;
   role: string | null;
   content: string | null;
-  toolCalls: Array<Record<string, unknown>>;
-  toolCallId: string | null;
+  tool_calls: Array<Record<string, unknown>>;
+  tool_call_id: string | null;
 }
 
-export interface MessageListParams {
+export interface MessageListRequest {
   page?: number;
-  pageSize?: number;
+  page_size?: number;
 }
 
-export interface MessagePage {
+export interface MessagePageResponse {
   total: number | null;
   page: number | null;
-  pageSize: number | null;
-  rows: MessageRecord[];
+  page_size: number | null;
+  rows: MessageResponse[];
 }
 
 /** 云端原始消息字段。 */
-export interface RawMessagePayload {
+export interface RawMessageResponse {
   id?: unknown;
   tenant_id?: unknown;
   user_id?: unknown;
@@ -42,7 +42,7 @@ export interface RawMessagePayload {
 }
 
 /** 云端原始分页字段。 */
-export interface RawMessagePagePayload {
+export interface RawMessagePageResponse {
   total?: unknown;
   page?: unknown;
   page_size?: unknown;
@@ -56,7 +56,7 @@ export interface ToolApprovalRequest {
 }
 
 /** 工具审批执行后返回的 tool 消息。 */
-export interface ToolApprovalMessage {
+export interface ToolApprovalResponse {
   id: string | null;
   role: string;
   status: string | null;
@@ -65,7 +65,7 @@ export interface ToolApprovalMessage {
 }
 
 /** 工具审批接口的原始 message 字段。 */
-export interface RawToolApprovalMessagePayload {
+export interface RawToolApprovalMessageResponse {
   id?: unknown;
   role?: unknown;
   status?: unknown;

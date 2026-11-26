@@ -1,50 +1,55 @@
 import { defineEndpoint } from "../core";
 import type {
-  SupplierConfig,
+  SupplierConfigApiKeyRequest,
+  SupplierConfigDeleteRequest,
+  SupplierConfigOptionsRequest,
+  SupplierConfigRenameRequest,
+  SupplierConfigResponse,
   SupplierConfigSaveRequest,
-  SupplierModelOption,
+  SupplierModelOptionDeleteRequest,
+  SupplierModelOptionResponse,
   SupplierModelOptionSaveRequest,
-  SupplierProviderModels,
+  SupplierProviderModelsResponse,
 } from "../types";
 
 export const SUPPLIER_CONFIG_ENDPOINTS = {
-  list: defineEndpoint<void, SupplierConfig[]>(
+  list: defineEndpoint<void, SupplierConfigResponse[]>(
     "GET",
     "/api/supplier-configs",
   ),
-  listConfigured: defineEndpoint<void, SupplierConfig[]>(
+  listConfigured: defineEndpoint<void, SupplierConfigResponse[]>(
     "GET",
     "/api/supplier-configs/configured",
   ),
-  listModels: defineEndpoint<void, SupplierProviderModels[]>(
+  listModels: defineEndpoint<void, SupplierProviderModelsResponse[]>(
     "GET",
     "/api/supplier-configs/models",
   ),
-  save: defineEndpoint<SupplierConfigSaveRequest, SupplierConfig>(
+  save: defineEndpoint<SupplierConfigSaveRequest, SupplierConfigResponse>(
     "PUT",
     "/api/supplier-configs",
   ),
-  updateApiKey: defineEndpoint<{provider: string; apiKey: string}, SupplierConfig>(
+  updateApiKey: defineEndpoint<SupplierConfigApiKeyRequest, SupplierConfigResponse>(
     "PUT",
     "/api/supplier-configs/api-key",
   ),
-  rename: defineEndpoint<{provider: string; alias: string}, SupplierConfig>(
+  rename: defineEndpoint<SupplierConfigRenameRequest, SupplierConfigResponse>(
     "PUT",
     "/api/supplier-configs/alias",
   ),
-  remove: defineEndpoint<{provider: string}, void>(
+  remove: defineEndpoint<SupplierConfigDeleteRequest, void>(
     "DELETE",
     "/api/supplier-configs",
   ),
-  listOptions: defineEndpoint<{provider?: string}, SupplierModelOption[]>(
+  listOptions: defineEndpoint<SupplierConfigOptionsRequest, SupplierModelOptionResponse[]>(
     "GET",
     "/api/supplier-configs/options",
   ),
-  saveOption: defineEndpoint<SupplierModelOptionSaveRequest, SupplierModelOption>(
+  saveOption: defineEndpoint<SupplierModelOptionSaveRequest, SupplierModelOptionResponse>(
     "PUT",
     "/api/supplier-configs/options",
   ),
-  removeOption: defineEndpoint<{provider: string; model: string}, void>(
+  removeOption: defineEndpoint<SupplierModelOptionDeleteRequest, void>(
     "DELETE",
     "/api/supplier-configs/options",
   ),

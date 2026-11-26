@@ -1,43 +1,43 @@
 /** 会话（cloud `/api/sessions`）相关类型。 */
 
-export interface Session {
+export interface SessionResponse {
   id: string;
-  tenantId: string;
-  userId: string;
-  sessionId: string;
-  sessionTitle: string | null;
-  workspaceId: string | null;
+  tenant_id: string;
+  user_id: string;
+  session_id: string;
+  session_title: string | null;
+  workspace_id: string | null;
   model: string | null;
-  messageId: string | null;
-  createdAt: string | null;
+  message_id: string | null;
+  created_at: string | null;
 }
 
 export interface SessionCreateRequest {
-  sessionId: string;
-  sessionTitle: string;
-  workspaceId: string | number;
+  session_id: string;
+  session_title: string;
+  workspace_id: string | number;
 }
 
 export interface SessionUpdateRequest {
-  sessionTitle?: string;
-  workspaceId: string | number;
+  session_title?: string;
+  workspace_id: string | number;
 }
 
-export interface SessionListParams {
-  workspaceId: string | number;
+export interface SessionListRequest {
+  workspace_id: string | number;
   page?: number;
-  pageSize?: number;
+  page_size?: number;
 }
 
-export interface SessionPage {
+export interface SessionPageResponse {
   total: number | null;
   page: number | null;
-  pageSize: number | null;
-  rows: Session[];
+  page_size: number | null;
+  rows: SessionResponse[];
 }
 
 /** 云端原始会话字段。 */
-export interface RawSessionPayload {
+export interface RawSessionResponse {
   id?: unknown;
   tenant_id?: unknown;
   user_id?: unknown;
@@ -50,7 +50,7 @@ export interface RawSessionPayload {
 }
 
 /** 云端原始分页字段。 */
-export interface RawSessionPagePayload {
+export interface RawSessionPageResponse {
   total?: unknown;
   page?: unknown;
   page_size?: unknown;

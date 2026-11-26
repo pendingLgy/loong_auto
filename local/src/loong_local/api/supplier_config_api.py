@@ -1,7 +1,7 @@
 """供应商配置与模型启用配置接口。"""
 import httpx
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Depends, Query, Request, Body
+from fastapi import APIRouter, Depends, Query, Request
 from loguru import logger
 from loong_contracts.response import BaseResponse
 from loong_contracts.response.supplier import SupplierProviderResponse
@@ -19,9 +19,11 @@ from loong_local.schema.model import (
     SupplierProviderModelsResponse,
 )
 from loong_local.schema.request import (
+    SupplierConfigDeleteRequest,
     SupplierConfigApiKeyRequest,
     SupplierConfigRenameRequest,
     SupplierConfigSaveRequest,
+    SupplierModelOptionDeleteRequest,
     SupplierModelOptionSaveRequest,
 )
 from loong_local.service.supplier_config_service import SupplierConfigService
@@ -166,12 +168,12 @@ async def rename_supplier(
 @inject
 async def delete_supplier_config(
         request: Request,
-        provider: str = Query(min_length=1),
+        body: SupplierConfigDeleteRequest,
         store: SupplierConfigService = Depends(Provide["SupplierConfigService"]),
 ):
-    deleted = await store.delete_config(provider, user_token=request.state.user_token)
+    deleted = await store.delete_config(body.provider, user_token=request.state.user_token)
     if not deleted:
-        return Response.fail(request, code=404, msg=f"供应商配置不存在：{provider}")
+        return Response.fail(request, code=404, msg=f"供应商配置不存在：{body.provider}")
     return Response.ok(request, True)
 
 
@@ -259,12 +261,11 @@ async def save_model_option(
 @inject
 async def delete_model_option(
         request: Request,
-        provider: str = Query(min_length=1),
-        model: str = Query(min_length=1),
+        body: SupplierModelOptionDeleteRequest,
         store: SupplierConfigService = Depends(Provide["SupplierConfigService"]),
 ):
     deleted = await store.delete_option(
-        provider, model, user_token=request.state.user_token)
+        body.provider, body.model, user_token=request.state.user_token)
     if not deleted:
-        return Response.fail(request, code=404, msg=f"模型配置不存在：{provider}/{model}")
+        return Response.fail(request, code=404, msg=f"模型配置不存在：{body.provider}/{body.model}")
     return Response.ok(request, True)

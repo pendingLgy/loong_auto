@@ -6,6 +6,7 @@ import { useLocaleContext } from "../../context/LocaleContext";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { ClientSettings } from "./ClientSettings";
 import { LanguageSettings } from "./LanguageSettings";
+import { SupplierSettings } from "./SupplierSettings";
 
 export interface SettingsDialogProps {
   open: boolean;
@@ -36,7 +37,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
     <Dialog open={props.open} onOpenChange={props.onOpenChange} modal>
       <Dialog.Portal>
         <Dialog.Overlay class="fixed inset-0 z-[60] bg-slate-950/40 backdrop-blur-sm" />
-        <Dialog.Content class="fixed left-1/2 top-1/2 z-[60] flex h-[420px] w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl outline-none dark:border-slate-700 dark:bg-slate-900">
+        <Dialog.Content class="fixed left-1/2 top-1/2 z-[60] flex h-[600px] max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-4xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl outline-none dark:border-slate-700 dark:bg-slate-900">
           <header class="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 px-5 py-4 dark:border-slate-800">
             <Dialog.Title class="m-0 text-base font-semibold">
               {t("settings.title", "设置")}
@@ -69,6 +70,9 @@ export function SettingsDialog(props: SettingsDialogProps) {
               <Tabs.Trigger value="client" class={tabTriggerClass}>
                 {t("settings.client", "客户端")}
               </Tabs.Trigger>
+              <Tabs.Trigger value="supplier" class={tabTriggerClass}>
+                {t("settings.supplier", "供应商")}
+              </Tabs.Trigger>
             </Tabs.List>
 
             <div class="relative min-h-0 flex-1 overflow-hidden" aria-busy={switching() ? "true" : "false"}>
@@ -77,14 +81,17 @@ export function SettingsDialog(props: SettingsDialogProps) {
                   <span class="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-indigo-500 dark:border-slate-700 dark:border-t-indigo-400" />
                 </div>
               </Show>
-              <Tabs.Content value="appearance" class="min-h-0 overflow-auto p-5 outline-none">
+              <Tabs.Content value="appearance" class="h-full min-h-0 overflow-auto p-5 outline-none">
                 <AppearanceSettings />
               </Tabs.Content>
-              <Tabs.Content value="language" class="min-h-0 overflow-auto p-5 outline-none">
+              <Tabs.Content value="language" class="h-full min-h-0 overflow-auto p-5 outline-none">
                 <LanguageSettings />
               </Tabs.Content>
-              <Tabs.Content value="client" class="min-h-0 overflow-auto p-5 outline-none">
+              <Tabs.Content value="client" class="h-full min-h-0 overflow-auto p-5 outline-none">
                 <ClientSettings />
+              </Tabs.Content>
+              <Tabs.Content value="supplier" class="h-full min-h-0 overflow-auto p-5 outline-none">
+                <SupplierSettings />
               </Tabs.Content>
             </div>
           </Tabs>

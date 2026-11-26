@@ -7,35 +7,37 @@ import { type LoginResponse } from "@loong/web-api";
 import { HttpRequestError, api_client } from "../../runtime/http";
 import type { AuthSession } from "../../store/auth";
 
+ type LoginSessionInput = Omit<AuthSession, "user_token">;
+
 export interface LoginDialogProps {
   loading: boolean;
   error: string | null;
-  onComplete: (session: AuthSession) => void;
+  onComplete: (session: LoginSessionInput) => Promise<void>;
   onLoadingChange: (loading: boolean) => void;
   onError: (message: string | null) => void;
 }
 
-function toSession(response: LoginResponse): AuthSession {
+function toSession(response: LoginResponse): LoginSessionInput {
   const data = response as unknown as Record<string, unknown>;
   const rawUser = (data.user ?? data.user_info) as Record<string, unknown> | undefined;
-  const accessToken = data.accessToken ?? data.access_token;
-  const refreshToken = data.refreshToken ?? data.refresh_token;
+  const accessToken = data.access_token;
+  const refreshToken = data.refresh_token;
   if (typeof accessToken !== "string" || !accessToken
       || typeof refreshToken !== "string" || !refreshToken) {
     throw new Error("登录响应缺少令牌");
   }
   return {
-    accessToken,
-    refreshToken,
-    tokenType: typeof data.tokenType === "string"
+    access_token: accessToken,
+    refresh_token: refreshToken,
+    token_type: typeof data.tokenType === "string"
       ? data.tokenType
       : typeof data.token_type === "string" ? data.token_type : "bearer",
-    expiresIn: typeof data.expiresIn === "number"
+    expires_in: typeof data.expiresIn === "number"
       ? data.expiresIn
       : typeof data.expires_in === "number" ? data.expires_in : 0,
     user: {
       id: typeof rawUser?.id === "string" ? rawUser.id : String(rawUser?.id ?? ""),
-      tenantId: typeof rawUser?.tenantId === "string"
+      tenant_id: typeof rawUser?.tenantId === "string"
         ? rawUser.tenantId
         : typeof rawUser?.tenant_id === "string" ? rawUser.tenant_id : "",
       username: typeof rawUser?.username === "string" ? rawUser.username : "",
@@ -84,7 +86,7 @@ export function LoginDialog(props: LoginDialogProps) {
         password: password(),
         platform: "web",
       });
-      props.onComplete(toSession(response));
+      await props.onComplete(toSession(response));
       return true;
     } catch (reason) {
       props.onError(errorMessage(reason));

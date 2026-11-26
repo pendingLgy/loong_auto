@@ -1,17 +1,17 @@
 export interface LayoutSettings {
-  leftWidth: number;
-  rightWidth: number;
-  leftOpen: boolean;
-  rightOpen: boolean;
+  left_width: number;
+  right_width: number;
+  left_open: boolean;
+  right_open: boolean;
 }
 
 const STORAGE_KEY = "loong.web.layout";
 
 export const DEFAULT_LAYOUT: LayoutSettings = {
-  leftWidth: 256,
-  rightWidth: 288,
-  leftOpen: true,
-  rightOpen: true,
+  left_width: 256,
+  right_width: 288,
+  left_open: true,
+  right_open: true,
 };
 
 /** 读取持久化的布局设置。 */
@@ -21,14 +21,14 @@ export function readLayout(): LayoutSettings {
     if (!raw) return DEFAULT_LAYOUT;
     const parsed = JSON.parse(raw) as Partial<LayoutSettings> | null;
     return {
-      leftWidth: typeof parsed?.leftWidth === "number"
-        ? parsed.leftWidth
-        : DEFAULT_LAYOUT.leftWidth,
-      rightWidth: typeof parsed?.rightWidth === "number"
-        ? parsed.rightWidth
-        : DEFAULT_LAYOUT.rightWidth,
-      leftOpen: parsed?.leftOpen !== false,
-      rightOpen: parsed?.rightOpen !== false,
+      left_width: typeof parsed?.left_width === "number"
+        ? parsed.left_width
+        : DEFAULT_LAYOUT.left_width,
+      right_width: typeof parsed?.right_width === "number"
+        ? parsed.right_width
+        : DEFAULT_LAYOUT.right_width,
+      left_open: parsed?.left_open !== false,
+      right_open: parsed?.right_open !== false,
     };
   } catch {
     return DEFAULT_LAYOUT;

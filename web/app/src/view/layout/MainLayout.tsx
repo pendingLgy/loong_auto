@@ -19,9 +19,9 @@ export function MainLayout(props: MainLayoutProps) {
 
 function MainLayoutContent(props: MainLayoutProps) {
   const {layout, setLeftOpen, setRightOpen, startResize} = useLayoutContext();
-  const leftOpen = () => layout().leftOpen;
-  const rightWidth = () => layout().rightWidth;
-  const rightOpen = () => layout().rightOpen;
+  const left_open = () => layout().left_open;
+  const right_width = () => layout().right_width;
+  const right_open = () => layout().right_open;
 
   return (
     <div class="flex h-dvh w-full min-h-0 gap-0 overflow-hidden bg-slate-50 p-2.5 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
@@ -29,7 +29,7 @@ function MainLayoutContent(props: MainLayoutProps) {
         <SideNav />
       </SideNavProvider>
 
-      <Show when={leftOpen()}>
+      <Show when={left_open()}>
         <div
           role="separator"
           aria-orientation="vertical"
@@ -46,13 +46,13 @@ function MainLayoutContent(props: MainLayoutProps) {
           <div class="flex min-w-0 items-center gap-2">
             <button
               type="button"
-              onClick={() => setLeftOpen(!leftOpen())}
-              aria-label={leftOpen() ? "收起左侧区域" : "展开左侧区域"}
-              aria-pressed={leftOpen() ? "true" : "false"}
-              title={leftOpen() ? "收起左侧区域" : "展开左侧区域"}
+              onClick={() => setLeftOpen(!left_open())}
+              aria-label={left_open() ? "收起左侧区域" : "展开左侧区域"}
+              aria-pressed={left_open() ? "true" : "false"}
+              title={left_open() ? "收起左侧区域" : "展开左侧区域"}
               class="grid h-8 w-8 shrink-0 place-items-center rounded-md text-slate-500 outline-none transition hover:bg-slate-100 hover:text-slate-700 focus-visible:ring-2 focus-visible:ring-indigo-500/40 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
             >
-              <PanelIcon expanded={leftOpen()} class="h-4 w-4" />
+              <PanelIcon expanded={left_open()} class="h-4 w-4" />
             </button>
             <div class="min-w-0 truncate text-sm font-semibold">
               {props.title ?? "首页"}
@@ -61,20 +61,20 @@ function MainLayoutContent(props: MainLayoutProps) {
 
           <button
             type="button"
-            onClick={() => setRightOpen(!rightOpen())}
-            aria-label={rightOpen() ? "收起右侧区域" : "展开右侧区域"}
-            aria-pressed={rightOpen() ? "true" : "false"}
-            title={rightOpen() ? "收起右侧区域" : "展开右侧区域"}
+            onClick={() => setRightOpen(!right_open())}
+            aria-label={right_open() ? "收起右侧区域" : "展开右侧区域"}
+            aria-pressed={right_open() ? "true" : "false"}
+            title={right_open() ? "收起右侧区域" : "展开右侧区域"}
             class="grid h-8 w-8 shrink-0 place-items-center rounded-md text-slate-500 outline-none transition hover:bg-slate-100 hover:text-slate-700 focus-visible:ring-2 focus-visible:ring-indigo-500/40 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
           >
-            <PanelIcon expanded={!rightOpen()} class="h-4 w-4" />
+            <PanelIcon expanded={!right_open()} class="h-4 w-4" />
           </button>
         </header>
 
         <div class="min-h-0 flex-1 overflow-auto p-6" />
       </main>
 
-      <Show when={rightOpen()}>
+      <Show when={right_open()}>
         <div
           role="separator"
           aria-orientation="vertical"
@@ -88,12 +88,12 @@ function MainLayoutContent(props: MainLayoutProps) {
 
       <aside
         aria-label="右侧详情"
-        aria-hidden={rightOpen() ? "false" : "true"}
+        aria-hidden={right_open() ? "false" : "true"}
         style={{
-          width: rightOpen() ? `${rightWidth()}px` : "0px",
-          "min-width": rightOpen() ? "240px" : "0px",
+          width: right_open() ? `${right_width()}px` : "0px",
+          "min-width": right_open() ? "240px" : "0px",
         }}
-        class={`${rightOpen() ? "max-lg:hidden lg:flex opacity-100" : "flex opacity-0 pointer-events-none"} shrink-0 flex-col overflow-hidden rounded-xl bg-white/70 shadow-sm transition-[width,min-width,opacity] duration-200 ease-out dark:bg-slate-900/60`}
+        class={`${right_open() ? "max-lg:hidden lg:flex opacity-100" : "flex opacity-0 pointer-events-none"} shrink-0 flex-col overflow-hidden rounded-xl bg-white/70 shadow-sm transition-[width,min-width,opacity] duration-200 ease-out dark:bg-slate-900/60`}
       >
         <header class="flex h-14 min-w-[240px] shrink-0 items-center justify-between gap-3 border-b border-slate-200 px-4 shadow-sm dark:border-slate-800">
           <div class="min-w-0 truncate text-sm font-semibold">
