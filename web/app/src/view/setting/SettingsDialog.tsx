@@ -6,6 +6,7 @@ import { useLocaleContext } from "../../context/LocaleContext";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { ClientSettings } from "./ClientSettings";
 import { LanguageSettings } from "./LanguageSettings";
+import { ModelSettings } from "./ModelSettings";
 import { SupplierSettings } from "./SupplierSettings";
 
 export interface SettingsDialogProps {
@@ -73,6 +74,9 @@ export function SettingsDialog(props: SettingsDialogProps) {
               <Tabs.Trigger value="supplier" class={tabTriggerClass}>
                 {t("settings.supplier", "供应商")}
               </Tabs.Trigger>
+              <Tabs.Trigger value="model" class={tabTriggerClass}>
+                {t("settings.model", "模型")}
+              </Tabs.Trigger>
             </Tabs.List>
 
             <div class="relative min-h-0 flex-1 overflow-hidden" aria-busy={switching() ? "true" : "false"}>
@@ -92,6 +96,9 @@ export function SettingsDialog(props: SettingsDialogProps) {
               </Tabs.Content>
               <Tabs.Content value="supplier" class="h-full min-h-0 overflow-auto p-5 outline-none">
                 <SupplierSettings />
+              </Tabs.Content>
+              <Tabs.Content value="model" class="h-full min-h-0 overflow-auto p-5 outline-none">
+                <ModelSettings />
               </Tabs.Content>
             </div>
           </Tabs>
