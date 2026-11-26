@@ -1,0 +1,159 @@
+import { Show, createSignal } from "solid-js";
+import { Dialog } from "@kobalte/core/dialog";
+
+import { useLocaleContext } from "../../context/LocaleContext";
+
+export interface LoginDialogProps {
+  loading: boolean;
+  error: string | null;
+  onLogin: (username: string, password: string) => Promise<boolean>;
+  onRegister: (username: string, password: string, name?: string) => Promise<boolean>;
+  onClearError: () => void;
+}
+
+/** 未登录时的登录 / 注册弹窗。 */
+export function LoginDialog(props: LoginDialogProps) {
+  const {t} = useLocaleContext();
+  const [mode, setMode] = createSignal<"login" | "register">("login");
+  const [username, setUsername] = createSignal("");
+  const [password, setPassword] = createSignal("");
+  const [confirmPassword, setConfirmPassword] = createSignal("");
+  const [name, setName] = createSignal("");
+  const [localError, setLocalError] = createSignal<string | null>(null);
+
+  const switchMode = (next: "login" | "register") => {
+    setMode(next);
+    setLocalError(null);
+    props.onClearError();
+  };
+
+  const submit = async (event: SubmitEvent) => {
+    event.preventDefault();
+    setLocalError(null);
+    if (mode() === "login") {
+      await props.onLogin(username().trim(), password());
+    } else {
+      if (password() !== confirmPassword()) {
+        setLocalError(t("login.passwordMismatch", "两次输入的密码不一致"));
+        return;
+      }
+      await props.onRegister(username().trim(), password(), name().trim() || undefined);
+    }
+  };
+
+  const inputClass =
+    "h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100";
+
+  return (
+    <Dialog open modal>
+      <Dialog.Portal>
+        <Dialog.Overlay class="fixed inset-0 z-50 bg-slate-950/40 backdrop-blur-sm" />
+        <Dialog.Content
+          class="fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl outline-none dark:border-slate-700 dark:bg-slate-900"
+          onPointerDownOutside={(event) => event.preventDefault()}
+          onEscapeKeyDown={(event) => event.preventDefault()}
+        >
+          <header class="border-b border-slate-200 px-5 py-4 dark:border-slate-800">
+            <Dialog.Title class="m-0 text-base font-semibold">
+              {mode() === "login"
+                ? t("login.title", "登录")
+                : t("login.registerTitle", "创建账户")}
+            </Dialog.Title>
+            <Dialog.Description class="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+              {mode() === "login"
+                ? t("login.description", "登录后继续使用。")
+                : t("login.registerDescription", "注册后将自动登录。")}
+            </Dialog.Description>
+          </header>
+
+          <form class="grid gap-4 p-5" onSubmit={submit}>
+            <label class="grid gap-1.5">
+              <span class="text-[13px] font-medium text-slate-700 dark:text-slate-200">
+                {t("login.username", "用户名")}
+              </span>
+              <input
+                value={username()}
+                onInput={(event) => setUsername(event.currentTarget.value)}
+                autocomplete="username"
+                required
+                class={inputClass}
+              />
+            </label>
+
+            <Show when={mode() === "register"}>
+              <label class="grid gap-1.5">
+                <span class="text-[13px] font-medium text-slate-700 dark:text-slate-200">
+                  {t("login.name", "显示名称")}
+                </span>
+                <input
+                  value={name()}
+                  onInput={(event) => setName(event.currentTarget.value)}
+                  autocomplete="name"
+                  class={inputClass}
+                />
+              </label>
+            </Show>
+
+            <label class="grid gap-1.5">
+              <span class="text-[13px] font-medium text-slate-700 dark:text-slate-200">
+                {t("login.password", "密码")}
+              </span>
+              <input
+                value={password()}
+                onInput={(event) => setPassword(event.currentTarget.value)}
+                type="password"
+                autocomplete={mode() === "login" ? "current-password" : "new-password"}
+                required
+                class={inputClass}
+              />
+            </label>
+
+            <Show when={mode() === "register"}>
+              <label class="grid gap-1.5">
+                <span class="text-[13px] font-medium text-slate-700 dark:text-slate-200">
+                  {t("login.confirmPassword", "确认密码")}
+                </span>
+                <input
+                  value={confirmPassword()}
+                  onInput={(event) => setConfirmPassword(event.currentTarget.value)}
+                  type="password"
+                  autocomplete="new-password"
+                  required
+                  class={inputClass}
+                />
+              </label>
+            </Show>
+
+            <Show when={localError() ?? props.error}>
+              <p role="alert" class="m-0 text-[13px] font-medium text-red-600 dark:text-red-400">
+                {localError() ?? props.error}
+              </p>
+            </Show>
+
+            <button
+              type="submit"
+              disabled={props.loading}
+              class="inline-flex h-9 items-center justify-center rounded-lg bg-indigo-500 px-4 text-[13px] font-medium text-white outline-none transition hover:bg-indigo-600 focus-visible:ring-2 focus-visible:ring-indigo-500/40 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {props.loading
+                ? t("login.loading", "处理中…")
+                : mode() === "login"
+                  ? t("login.submit", "登录")
+                  : t("login.registerSubmit", "注册并登录")}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => switchMode(mode() === "login" ? "register" : "login")}
+              class="text-center text-[12px] text-slate-500 outline-none transition hover:text-indigo-600 focus-visible:ring-2 focus-visible:ring-indigo-500/40 dark:text-slate-400 dark:hover:text-indigo-300"
+            >
+              {mode() === "login"
+                ? t("login.switchRegister", "没有账户？注册")
+                : t("login.switchLogin", "已有账户？登录")}
+            </button>
+          </form>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog>
+  );
+}

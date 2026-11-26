@@ -162,6 +162,7 @@ web/app/
 ```text
 GlobalContext   主题
 ServerContext   服务器检查与配置
+LoginContext    登录会话
 LocaleContext   国际化
 LayoutContext   布局状态与拖动
 ```
@@ -173,6 +174,7 @@ loong.web.theme
 loong.web.layout
 loong.web.locale
 loong.web.server-config
+loong.web.auth
 ```
 
 ### HTTP

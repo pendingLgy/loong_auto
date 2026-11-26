@@ -109,10 +109,11 @@ GlobalProvider
 └── IndexView
     └── ServerProvider
         └── LocaleProvider
-            └── LayoutProvider
-                └── MainLayout
-                    └── SideNavProvider
-                        └── SideNav
+            └── LoginProvider
+                └── LayoutProvider
+                    └── MainLayout
+                        └── SideNavProvider
+                            └── SideNav
 ```
 
 ## 验证

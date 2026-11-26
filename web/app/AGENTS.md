@@ -51,6 +51,7 @@ src/
 - `LayoutContext`：左右宽度、折叠状态、拖动事件。
 - `LocaleContext`：语言状态、词典、`t()`。
 - `ServerContext`：服务器地址、健康检查、配置弹窗。
+- `LoginContext`：登录会话、登录、注册与退出。
 - `SideNavContext`：左侧导航下拉、退出确认与设置面板状态。
 - `store` 只做持久化；Context 负责运行时组合。
 
@@ -61,10 +62,11 @@ GlobalProvider
 └── IndexView
     └── ServerProvider
         └── LocaleProvider
-            └── LayoutProvider
-                └── MainLayout
-                    └── SideNavProvider
-                        └── SideNav
+            └── LoginProvider
+                └── LayoutProvider
+                    └── MainLayout
+                        └── SideNavProvider
+                            └── SideNav
 ```
 
 ## 国际化

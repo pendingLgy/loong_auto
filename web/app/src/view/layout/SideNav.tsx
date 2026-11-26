@@ -1,22 +1,28 @@
-import { Show } from "solid-js";
+import { Show, createSignal } from "solid-js";
 
 import { createEventListener } from "@solid-primitives/event-listener";
 import { Dialog } from "@kobalte/core/dialog";
 
 import { GlobeIcon } from "../../assets/icons/GlobeIcon";
+import { KeyIcon } from "../../assets/icons/KeyIcon";
 import { LogoutIcon } from "../../assets/icons/LogoutIcon";
 import { ServerIcon } from "../../assets/icons/ServerIcon";
 import { SettingsIcon } from "../../assets/icons/SettingsIcon";
 import { ThemeIcon } from "../../assets/icons/ThemeIcon";
+import { UserIcon } from "../../assets/icons/UserIcon";
 import { useGlobalContext } from "../../context/GlobalContext";
 import { useLayoutContext } from "../../context/LayoutContext";
+import { useLoginContext } from "../../context/LoginContext";
 import { useLocaleContext } from "../../context/LocaleContext";
 import { useServerContext } from "../../context/ServerContext";
 import { useSideNavContext } from "../../context/SideNavContext";
+import { ChangePasswordDialog } from "../user/ChangePasswordDialog";
+import { ProfileDialog } from "../user/ProfileDialog";
 
 /** 左侧导航：客户端信息、语言、主题、用户与设置入口。 */
 export function SideNav() {
   const {layout} = useLayoutContext();
+  const {user, logout} = useLoginContext();
   const {resolvedTheme, toggleTheme} = useGlobalContext();
   const {locale, setLocale, t} = useLocaleContext();
   const {serverUrl, securityToken, connected, setDialogOpen, disconnectServer} = useServerContext();
@@ -30,16 +36,28 @@ export function SideNav() {
     setExitConfirm,
     setSettingsOpen,
   } = useSideNavContext();
+  const [userMenuOpen, setUserMenuOpen] = createSignal(false);
+  const [profileOpen, setProfileOpen] = createSignal(false);
+  const [passwordOpen, setPasswordOpen] = createSignal(false);
   let localeMenu: HTMLDivElement | undefined;
   let serverMenu: HTMLDivElement | undefined;
+  let userMenu: HTMLDivElement | undefined;
 
   createEventListener(window, "pointerdown", (event) => {
     if (!localeMenu?.contains(event.target as Node)) setLocaleOpen(false);
     if (!serverMenu?.contains(event.target as Node)) setServerOpen(false);
+    if (!userMenu?.contains(event.target as Node)) setUserMenuOpen(false);
   });
 
   const leftWidth = () => layout().leftWidth;
   const leftOpen = () => layout().leftOpen;
+  const displayName = () =>
+    user()?.name || user()?.username || t("user.guest", "未登录");
+  const displayDescription = () =>
+    user()?.name
+      ? user()?.username ?? t("user.localDescription", "本地账户")
+      : t("user.localDescription", "本地账户");
+  const avatarText = () => displayName().trim().charAt(0).toUpperCase() || "U";
 
   return (
     <>
@@ -204,18 +222,67 @@ export function SideNav() {
         </div>
 
         <footer class="flex min-w-[200px] shrink-0 items-center justify-between gap-2 border-t border-slate-200 px-3 py-2.5 dark:border-slate-800">
-          <div class="flex min-w-0 items-center gap-2">
-            <span class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-indigo-500 text-[11px] font-semibold text-white">
-              U
-            </span>
-            <div class="grid min-w-0 gap-0.5">
-              <span class="truncate text-[12px] font-medium text-slate-700 dark:text-slate-200">
-                {t("user.local", "本地用户")}
+          <div ref={userMenu} class="relative min-w-0">
+            <button
+              type="button"
+              onClick={() => setUserMenuOpen((open) => !open)}
+              aria-haspopup="menu"
+              aria-expanded={userMenuOpen() ? "true" : "false"}
+              class="flex min-w-0 items-center gap-2 rounded-md px-1 py-1 text-left outline-none transition hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-indigo-500/40 dark:hover:bg-slate-800"
+            >
+              <span class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-indigo-500 text-[11px] font-semibold uppercase text-white">
+                {avatarText()}
               </span>
-              <span class="truncate text-[10px] text-slate-400 dark:text-slate-500">
-                {t("user.localDescription", "本地账户")}
-              </span>
-            </div>
+              <div class="grid min-w-0 gap-0.5">
+                <span class="truncate text-[12px] font-medium text-slate-700 dark:text-slate-200" title={displayName()}>
+                  {displayName()}
+                </span>
+                <span class="truncate text-[10px] text-slate-400 dark:text-slate-500" title={displayDescription()}>
+                  {displayDescription()}
+                </span>
+              </div>
+            </button>
+
+            <Show when={userMenuOpen()}>
+              <div role="menu" class="absolute bottom-full left-0 z-50 mb-1 grid w-40 gap-0.5 rounded-lg border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setUserMenuOpen(false);
+                    setProfileOpen(true);
+                  }}
+                  class="flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px] text-slate-600 outline-none transition hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-indigo-500/40 dark:text-slate-300 dark:hover:bg-slate-800"
+                >
+                  <UserIcon class="h-3.5 w-3.5" />
+                  {t("user.menu.profile", "个人信息")}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setUserMenuOpen(false);
+                    setPasswordOpen(true);
+                  }}
+                  class="flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px] text-slate-600 outline-none transition hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-indigo-500/40 dark:text-slate-300 dark:hover:bg-slate-800"
+                >
+                  <KeyIcon class="h-3.5 w-3.5" />
+                  {t("user.menu.password", "修改密码")}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setUserMenuOpen(false);
+                    void logout();
+                  }}
+                  class="flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px] text-red-600 outline-none transition hover:bg-red-50 focus-visible:ring-2 focus-visible:ring-red-500/40 dark:text-red-400 dark:hover:bg-red-500/10"
+                >
+                  <LogoutIcon class="h-3.5 w-3.5" />
+                  {t("user.menu.logout", "退出")}
+                </button>
+              </div>
+            </Show>
           </div>
           <button
             type="button"
@@ -262,6 +329,9 @@ export function SideNav() {
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog>
+
+      <ProfileDialog open={profileOpen()} onOpenChange={setProfileOpen} />
+      <ChangePasswordDialog open={passwordOpen()} onOpenChange={setPasswordOpen} />
     </>
   );
 }
