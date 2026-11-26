@@ -1,9 +1,12 @@
 """普通接口透明转发，不介入审批与消息编排。"""
+import json
 from urllib.parse import quote
 
 import httpx
 from fastapi import APIRouter, Request
+from httpx import ConnectError, Headers
 from loguru import logger
+from starlette import status
 from starlette.responses import Response
 
 from loong_local.commons.rebuild_header import rebuild_cloud_request_header
@@ -31,9 +34,11 @@ async def proxy_common(request: Request, target: str):
                                           params=query or None,
                                           content=request.stream())
 
-    upstream = await cloud_client.send(outgoing, stream=False)
-
+    upstream = None
     try:
+
+        upstream = await cloud_client.send(outgoing, stream=False)
+
         logger.info("path={} status={}", request.url.path, upstream.status_code,
                  request_id=upstream.headers.get("x-request-id", "-"),
                 request_date=upstream.headers.get("x-request-date", "-"))
@@ -54,7 +59,21 @@ async def proxy_common(request: Request, target: str):
         return response
     except httpx.HTTPStatusError as e:
         raise CloudHttpError(status=e.response.status_code, message=e.response.text,headers=e.response.headers)
+    except Exception as e:
+        if isinstance(e,ConnectError):
+            error_obj = {
+                "msg":"网络连接异常"
+            }
+            msg = json.dumps(error_obj,ensure_ascii=False)
+            raise CloudHttpError(status=status.HTTP_500_INTERNAL_SERVER_ERROR, message=msg,headers=Headers())
+        raise e
 
     finally:
         # 8. 确保无论成功还是异常，都关闭 upstream 响应连接
-        await upstream.aclose()
+        if upstream:
+            try:
+                await upstream.aclose()
+            except Exception as e:
+                logger.error("close cloud request error",str(e))
+            finally:
+                pass
