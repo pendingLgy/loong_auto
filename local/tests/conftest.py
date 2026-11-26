@@ -1,4 +1,5 @@
 """本地接口测试公共配置；不污染进程环境变量。"""
+import hashlib
 import json
 import os
 from datetime import datetime
@@ -15,6 +16,28 @@ from loong_contracts.request.working_directory import CreateWorkingDirectoryRequ
 from loong_contracts.response.session import SessionSimpleResponse
 
 CONFIG_PATH = Path(__file__).resolve().parents[1] / ".env.test"
+
+
+def _write_setting(name: str, value: str) -> None:
+    """写入 .env.test，并记录更新时间注释。"""
+    set_key(str(CONFIG_PATH), name, value, encoding="utf-8")
+    prefix = f"# {name} 更新时间："
+    lines = [line for line in CONFIG_PATH.read_text(encoding="utf-8").splitlines()
+             if not line.startswith(prefix)]
+    index = next(i for i, line in enumerate(lines) if line.startswith(f"{name}="))
+    lines.insert(index, prefix + datetime.now().astimezone().isoformat(timespec="seconds"))
+    CONFIG_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _user_token_from_login(data) -> str:
+    """根据登录用户 id + username 生成稳定的用户身份令牌。"""
+    user = (getattr(data, "user_info", None)
+            or getattr(data, "user", None) or {})
+    user_id = user.get("id") if isinstance(user, dict) else getattr(user, "id", None)
+    username = user.get("username") if isinstance(user, dict) else getattr(user, "username", None)
+    if user_id is None or not username:
+        pytest.fail("登录响应缺少 data.user_info.id / username")
+    return hashlib.sha256(f"{user_id}:{username}".encode("utf-8")).hexdigest()
 
 @pytest.fixture(scope="session")
 def settings():
@@ -48,9 +71,11 @@ async def client(http_client, settings):
     """返回带默认认证头的 HTTP 客户端，令牌失效时重新登录。"""
     auth = CloudClient(http_client,prefix=f"{PATH_CLOUD_COMMON_PREFIX}").auth
     token = settings("LOCAL_API_ACCESS_TOKEN").strip()
+    user_token = settings("LOCAL_API_USER_TOKEN").strip()
 
-    if token:
+    if token and user_token:
         http_client.headers["Authorization"] = f"Bearer {token}"
+        http_client.headers["X-User-Token"] = user_token
         try:
             await auth.me()
             yield http_client
@@ -60,6 +85,7 @@ async def client(http_client, settings):
             if exc.response.status_code != 401:
                 raise
         http_client.headers.pop("Authorization", None)
+        http_client.headers.pop("X-User-Token", None)
 
     username = settings("LOCAL_API_USERNAME")
     password = settings("LOCAL_API_PASSWORD")
@@ -70,14 +96,13 @@ async def client(http_client, settings):
         platform=settings("LOCAL_API_PLATFORM", "tui"),
     ))
     token = result.data.access_token
-    set_key(str(CONFIG_PATH), "LOCAL_API_ACCESS_TOKEN", token, encoding="utf-8")
-    prefix = "# LOCAL_API_ACCESS_TOKEN 更新时间："
-    lines = [line for line in CONFIG_PATH.read_text(encoding="utf-8").splitlines()
-             if not line.startswith(prefix)]
-    index = next(i for i, line in enumerate(lines) if line.startswith("LOCAL_API_ACCESS_TOKEN="))
-    lines.insert(index, prefix + datetime.now().astimezone().isoformat(timespec="seconds"))
-    CONFIG_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    _write_setting("LOCAL_API_ACCESS_TOKEN", token)
+
+    user_token = _user_token_from_login(result.data)
+    _write_setting("LOCAL_API_USER_TOKEN", user_token)
+
     http_client.headers["Authorization"] = f"Bearer {token}"
+    http_client.headers["X-User-Token"] = user_token
     yield http_client
 
 

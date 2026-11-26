@@ -42,6 +42,12 @@ class SupplierConfigSaveRequest(BaseModel):
     base_url: str | None = Field(default=None, max_length=512, description="供应商 API Base URL")
     api_key: str = Field(min_length=1, description="供应商 API Key")
 
+class SupplierConfigSaveRequest(BaseModel):
+    """新增或更新供应商 API Key。"""
+
+    provider: str = Field(min_length=1, max_length=64, description="模型供应商")
+    base_url: str | None = Field(default=None, max_length=512, description="供应商 API Base URL")
+    api_key: str = Field(min_length=1, description="供应商 API Key")
 
 class SupplierConfigApiKeyRequest(BaseModel):
     """更新供应商 API Key。"""

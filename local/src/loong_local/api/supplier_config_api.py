@@ -1,7 +1,7 @@
 """供应商配置与模型启用配置接口。"""
 import httpx
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, Body
 from loguru import logger
 from loong_contracts.response import BaseResponse
 from loong_contracts.response.supplier import SupplierProviderResponse
@@ -80,7 +80,7 @@ async def _supplier_config_items(
                              headers=e.response.headers)
 
     cloud_supplier_dict: dict[str, SupplierProviderResponse] = result.data.providers
-    configs = await store.list_configs()
+    configs = await store.list_configs(user_token=request.state.user_token)
     config_by_provider = {item.provider: item for item in configs}
 
     return [
@@ -128,7 +128,9 @@ async def save_supplier_config(
         body: SupplierConfigSaveRequest,
         store: SupplierConfigService = Depends(Provide["SupplierConfigService"]),
 ):
-    item = await store.save_config(body.provider, body.api_key, body.base_url)
+    item = await store.save_config(
+        body.provider, body.api_key, body.base_url,
+        user_token=request.state.user_token)
     return Response.ok(request, _to_config_response(item.provider, False, "", item.base_url or "", item))
 
 
@@ -139,7 +141,8 @@ async def update_supplier_api_key(
         body: SupplierConfigApiKeyRequest,
         store: SupplierConfigService = Depends(Provide["SupplierConfigService"]),
 ):
-    item = await store.update_api_key(body.provider, body.api_key)
+    item = await store.update_api_key(
+        body.provider, body.api_key, user_token=request.state.user_token)
     if item is None:
         return Response.fail(request, code=404, msg=f"供应商配置不存在：{body.provider}")
     return Response.ok(request, _to_config_response(item.provider, False, "", item.base_url or "", item))
@@ -152,7 +155,8 @@ async def rename_supplier(
         body: SupplierConfigRenameRequest,
         store: SupplierConfigService = Depends(Provide["SupplierConfigService"]),
 ):
-    item = await store.rename_config(body.provider, body.alias)
+    item = await store.rename_config(
+        body.provider, body.alias, user_token=request.state.user_token)
     if item is None:
         return Response.fail(request, code=404, msg=f"供应商配置不存在：{body.provider}")
     return Response.ok(request, _to_config_response(item.provider, False, "", item.base_url or "", item))
@@ -165,7 +169,7 @@ async def delete_supplier_config(
         provider: str = Query(min_length=1),
         store: SupplierConfigService = Depends(Provide["SupplierConfigService"]),
 ):
-    deleted = await store.delete_config(provider)
+    deleted = await store.delete_config(provider, user_token=request.state.user_token)
     if not deleted:
         return Response.fail(request, code=404, msg=f"供应商配置不存在：{provider}")
     return Response.ok(request, True)
@@ -198,9 +202,9 @@ async def list_configured_supplier_models(
         raise CloudHttpError(status=e.response.status_code, message=e.response.text,
                              headers=e.response.headers)
 
-    configs = await store.list_configs()
+    configs = await store.list_configs(user_token=request.state.user_token)
     configured = {item.provider: item for item in configs if item.api_key}
-    options = await store.list_options()
+    options = await store.list_options(user_token=request.state.user_token)
     option_map = {(item.provider, item.model): item.enabled for item in options}
 
     response: list[SupplierProviderModelsResponse] = []
@@ -235,7 +239,7 @@ async def list_model_options(
         provider: str | None = Query(default=None),
         store: SupplierConfigService = Depends(Provide["SupplierConfigService"]),
 ):
-    return Response.ok(request, [_to_option_response(item) for item in await store.list_options(provider)])
+    return Response.ok(request, [_to_option_response(item) for item in await store.list_options(provider, user_token=request.state.user_token)])
 
 
 @router.put("/options", response_model=BaseResponse[SupplierModelOptionResponse])
@@ -245,7 +249,9 @@ async def save_model_option(
         body: SupplierModelOptionSaveRequest,
         store: SupplierConfigService = Depends(Provide["SupplierConfigService"]),
 ):
-    item = await store.set_option(body.provider, body.model, body.enabled)
+    item = await store.set_option(
+        body.provider, body.model, body.enabled,
+        user_token=request.state.user_token)
     return Response.ok(request, _to_option_response(item))
 
 
@@ -257,7 +263,8 @@ async def delete_model_option(
         model: str = Query(min_length=1),
         store: SupplierConfigService = Depends(Provide["SupplierConfigService"]),
 ):
-    deleted = await store.delete_option(provider, model)
+    deleted = await store.delete_option(
+        provider, model, user_token=request.state.user_token)
     if not deleted:
         return Response.fail(request, code=404, msg=f"模型配置不存在：{provider}/{model}")
     return Response.ok(request, True)

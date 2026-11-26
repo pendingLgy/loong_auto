@@ -20,18 +20,26 @@ class SessionConfigService:
         self.session_configs_table = schema.GLOBAL_TABLES.session_configs_table
 
     # ------------------------------------------------------------------ 查询
-    async def get(self, session_id: str) -> SessionConfigModel | None:
+    async def get(self, session_id: str, *, user_token: str) -> SessionConfigModel | None:
         async with self.db.session() as session:
             row = (await session.execute(
                 select(self.session_configs_table).where(
-                    self.session_configs_table.c.session_id == session_id)
+                    self.session_configs_table.c.session_id == session_id,
+                    self.session_configs_table.c.user_token == user_token,
+                )
             )).mappings().first()
         return self._to_model(row) if row else None
 
-    async def list_sessions(self, limit: int = 100) -> list[SessionConfigModel]:
+    async def list_sessions(
+            self,
+            *,
+            user_token: str,
+            limit: int = 100,
+    ) -> list[SessionConfigModel]:
         async with self.db.session() as session:
             rows = (await session.execute(
                 select(self.session_configs_table)
+                .where(self.session_configs_table.c.user_token == user_token)
                 .order_by(self.session_configs_table.c.updated_at.desc())
                 .limit(limit)
             )).mappings().all()
@@ -42,12 +50,15 @@ class SessionConfigService:
             self,
             session_id: str,
             *,
+            user_token: str,
             workspace_id: int,
             policy_model: WorkspaceMode,
             workspaces: Sequence[str | Path],
     ) -> SessionConfigModel:
         if not session_id:
             raise ValueError("session_id 不能为空")
+        if not user_token:
+            raise ValueError("user_token 不能为空")
 
         now = utcnow()
         workspaces_json = json.dumps([str(Path(workspace)) for workspace in workspaces],
@@ -57,13 +68,17 @@ class SessionConfigService:
         async with self.db.session(write=True) as session:
             existing = (await session.execute(
                 select(self.session_configs_table.c.id, self.session_configs_table.c.created_at)
-                .where(self.session_configs_table.c.session_id == session_id)
+                .where(
+                    self.session_configs_table.c.session_id == session_id,
+                    self.session_configs_table.c.user_token == user_token,
+                )
             )).mappings().first()
 
             if existing is None:
                 await session.execute(
                     insert(self.session_configs_table).values(
                         session_id=session_id,
+                        user_token=user_token,
                         workspace_id=workspace_id,
                         workspace_mode=policy_model.value,
                         workspaces=workspaces_json,
@@ -75,7 +90,10 @@ class SessionConfigService:
                 existing["created_at"]
                 await session.execute(
                     update(self.session_configs_table)
-                    .where(self.session_configs_table.c.id == existing["id"])
+                    .where(
+                        self.session_configs_table.c.id == existing["id"],
+                        self.session_configs_table.c.user_token == user_token,
+                    )
                     .values(workspace_mode=policy_model.value,
                             workspaces=workspaces_json,
                             updated_at=now)
@@ -89,11 +107,13 @@ class SessionConfigService:
             updated_at=now,
         )
 
-    async def delete(self, session_id: str) -> bool:
+    async def delete(self, session_id: str, *, user_token: str) -> bool:
         async with self.db.session(write=True) as session:
             result = await session.execute(
                 delete(self.session_configs_table).where(
-                    self.session_configs_table.c.session_id == session_id)
+                    self.session_configs_table.c.session_id == session_id,
+                    self.session_configs_table.c.user_token == user_token,
+                )
             )
         return bool(result.rowcount)
 

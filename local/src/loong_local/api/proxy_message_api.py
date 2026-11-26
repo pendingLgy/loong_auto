@@ -35,7 +35,8 @@ async def submit_message(request: Request, session_id: str, body: AddMessageRequ
 
     llm:LLMParamRequest = body.llm
     if llm.api_key is None:
-        api_key = await supplier_config_service.get_api_key(llm.provider)
+        api_key = await supplier_config_service.get_api_key(
+            llm.provider, user_token=request.state.user_token)
         if api_key is None:
             return Response.fail(request,msg="未配置api_key")
         llm.api_key = SecretStr(api_key)

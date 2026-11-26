@@ -6,7 +6,7 @@ def rebuild_cloud_request_header(headers: Headers, extend_headers:Headers | None
     if headers is None:
         return
 
-    for name in ("x-security-token","content-length"):
+    for name in ("x-security-token","content-length","x-user-token"):
         headers.pop(name, None)
 
     if extend_headers:

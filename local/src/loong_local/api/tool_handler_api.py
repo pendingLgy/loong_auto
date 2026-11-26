@@ -42,7 +42,7 @@ async def resume_tool_endpoint(
 
     context: SSEContext = request.state.sse_context
 
-    session_config = await session_config_service.get(session_id)
+    session_config = await session_config_service.get(session_id, user_token=request.state.user_token)
     if session_config is None:
         return Response.fail(request,msg="工作目录未配置")
 
@@ -50,14 +50,18 @@ async def resume_tool_endpoint(
     # 工作目录只做解析前的传递，存在性校验延迟到工具执行时处理，减少中间件耗时。
     workspaces = SessionConfigService.to_workspaces(session_config)
 
-    pending_task:PendingToolTaskModel = await pending_tool_task_service.get_task(session_id, tool_id)
+    pending_task:PendingToolTaskModel = await pending_tool_task_service.get_task(
+        session_id, tool_id, user_token=request.state.user_token)
     if not pending_task:
         raise HTTPException(status_code=404, detail="未找到对应的挂起任务")
 
     # 用户拒绝：更新状态、清理任务，不执行工具。
     if not decision.approved:
-        await pending_tool_task_service.update_status(session_id, tool_id, status=ToolTaskStatus.REJECTED)
-        await pending_tool_task_service.remove_task(session_id, tool_id)
+        await pending_tool_task_service.update_status(
+            session_id, tool_id, status=ToolTaskStatus.REJECTED,
+            user_token=request.state.user_token)
+        await pending_tool_task_service.remove_task(
+            session_id, tool_id, user_token=request.state.user_token)
         return Response.ok(request, _tool_message(tool_id, "User rejected the tool"))
 
     # 用户同意：用单例执行器执行，执行时传入本会话的策略与工作目录。
@@ -73,9 +77,12 @@ async def resume_tool_endpoint(
         )
     except Exception as exc:
         log_exception(exc, "工具执行失败")
-        await pending_tool_task_service.update_status(session_id, tool_id, status=ToolTaskStatus.FAILED)
+        await pending_tool_task_service.update_status(
+            session_id, tool_id, status=ToolTaskStatus.FAILED,
+            user_token=request.state.user_token)
         return Response.ok(request, _tool_message(tool_id, "Run tool failed"))
 
-    # await pending_tool_task_service.remove_task(session_id, tool_id)
+    # await pending_tool_task_service.remove_task(
+    #     session_id, tool_id, user_token=request.state.user_token)
     return Response.ok(request, _tool_message(tool_id,
                                               json.dumps(result.model_dump(), ensure_ascii=False)))

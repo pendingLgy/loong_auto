@@ -61,7 +61,8 @@ async def subscribe(
             logger.warning("工具调用缺少 session_id，已跳过落库 tool={}", pending.tool_call.name)
             return
 
-        session_config = await session_config_service.get(pending.session_id)
+        session_config = await session_config_service.get(
+            pending.session_id, user_token=request.state.user_token)
         if session_config is None:
             logger.warning("会话配置不存在，跳过工具调度 session_id={}", pending.session_id)
             return
@@ -86,6 +87,7 @@ async def subscribe(
             summary=inspection.summary,
             dangerous=inspection.needs_approval,
             risk_reason=inspection.risk_reason if inspection.needs_approval else None,
+            user_token=request.state.user_token,
         )
 
     # 开启后台 Worker 循环：专门从队列中安全串行消费并写入数据库

@@ -21,6 +21,7 @@ def get_tool_tasks_table(metadata: MetaData, prefix: str = "") -> Table:
 
         Column("tool_id", String(128), nullable=False, comment="工具调用ID (LLM tool_call_id)"),
         Column("session_id", String(128), nullable=False, comment="会话ID"),
+        Column("user_token", String(512), nullable=True, comment="用户身份令牌"),
 
         Column("tool_name", String(64), nullable=False, comment="工具名称"),
         Column("description", String(255), nullable=True, comment="操作描述"),
@@ -33,7 +34,8 @@ def get_tool_tasks_table(metadata: MetaData, prefix: str = "") -> Table:
         Column("updated_at", DateTime, default=None, nullable=True, comment="状态更新时间"),
 
         # 💡 核心：声明 (session_id, tool_id) 联合唯一约束（自带复合索引，加速查询与防重）
-        UniqueConstraint("session_id", "tool_id", name=f"{prefix}uq_session_tool_id"),
+        UniqueConstraint("user_token", "session_id", "tool_id",
+                         name=f"{prefix}uq_user_session_tool_id"),
         sqlite_autoincrement=True,
     )
 
@@ -51,6 +53,7 @@ def get_session_configs_table(metadata: MetaData, prefix: str = "") -> Table:
         Column("id", Integer, autoincrement=True, primary_key=True),
         Column("workspace_id", BigInteger, comment="工作空间id"),
         Column("session_id", String(128), comment="业务会话ID"),
+        Column("user_token", String(512), nullable=True, comment="用户身份令牌"),
         Column("workspace_mode", String(32), nullable=False, default="read_only",
                comment="放行模式: read_only / workspace_write / full"),
         Column("workspaces", Text, nullable=False, default="[]",
@@ -70,12 +73,13 @@ def get_supplier_config_table(metadata: MetaData, prefix: str = "") -> Table:
         metadata,
         Column("id", Integer, autoincrement=True, primary_key=True),
         Column("provider", String(64), nullable=False, comment="模型供应商"),
+        Column("user_token", String(512), nullable=True, comment="用户身份令牌"),
         Column("alias", String(256), nullable=True, comment="供应商显示名称"),
         Column("base_url", String(512), nullable=True, comment="供应商 API Base URL"),
         Column("api_key", Text, nullable=False, comment="供应商 API Key"),
         Column("created_at", DateTime, default=None, nullable=True, comment="创建时间"),
         Column("updated_at", DateTime, default=None, nullable=True, comment="更新时间"),
-        UniqueConstraint("provider", name=f"{prefix}uq_supplier_config_provider"),
+        UniqueConstraint("user_token", "provider", name=f"{prefix}uq_supplier_config_user_provider"),
         sqlite_autoincrement=True,
     )
     return supplier_config_table
@@ -88,11 +92,13 @@ def get_supplier_model_option_table(metadata: MetaData, prefix: str = "") -> Tab
         metadata,
         Column("id", Integer, autoincrement=True, primary_key=True),
         Column("provider", String(64), nullable=False, comment="模型供应商"),
+        Column("user_token", String(512), nullable=True, comment="用户身份令牌"),
         Column("model", String(128), nullable=False, comment="模型名称"),
         Column("enabled", Boolean, nullable=False, default=True, comment="模型是否启用"),
         Column("created_at", DateTime, default=None, nullable=True, comment="创建时间"),
         Column("updated_at", DateTime, default=None, nullable=True, comment="更新时间"),
-        UniqueConstraint("provider", "model", name=f"{prefix}uq_supplier_model_option_provider_model"),
+        UniqueConstraint("user_token", "provider", "model",
+                         name=f"{prefix}uq_supplier_model_option_user_provider_model"),
         sqlite_autoincrement=True,
     )
     return supplier_model_option_table

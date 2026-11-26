@@ -26,7 +26,7 @@ async def get_session_config(
         session_id: str,
         session_config_service: SessionConfigService = Depends(Provide["SessionConfigService"]),
 ):
-    config = await session_config_service.get(session_id)
+    config = await session_config_service.get(session_id, user_token=request.state.user_token)
     if config is None:
         raise HTTPException(status_code=404, detail=f"会话配置不存在：{session_id}")
     return Response.ok(request, config)
@@ -41,7 +41,12 @@ async def save_session_config(
         session_config_service: SessionConfigService = Depends(Provide["SessionConfigService"]),
 ):
     saved = await session_config_service.save(
-        session_id, workspace_id=body.workspace_id, policy_model=WorkspaceMode(body.workspace_mode.value), workspaces=body.workspaces)
+        session_id,
+        user_token=request.state.user_token,
+        workspace_id=body.workspace_id,
+        policy_model=WorkspaceMode(body.workspace_mode.value),
+        workspaces=body.workspaces,
+    )
     return Response.ok(request, saved)
 
 
@@ -53,7 +58,7 @@ async def update_session_config(
         body: SessionConfigUpdateRequest,
         session_config_service: SessionConfigService = Depends(Provide["SessionConfigService"]),
 ):
-    existing = await session_config_service.get(session_id)
+    existing = await session_config_service.get(session_id, user_token=request.state.user_token)
     if existing is None:
         return Response.fail(request, msg=f"会话配置不存在：{session_id}")
 
@@ -61,7 +66,12 @@ async def update_session_config(
     workspaces = existing.workspaces if body.workspaces is None else body.workspaces
 
     saved = await session_config_service.save(
-        session_id, workspace_id=0, policy_model=WorkspaceMode(mode), workspaces=workspaces)
+        session_id,
+        user_token=request.state.user_token,
+        workspace_id=0,
+        policy_model=WorkspaceMode(mode),
+        workspaces=workspaces,
+    )
     return Response.ok(request, saved)
 
 
@@ -72,7 +82,7 @@ async def delete_session_config(
         session_id: str,
         session_config_service: SessionConfigService = Depends(Provide["SessionConfigService"]),
 ):
-    deleted = await session_config_service.delete(session_id)
+    deleted = await session_config_service.delete(session_id, user_token=request.state.user_token)
     if not deleted:
         raise HTTPException(status_code=404, detail=f"会话配置不存在：{session_id}")
     return Response.ok(request, True)
