@@ -98,7 +98,7 @@ class UserStore:
                 tenant_id, row["id"] if row else None, username,
                 False, "登录失败：用户名或密码错误，或用户不可用", ip, user_agent,
             )
-            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "用户名或密码错误")
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "用户名或密码错误")
 
         await self._record_login_log(
             tenant_id, row["id"], username, True, "登录成功", ip, user_agent,

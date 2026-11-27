@@ -5,7 +5,7 @@ import { Switch } from "@kobalte/core/switch";
 
 import { useLocaleContext } from "../../context/LocaleContext";
 import { useServerContext } from "../../context/ServerContext";
-import { HttpRequestError, api_client } from "../../runtime/http";
+import {toErrorMessage} from "../../runtime/http_client_wrap";
 
 export interface ModelConfigDialogProps {
   provider: SupplierProviderModelsResponse;
@@ -16,7 +16,7 @@ export interface ModelConfigDialogProps {
 /** 启用 / 停用供应商模型。 */
 export function ModelConfigDialog(props: ModelConfigDialogProps) {
   const {locale, t} = useLocaleContext();
-  const {serverUrl, securityToken} = useServerContext();
+  const {api_client_proxy} = useServerContext();
   const [models, setModels] = createSignal(
     props.provider.models.map((model) => ({
       model: model.model,
@@ -43,12 +43,7 @@ export function ModelConfigDialog(props: ModelConfigDialogProps) {
     setSaving(true);
     setError(null);
     try {
-      const client = api_client({
-        baseUrl: serverUrl(),
-        securityToken: securityToken(),
-        locale: locale(),
-        translate: t,
-      });
+      const client = api_client_proxy();
       await Promise.all(changed.map((model) => client.supplierConfig.saveOption({
         provider: props.provider.provider,
         model: model.model,
@@ -57,7 +52,7 @@ export function ModelConfigDialog(props: ModelConfigDialogProps) {
       props.onSaved();
       props.onClose();
     } catch (reason) {
-      setError(reason instanceof HttpRequestError ? reason.message : String(reason));
+      setError(toErrorMessage(reason));
     } finally {
       setSaving(false);
     }

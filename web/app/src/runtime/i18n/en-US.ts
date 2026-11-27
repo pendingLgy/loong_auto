@@ -43,6 +43,7 @@ export const enUS = {
   "login.submit": "Sign in",
   "login.registerSubmit": "Register and sign in",
   "login.loading": "Working…",
+  "login.expired": "Session expired. Please sign in again.",
   "login.switchRegister": "No account? Register",
   "login.switchLogin": "Already have an account? Sign in",
   "settings.title": "Settings",

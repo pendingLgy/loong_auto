@@ -1,10 +1,10 @@
-import { Show, createSignal } from "solid-js";
-import type { SupplierConfigResponse } from "@loong/web-api";
-import { Dialog } from "@kobalte/core/dialog";
+import {createSignal, Show} from "solid-js";
+import type {SupplierConfigResponse} from "@loong/web-api";
+import {Dialog} from "@kobalte/core/dialog";
 
-import { useLocaleContext } from "../../context/LocaleContext";
-import { useServerContext } from "../../context/ServerContext";
-import { HttpRequestError, api_client } from "../../runtime/http";
+import {useLocaleContext} from "../../context/LocaleContext";
+import {useServerContext} from "../../context/ServerContext";
+import {toErrorMessage} from "../../runtime/http_client_wrap";
 
 export interface SupplierConfigDialogProps {
   supplier: SupplierConfigResponse;
@@ -15,19 +15,14 @@ export interface SupplierConfigDialogProps {
 /** 供应商配置弹窗：别名、URL 与 API Key。 */
 export function SupplierConfigDialog(props: SupplierConfigDialogProps) {
   const {locale, t} = useLocaleContext();
-  const {serverUrl, securityToken} = useServerContext();
+  const {api_client_proxy} = useServerContext();
   const [alias, setAlias] = createSignal(props.supplier.alias || props.supplier.provider);
   const [url, setUrl] = createSignal(props.supplier.base_url ?? "");
   const [apiKey, setApiKey] = createSignal("");
   const [saving, setSaving] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
 
-  const client = () => api_client({
-    baseUrl: serverUrl(),
-    securityToken: securityToken(),
-    locale: locale(),
-    translate: t,
-  });
+  const client = api_client_proxy();
 
   const save = async (event: SubmitEvent) => {
     event.preventDefault();
@@ -46,7 +41,7 @@ export function SupplierConfigDialog(props: SupplierConfigDialogProps) {
     setSaving(true);
     try {
       if (nextKey || nextUrl !== (props.supplier.base_url ?? "")) {
-        await client().supplierConfig.save({
+        await client.supplierConfig.save({
           provider,
           api_key: nextKey,
           base_url: nextUrl || undefined,
@@ -54,12 +49,12 @@ export function SupplierConfigDialog(props: SupplierConfigDialogProps) {
       }
       const currentAlias = props.supplier.alias || props.supplier.provider;
       if (nextAlias && nextAlias !== currentAlias) {
-        await client().supplierConfig.rename({provider, alias: nextAlias});
+        await client.supplierConfig.rename({provider, alias: nextAlias});
       }
       props.onSaved();
       props.onClose();
     } catch (reason) {
-      setError(reason instanceof HttpRequestError ? reason.message : String(reason));
+      setError(toErrorMessage(reason));
     } finally {
       setSaving(false);
     }
@@ -71,9 +66,11 @@ export function SupplierConfigDialog(props: SupplierConfigDialogProps) {
   return (
     <Dialog open modal onOpenChange={(open) => !open && props.onClose()}>
       <Dialog.Portal>
-        <Dialog.Overlay class="fixed inset-0 z-[70] bg-slate-950/40 backdrop-blur-sm" />
-        <Dialog.Content class="fixed left-1/2 top-1/2 z-[70] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl outline-none dark:border-slate-700 dark:bg-slate-900">
-          <header class="flex items-start justify-between gap-3 border-b border-slate-200 px-5 py-4 dark:border-slate-800">
+        <Dialog.Overlay class="fixed inset-0 z-[70] bg-slate-950/40 backdrop-blur-sm"/>
+        <Dialog.Content
+          class="fixed left-1/2 top-1/2 z-[70] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl outline-none dark:border-slate-700 dark:bg-slate-900">
+          <header
+            class="flex items-start justify-between gap-3 border-b border-slate-200 px-5 py-4 dark:border-slate-800">
             <div class="grid min-w-0 gap-0.5">
               <span class="text-[11px] text-slate-400 dark:text-slate-500">
                 {t("supplier.configTitle", "配置供应商")}
@@ -81,7 +78,8 @@ export function SupplierConfigDialog(props: SupplierConfigDialogProps) {
               <Dialog.Title class="m-0 truncate text-base font-semibold">
                 {props.supplier.alias || props.supplier.provider}
               </Dialog.Title>
-              <Dialog.Description class="m-0 line-clamp-2 text-[12px] leading-relaxed text-slate-500 dark:text-slate-400">
+              <Dialog.Description
+                class="m-0 line-clamp-2 text-[12px] leading-relaxed text-slate-500 dark:text-slate-400">
                 {props.supplier.description || props.supplier.provider}
               </Dialog.Description>
             </div>

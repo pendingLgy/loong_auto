@@ -1,24 +1,23 @@
-import { Show, createSignal } from "solid-js";
-import { api_client } from "../../runtime/http";
+import {createSignal, Show} from "solid-js";
 
-import { createEventListener } from "@solid-primitives/event-listener";
-import { Dialog } from "@kobalte/core/dialog";
+import {createEventListener} from "@solid-primitives/event-listener";
+import {Dialog} from "@kobalte/core/dialog";
 
-import { GlobeIcon } from "../../assets/icons/GlobeIcon";
-import { KeyIcon } from "../../assets/icons/KeyIcon";
-import { LogoutIcon } from "../../assets/icons/LogoutIcon";
-import { ServerIcon } from "../../assets/icons/ServerIcon";
-import { SettingsIcon } from "../../assets/icons/SettingsIcon";
-import { ThemeIcon } from "../../assets/icons/ThemeIcon";
-import { UserIcon } from "../../assets/icons/UserIcon";
-import { useGlobalContext } from "../../context/GlobalContext";
-import { useLayoutContext } from "../../context/LayoutContext";
-import { useLoginContext } from "../../context/LoginContext";
-import { useLocaleContext } from "../../context/LocaleContext";
-import { useServerContext } from "../../context/ServerContext";
-import { useSideNavContext } from "../../context/SideNavContext";
-import { ChangePasswordDialog } from "../user/ChangePasswordDialog";
-import { ProfileDialog } from "../user/ProfileDialog";
+import {GlobeIcon} from "../../assets/icons/GlobeIcon";
+import {KeyIcon} from "../../assets/icons/KeyIcon";
+import {LogoutIcon} from "../../assets/icons/LogoutIcon";
+import {ServerIcon} from "../../assets/icons/ServerIcon";
+import {SettingsIcon} from "../../assets/icons/SettingsIcon";
+import {ThemeIcon} from "../../assets/icons/ThemeIcon";
+import {UserIcon} from "../../assets/icons/UserIcon";
+import {useGlobalContext} from "../../context/GlobalContext";
+import {useLayoutContext} from "../../context/LayoutContext";
+import {useLoginContext} from "../../context/LoginContext";
+import {useLocaleContext} from "../../context/LocaleContext";
+import {useServerContext} from "../../context/ServerContext";
+import {useSideNavContext} from "../../context/SideNavContext";
+import {ChangePasswordDialog} from "../user/ChangePasswordDialog";
+import {ProfileDialog} from "../user/ProfileDialog";
 
 /** 左侧导航：客户端信息、语言、主题、用户与设置入口。 */
 export function SideNav() {
@@ -26,7 +25,7 @@ export function SideNav() {
   const {user, session, clearSession, setLoading} = useLoginContext();
   const {resolvedTheme, toggleTheme} = useGlobalContext();
   const {locale, setLocale, t} = useLocaleContext();
-  const {serverUrl, securityToken, connected, setDialogOpen, disconnectServer} = useServerContext();
+  const {serverUrl, securityToken, connected, setDialogOpen, disconnectServer, api_client_proxy} = useServerContext();
   const {
     left,
     localeOpen,
@@ -64,12 +63,7 @@ export function SideNav() {
     setLoading(true);
     try {
       if (session()) {
-        await api_client({
-          baseUrl: serverUrl(),
-          securityToken: securityToken(),
-          locale: locale(),
-          translate: t,
-        }).auth.logout();
+        await api_client_proxy().auth.logout();
       }
     } catch {
       // 网关退出失败不阻塞本地会话清理。

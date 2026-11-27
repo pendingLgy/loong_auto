@@ -1,13 +1,13 @@
-import { For, Show, createSignal, onSettled } from "solid-js";
-import type { SupplierConfigResponse } from "@loong/web-api";
+import {createSignal, For, onSettled, Show} from "solid-js";
+import type {SupplierConfigResponse} from "@loong/web-api";
 
-import { useLocaleContext } from "../../context/LocaleContext";
-import { useServerContext } from "../../context/ServerContext";
-import { PopularIcon } from "../../assets/icons/PopularIcon";
-import { SupplierConfigDialog } from "./SupplierConfigDialog";
-import { SupplierDeleteDialog } from "./SupplierDeleteDialog";
-import { TrashIcon } from "../../assets/icons/TrashIcon";
-import { HttpRequestError, api_client } from "../../runtime/http";
+import {useLocaleContext} from "../../context/LocaleContext";
+import {useServerContext} from "../../context/ServerContext";
+import {PopularIcon} from "../../assets/icons/PopularIcon";
+import {SupplierConfigDialog} from "./SupplierConfigDialog";
+import {SupplierDeleteDialog} from "./SupplierDeleteDialog";
+import {TrashIcon} from "../../assets/icons/TrashIcon";
+import {toErrorMessage} from "../../runtime/http_client_wrap";
 
 function toSupplierConfig(value: SupplierConfigResponse): SupplierConfigResponse {
   const raw = value as unknown as Record<string, unknown>;
@@ -37,41 +37,42 @@ function SupplierCard(props: {
   const supplier = props.supplier;
 
   return (
-    <div class="group relative rounded-lg border border-slate-200 transition hover:border-indigo-300 hover:bg-slate-50 focus-within:ring-2 focus-within:ring-indigo-500/40 dark:border-slate-700 dark:hover:border-indigo-700 dark:hover:bg-slate-800/60">
+    <div
+      class="group relative rounded-lg border border-slate-200 transition hover:border-indigo-300 hover:bg-slate-50 focus-within:ring-2 focus-within:ring-indigo-500/40 dark:border-slate-700 dark:hover:border-indigo-700 dark:hover:bg-slate-800/60">
       <button
         type="button"
         onClick={() => props.onSelect(supplier)}
         class="grid w-full gap-1 px-3 pt-3 pb-1 text-left outline-none"
       >
-      <div class="flex items-center justify-between gap-2">
-        <div class="flex min-w-0 items-center gap-1">
+        <div class="flex items-center justify-between gap-2">
+          <div class="flex min-w-0 items-center gap-1">
           <span class="truncate text-[13px] font-medium text-slate-700 dark:text-slate-200">
             {supplier.alias || supplier.provider}
           </span>
-          <Show when={supplier.alias}>
+            <Show when={supplier.alias}>
             <span class="truncate text-[11px] text-slate-400 dark:text-slate-500">
               {supplier.provider}
             </span>
-          </Show>
-          <Show when={props.showPopular && supplier.popular}>
-            <PopularIcon class="h-3.5 w-3.5 shrink-0 text-amber-500" />
-          </Show>
-        </div>
-        <span
-          class={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] ${
-            supplier.config_flag
-              ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400"
-              : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
-          }`}
-        >
+            </Show>
+            <Show when={props.showPopular && supplier.popular}>
+              <PopularIcon class="h-3.5 w-3.5 shrink-0 text-amber-500"/>
+            </Show>
+          </div>
+          <span
+            class={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] ${
+              supplier.config_flag
+                ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400"
+                : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+            }`}
+          >
           {supplier.config_flag ? props.configuredLabel : props.missingLabel}
         </span>
-      </div>
-      <Show when={supplier.description}>
+        </div>
+        <Show when={supplier.description}>
         <span class="line-clamp-2 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
           {supplier.description}
         </span>
-      </Show>
+        </Show>
       </button>
 
       <Show when={(props.showMeta !== false && supplier.base_url) || props.onDelete}>
@@ -89,7 +90,7 @@ function SupplierCard(props: {
               title={t("supplier.delete", "移除供应商")}
               class="ml-auto grid h-6 w-6 shrink-0 place-items-center rounded text-slate-400 outline-none transition hover:text-red-600 focus-visible:ring-2 focus-visible:ring-red-500/40"
             >
-              <TrashIcon class="h-3.5 w-3.5" />
+              <TrashIcon class="h-3.5 w-3.5"/>
             </button>
           </Show>
         </div>
@@ -101,7 +102,7 @@ function SupplierCard(props: {
 /** 供应商配置列表，按已配置 / 未配置分组。 */
 export function SupplierSettings() {
   const {locale, t} = useLocaleContext();
-  const {serverUrl, securityToken} = useServerContext();
+  const {api_client_proxy} = useServerContext();
   const [configuredSuppliers, setConfiguredSuppliers] = createSignal<SupplierConfigResponse[]>([]);
   const [unconfiguredSuppliers, setUnconfiguredSuppliers] = createSignal<SupplierConfigResponse[]>([]);
   const [loading, setLoading] = createSignal(false);
@@ -120,15 +121,10 @@ export function SupplierSettings() {
     setLoading(true);
     setError(null);
     try {
-      const client = api_client({
-        baseUrl: serverUrl(),
-        securityToken: securityToken(),
-        locale: locale(),
-        translate: t,
-      });
+
       const [configuredResult, allResult] = await Promise.all([
-        client.supplierConfig.listConfigured(),
-        client.supplierConfig.list(),
+        api_client_proxy().supplierConfig.listConfigured(),
+        api_client_proxy().supplierConfig.list(),
       ]);
       setConfiguredSuppliers(configuredResult.map(toSupplierConfig));
       setUnconfiguredSuppliers(
@@ -137,7 +133,7 @@ export function SupplierSettings() {
           .filter((supplier) => !supplier.config_flag),
       );
     } catch (reason) {
-      setError(reason instanceof HttpRequestError ? reason.message : String(reason));
+      setError(toErrorMessage(reason));
     } finally {
       setLoading(false);
     }
@@ -181,7 +177,8 @@ export function SupplierSettings() {
         <Show
           when={configured().length > 0}
           fallback={
-            <p class="m-0 rounded-lg border border-dashed border-slate-300 p-3 text-[12px] text-slate-400 dark:border-slate-700 dark:text-slate-500">
+            <p
+              class="m-0 rounded-lg border border-dashed border-slate-300 p-3 text-[12px] text-slate-400 dark:border-slate-700 dark:text-slate-500">
               {t("supplier.noneConfigured", "暂无已配置的供应商。")}
             </p>
           }
@@ -214,7 +211,8 @@ export function SupplierSettings() {
         <Show
           when={unconfigured().length > 0}
           fallback={
-            <p class="m-0 rounded-lg border border-dashed border-slate-300 p-3 text-[12px] text-slate-400 dark:border-slate-700 dark:text-slate-500">
+            <p
+              class="m-0 rounded-lg border border-dashed border-slate-300 p-3 text-[12px] text-slate-400 dark:border-slate-700 dark:text-slate-500">
               {t("supplier.noneUnconfigured", "暂无未配置的供应商。")}
             </p>
           }

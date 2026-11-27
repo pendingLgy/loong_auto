@@ -1,15 +1,15 @@
-import { For, Show, createSignal, onSettled } from "solid-js";
-import type { SupplierProviderModelsResponse } from "@loong/web-api";
+import {createSignal, For, onSettled, Show} from "solid-js";
+import type {SupplierProviderModelsResponse} from "@loong/web-api";
 
-import { useLocaleContext } from "../../context/LocaleContext";
-import { useServerContext } from "../../context/ServerContext";
-import { HttpRequestError, api_client } from "../../runtime/http";
-import { ModelConfigDialog } from "./ModelConfigDialog";
+import {useLocaleContext} from "../../context/LocaleContext";
+import {useServerContext} from "../../context/ServerContext";
+import {ModelConfigDialog} from "./ModelConfigDialog";
+import {toErrorMessage} from "../../runtime/http_client_wrap";
 
 /** 已配置供应商及其支持模型的启用状态。 */
 export function ModelSettings() {
   const {locale, t} = useLocaleContext();
-  const {serverUrl, securityToken} = useServerContext();
+  const {api_client_proxy} = useServerContext();
   const [providers, setProviders] = createSignal<SupplierProviderModelsResponse[]>([]);
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
@@ -19,15 +19,10 @@ export function ModelSettings() {
     setLoading(true);
     setError(null);
     try {
-      const result = await api_client({
-        baseUrl: serverUrl(),
-        securityToken: securityToken(),
-        locale: locale(),
-        translate: t,
-      }).supplierConfig.listModels();
+      const result = await api_client_proxy().supplierConfig.listModels();
       setProviders(result);
     } catch (reason) {
-      setError(reason instanceof HttpRequestError ? reason.message : String(reason));
+      setError(toErrorMessage(reason));
     } finally {
       setLoading(false);
     }
@@ -60,7 +55,8 @@ export function ModelSettings() {
       </Show>
 
       <Show when={!loading() && providers().length === 0}>
-        <p class="m-0 rounded-lg border border-dashed border-slate-300 p-3 text-[12px] text-slate-400 dark:border-slate-700 dark:text-slate-500">
+        <p
+          class="m-0 rounded-lg border border-dashed border-slate-300 p-3 text-[12px] text-slate-400 dark:border-slate-700 dark:text-slate-500">
           {t("model.empty", "暂无可用的模型。")}
         </p>
       </Show>
@@ -89,7 +85,8 @@ export function ModelSettings() {
                 </span>
               </div>
 
-              <div class="flex flex-wrap gap-1.5 border-t border-slate-100 pt-2 dark:border-slate-800">
+              <div
+                class="flex flex-wrap gap-1.5 border-t border-slate-100 pt-2 dark:border-slate-800">
                 <For each={provider.models}>
                   {(model) => (
                     <span

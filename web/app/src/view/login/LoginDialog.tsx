@@ -1,13 +1,13 @@
-import { Show, createSignal } from "solid-js";
-import { Dialog } from "@kobalte/core/dialog";
+import {createSignal, Show} from "solid-js";
+import {Dialog} from "@kobalte/core/dialog";
 
-import { useLocaleContext } from "../../context/LocaleContext";
-import { useServerContext } from "../../context/ServerContext";
-import { type LoginResponse } from "@loong/web-api";
-import { HttpRequestError, api_client } from "../../runtime/http";
-import type { AuthSession } from "../../store/auth";
+import {useLocaleContext} from "../../context/LocaleContext";
+import {useServerContext} from "../../context/ServerContext";
+import {type LoginResponse} from "@loong/web-api";
+import type {AuthSession} from "../../store/auth";
+import {toErrorMessage} from "../../runtime/http_client_wrap";
 
- type LoginSessionInput = Omit<AuthSession, "user_token">;
+type LoginSessionInput = Omit<AuthSession, "user_token">;
 
 export interface LoginDialogProps {
   loading: boolean;
@@ -47,16 +47,11 @@ function toSession(response: LoginResponse): LoginSessionInput {
   };
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof HttpRequestError
-    ? error.message
-    : error instanceof Error ? error.message : String(error);
-}
 
 /** 未登录时的登录 / 注册弹窗。 */
 export function LoginDialog(props: LoginDialogProps) {
   const {locale, t} = useLocaleContext();
-  const {serverUrl, securityToken} = useServerContext();
+  const {api_client_proxy} = useServerContext();
   const [mode, setMode] = createSignal<"login" | "register">("login");
   const [username, setUsername] = createSignal("");
   const [password, setPassword] = createSignal("");
@@ -64,12 +59,7 @@ export function LoginDialog(props: LoginDialogProps) {
   const [name, setName] = createSignal("");
   const [localError, setLocalError] = createSignal<string | null>(null);
 
-  const client = () => api_client({
-    baseUrl: serverUrl(),
-    securityToken: securityToken(),
-    locale: locale(),
-    translate: t,
-  });
+  const client = () => api_client_proxy();
 
   const switchMode = (next: "login" | "register") => {
     setMode(next);
@@ -86,10 +76,11 @@ export function LoginDialog(props: LoginDialogProps) {
         password: password(),
         platform: "web",
       });
+
       await props.onComplete(toSession(response));
       return true;
     } catch (reason) {
-      props.onError(errorMessage(reason));
+      props.onError(toErrorMessage(reason));
       return false;
     } finally {
       props.onLoadingChange(false);
@@ -106,7 +97,7 @@ export function LoginDialog(props: LoginDialogProps) {
         name: name().trim() || undefined,
       });
     } catch (reason) {
-      props.onError(errorMessage(reason));
+      props.onError(toErrorMessage(reason));
       props.onLoadingChange(false);
       return false;
     }

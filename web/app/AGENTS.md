@@ -40,7 +40,7 @@ src/
 - Provider 顺序：
 
 ```text
-Global → Locale → Server → Login → Layout → MainLayout → SideNav
+Locale → HttpClient → Global → IndexView → Server → Login → Layout → MainLayout → SideNav
 ```
 
 - `LoginContext` 只管理会话与持久化，不直接调用 API。
@@ -58,8 +58,11 @@ Global → Locale → Server → Login → Layout → MainLayout → SideNav
 ## 请求与国际化
 
 - `request.ts` 只发送请求并返回 `Response`。
-- `api_client.ts` 负责绑定 endpoint、解析信封、错误处理。
+- `HttpClientContext` 提供统一的 `apiClient()`，负责 endpoint 绑定、错误捕获与全局错误提示。
+- `GlobalContext` 只管理主题。
 - 自动携带 `Authorization`、`X-Security-Token`、`X-User-Token`、`Accept-Language`。
+- `HttpClientContext` 使用 Effect 处理接口错误；401 时用 `refresh_token` 刷新并重试一次。
+- 刷新接口仍返回 401 时清除会话，提示登录过期，3 秒后刷新页面。
 - 捕获 `HttpRequestError` 时优先使用其 `message`。
 - 中文使用 fallback：`t(key, "中文")`。
 

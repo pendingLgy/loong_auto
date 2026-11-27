@@ -1,10 +1,10 @@
-import { Show, createSignal } from "solid-js";
-import type { SupplierConfigResponse } from "@loong/web-api";
-import { Dialog } from "@kobalte/core/dialog";
+import {createSignal, Show} from "solid-js";
+import type {SupplierConfigResponse} from "@loong/web-api";
+import {Dialog} from "@kobalte/core/dialog";
 
-import { useLocaleContext } from "../../context/LocaleContext";
-import { useServerContext } from "../../context/ServerContext";
-import { HttpRequestError, api_client } from "../../runtime/http";
+import {useLocaleContext} from "../../context/LocaleContext";
+import {useServerContext} from "../../context/ServerContext";
+import {toErrorMessage} from "../../runtime/http_client_wrap";
 
 export interface SupplierDeleteDialogProps {
   supplier: SupplierConfigResponse;
@@ -15,7 +15,7 @@ export interface SupplierDeleteDialogProps {
 /** 移除供应商配置确认弹窗。 */
 export function SupplierDeleteDialog(props: SupplierDeleteDialogProps) {
   const {locale, t} = useLocaleContext();
-  const {serverUrl, securityToken} = useServerContext();
+  const {api_client_proxy} = useServerContext();
   const [deleting, setDeleting] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
 
@@ -23,16 +23,11 @@ export function SupplierDeleteDialog(props: SupplierDeleteDialogProps) {
     setDeleting(true);
     setError(null);
     try {
-      await api_client({
-        baseUrl: serverUrl(),
-        securityToken: securityToken(),
-        locale: locale(),
-        translate: t,
-      }).supplierConfig.remove({provider: props.supplier.provider});
+      await api_client_proxy().supplierConfig.remove({provider: props.supplier.provider});
       props.onDeleted();
       props.onClose();
     } catch (reason) {
-      setError(reason instanceof HttpRequestError ? reason.message : String(reason));
+      setError(toErrorMessage(reason));
     } finally {
       setDeleting(false);
     }
@@ -41,12 +36,14 @@ export function SupplierDeleteDialog(props: SupplierDeleteDialogProps) {
   return (
     <Dialog open modal onOpenChange={(open) => !open && props.onClose()}>
       <Dialog.Portal>
-        <Dialog.Overlay class="fixed inset-0 z-[70] bg-slate-950/40 backdrop-blur-sm" />
-        <Dialog.Content class="fixed left-1/2 top-1/2 z-[70] w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-xl border border-slate-200 bg-white p-5 shadow-xl outline-none dark:border-slate-700 dark:bg-slate-900">
+        <Dialog.Overlay class="fixed inset-0 z-[70] bg-slate-950/40 backdrop-blur-sm"/>
+        <Dialog.Content
+          class="fixed left-1/2 top-1/2 z-[70] w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-xl border border-slate-200 bg-white p-5 shadow-xl outline-none dark:border-slate-700 dark:bg-slate-900">
           <Dialog.Title class="m-0 text-base font-semibold">
             {t("supplier.deleteTitle", "移除供应商？")}
           </Dialog.Title>
-          <Dialog.Description class="mt-2 text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">
+          <Dialog.Description
+            class="mt-2 text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">
             {t(
               "supplier.deleteDescription",
               "将移除 {name} 的配置，已保存的 API Key 也会被删除。",

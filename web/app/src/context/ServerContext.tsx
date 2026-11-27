@@ -1,21 +1,24 @@
 import {
-  Show,
+  type Accessor,
   createContext,
   createSignal,
   onSettled,
-  useContext,
-  type Accessor,
   type ParentProps,
+  Show,
+  useContext,
 } from "solid-js";
-import { HttpRequestError, api_client } from "../runtime/http";
-import { Button } from "@kobalte/core/button";
-import { Dialog } from "@kobalte/core/dialog";
+import {ApiClient, type ApiConfig, HttpRequestError} from "../runtime/http";
 
-import { useLocaleContext } from "./LocaleContext";
+import {createWrappedApiClient, toErrorMessage} from "../runtime/http_client_wrap";
+
+import {Button} from "@kobalte/core/button";
+import {Dialog} from "@kobalte/core/dialog";
+
+import {useLocaleContext} from "./LocaleContext";
 
 import {
-  DEFAULT_SERVER_URL,
   clearServerConfig,
+  DEFAULT_SERVER_URL,
   readServerConfig,
   saveServerConfig,
 } from "../store/server";
@@ -30,11 +33,6 @@ export interface ServerConfigDialogProps {
   onSave: (url: string, token: string) => Promise<boolean>;
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof HttpRequestError
-    ? error.message
-    : error instanceof Error ? error.message : String(error);
-}
 
 /** 本地网关配置弹窗。 */
 export function ServerConfigDialog(props: ServerConfigDialogProps) {
@@ -55,7 +53,7 @@ export function ServerConfigDialog(props: ServerConfigDialogProps) {
       if (!ok) setError(t("server.config.failed", "连接失败，请检查客户端地址或访问令牌"));
     } catch (reason) {
       setMessage("");
-      setError(errorMessage(reason));
+      setError(toErrorMessage(reason));
     }
   };
 
@@ -68,7 +66,7 @@ export function ServerConfigDialog(props: ServerConfigDialogProps) {
         setError(t("server.config.saveFailed", "连接失败，无法保存客户端配置"));
       }
     } catch (reason) {
-      setError(errorMessage(reason));
+      setError(toErrorMessage(reason));
     }
   };
 
@@ -81,7 +79,7 @@ export function ServerConfigDialog(props: ServerConfigDialogProps) {
       }}
     >
       <Dialog.Portal>
-        <Dialog.Overlay class="fixed inset-0 z-50 bg-slate-950/40 backdrop-blur-sm" />
+        <Dialog.Overlay class="fixed inset-0 z-50 bg-slate-950/40 backdrop-blur-sm"/>
         <Dialog.Content
           class="fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl outline-none dark:border-slate-700 dark:bg-slate-900"
           onPointerDownOutside={(event) => {
@@ -91,7 +89,8 @@ export function ServerConfigDialog(props: ServerConfigDialogProps) {
             if (!props.closable() || props.checking()) event.preventDefault();
           }}
         >
-          <header class="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-4 dark:border-slate-800">
+          <header
+            class="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-4 dark:border-slate-800">
             <Dialog.Title class="m-0 text-base font-semibold">
               {t("server.config.title", "配置客户端")}
             </Dialog.Title>
@@ -190,6 +189,7 @@ interface ServerContextValue {
   testConnection: (url: string, token: string) => Promise<boolean>;
   saveAndConnect: (url: string, token: string) => Promise<boolean>;
   disconnectServer: () => void;
+  api_client_proxy: (override?: Partial<ApiConfig>) => ApiClient;
 }
 
 const ServerContext = createContext<ServerContextValue>();
@@ -204,11 +204,24 @@ export function ServerProvider(props: ParentProps) {
   const [connected, setConnected] = createSignal(false);
   const [checking, setChecking] = createSignal(false);
   const [dialogOpen, setDialogOpen] = createSignal(false);
+  const [apiConfig, setApiConfig] = createSignal<ApiConfig>({locale: locale(), translate: t} as ApiConfig);
+
+
+  const api_client_proxy = (override?: Partial<ApiConfig>): ApiClient =>
+    createWrappedApiClient({
+      override: apiConfig(),
+      onError: (msg) => {},
+      onSessionExpired: () => {
+        // 可在此触发跳转登录页或清理会话状态
+      },
+    });
 
   const testConnection = async (url: string, token: string): Promise<boolean> => {
     setChecking(true);
+    await setApiConfig({baseUrl: url, securityToken: token, locale: locale(), translate: t} as ApiConfig)
     try {
-      await api_client({baseUrl: url, securityToken: token, locale: locale(), translate: t}).health.securityToken();
+      // await api_client({baseUrl: url, securityToken: token, locale: locale(), translate: t}).health.securityToken();
+      await api_client_proxy().health.securityToken();
       setConnected(true);
       return true;
     } catch (error) {
@@ -251,6 +264,7 @@ export function ServerProvider(props: ParentProps) {
     setSecurityToken("");
     setServerConfigured(false);
     setConnected(false);
+    setApiConfig({locale: locale(), translate: t} as ApiConfig);
     setDialogOpen(true);
   };
 
@@ -272,6 +286,7 @@ export function ServerProvider(props: ParentProps) {
         testConnection,
         saveAndConnect,
         disconnectServer,
+        api_client_proxy,
       }}
     >
       {props.children}

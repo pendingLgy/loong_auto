@@ -141,11 +141,29 @@ function bindModule<T extends Record<string, Endpoint<any, any>>>(
   return bound;
 }
 
-export function api_client(override?: Partial<ApiConfig>) {
+
+const MODULE_ENDPOINTS = {
+  auth: AUTH_ENDPOINTS,
+  health: HEALTH_ENDPOINTS,
+  sessionConfig: SESSION_CONFIG_ENDPOINTS,
+  supplierConfig: SUPPLIER_CONFIG_ENDPOINTS,
+  workspace: WORKSPACE_ENDPOINTS,
+  session: SESSION_ENDPOINTS,
+  message: MESSAGE_ENDPOINTS,
+  events: EVENT_ENDPOINTS,
+  tools: TOOL_ENDPOINTS,
+} as const;
+
+export type ApiClient = {
+  [K in keyof typeof MODULE_ENDPOINTS]: BoundModule<(typeof MODULE_ENDPOINTS)[K]>;
+};
+
+export function request_client(override?: Partial<ApiConfig>): ApiClient {
+  const session = readAuthSession();
   const config: ApiConfig = {
     ...DEFAULT_API_CONFIG,
-    token: readAuthSession()?.access_token,
-    userToken: readAuthSession()?.user_token,
+    token: session?.access_token,
+    userToken: session?.user_token,
     locale: readLocale(),
     ...override,
   };
