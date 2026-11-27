@@ -1,13 +1,13 @@
 import {
   type Accessor,
-  createContext,
+  createContext, createMemo,
   createSignal,
   onSettled,
   type ParentProps,
   Show,
   useContext,
 } from "solid-js";
-import {ApiClient, type ApiConfig, HttpRequestError} from "../runtime/http";
+import {ApiClient, type ApiConfig, DEFAULT_API_CONFIG, HttpRequestError} from "../runtime/http";
 
 import {createWrappedApiClient, toErrorMessage} from "../runtime/http_client_wrap";
 
@@ -24,8 +24,6 @@ import {
 } from "../store/server";
 
 export interface ServerConfigDialogProps {
-  initialUrl: Accessor<string>;
-  initialToken: Accessor<string>;
   checking: Accessor<boolean>;
   closable: Accessor<boolean>;
   onClose: () => void;
@@ -37,8 +35,10 @@ export interface ServerConfigDialogProps {
 /** 本地网关配置弹窗。 */
 export function ServerConfigDialog(props: ServerConfigDialogProps) {
   const {locale, t} = useLocaleContext();
-  const [url, setUrl] = createSignal(props.initialUrl());
-  const [token, setToken] = createSignal(props.initialToken());
+  const {serverUrl, securityToken} = useServerContext();
+
+  const [url, setUrl] = createSignal(serverUrl);
+  const [token, setToken] = createSignal(securityToken);
   const [error, setError] = createSignal("");
   const [message, setMessage] = createSignal("");
 
@@ -204,21 +204,29 @@ export function ServerProvider(props: ParentProps) {
   const [connected, setConnected] = createSignal(false);
   const [checking, setChecking] = createSignal(false);
   const [dialogOpen, setDialogOpen] = createSignal(false);
-  const [apiConfig, setApiConfig] = createSignal<ApiConfig>({locale: locale(), translate: t} as ApiConfig);
+  const [baseConfig, setBaseConfig] = createSignal<Partial<ApiConfig>>({});
 
+  const apiConfig = createMemo<ApiConfig>(() => ({
+    ...DEFAULT_API_CONFIG,
+    ...baseConfig(),
+    locale: locale(),
+    translate: t,
+  }));
 
-  const api_client_proxy = (override?: Partial<ApiConfig>): ApiClient =>
+  const api_client_proxy = createMemo(() =>
     createWrappedApiClient({
       override: apiConfig(),
       onError: (msg) => {},
       onSessionExpired: () => {
         // 可在此触发跳转登录页或清理会话状态
       },
-    });
+    }),
+  );
 
   const testConnection = async (url: string, token: string): Promise<boolean> => {
     setChecking(true);
-    await setApiConfig({baseUrl: url, securityToken: token, locale: locale(), translate: t} as ApiConfig)
+
+    await setBaseConfig({baseUrl: url, securityToken: token, locale: locale(), translate: t} as ApiConfig)
     try {
       // await api_client({baseUrl: url, securityToken: token, locale: locale(), translate: t}).health.securityToken();
       await api_client_proxy().health.securityToken();
@@ -264,7 +272,7 @@ export function ServerProvider(props: ParentProps) {
     setSecurityToken("");
     setServerConfigured(false);
     setConnected(false);
-    setApiConfig({locale: locale(), translate: t} as ApiConfig);
+    setBaseConfig({locale: locale(), translate: t} as ApiConfig);
     setDialogOpen(true);
   };
 
@@ -292,8 +300,6 @@ export function ServerProvider(props: ParentProps) {
       {props.children}
       <Show when={dialogOpen()}>
         <ServerConfigDialog
-          initialUrl={serverUrl}
-          initialToken={securityToken}
           checking={checking}
           closable={serverConfigured}
           onClose={() => setDialogOpen(false)}
