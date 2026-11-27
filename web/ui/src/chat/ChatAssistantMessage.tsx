@@ -67,12 +67,12 @@ function ToolItem(props: {tool: ChatTool; maxHeightClass: string}) {
   };
 
   return (
-    <details class="group/tool-item border-t border-slate-200 first:border-t-0 dark:border-slate-700">
-      <summary class="flex cursor-pointer list-none select-none items-center gap-2 px-2 py-1.5 text-[12px] text-slate-600 outline-none transition hover:bg-slate-100/70 focus-visible:ring-2 focus-visible:ring-indigo-500/40 dark:text-slate-300 dark:hover:bg-slate-800/60 [&::-webkit-details-marker]:hidden">
+    <details class="group/tool-item">
+      <summary class="flex cursor-pointer list-none select-none items-center gap-2 px-2 py-1.5 text-[12px] text-slate-600 outline-none transition focus-visible:ring-2 focus-visible:ring-indigo-500/40 dark:text-slate-300 [&::-webkit-details-marker]:hidden">
         <span class="min-w-0 truncate">{props.tool.name}</span>
         <SummaryArrow class="h-4 w-4 group-open/tool-item:rotate-90" />
       </summary>
-      <div class="relative border-t border-slate-200 dark:border-slate-700">
+      <div class="relative">
         <button
           type="button"
           onClick={copy}
@@ -84,7 +84,7 @@ function ToolItem(props: {tool: ChatTool; maxHeightClass: string}) {
             ? <CheckIcon class="h-3.5 w-3.5 text-emerald-500" />
             : <CopyIcon class="h-3.5 w-3.5" />}
         </button>
-        <div class={`overflow-auto p-2 pr-9 text-[11px] leading-5 text-slate-500 dark:text-slate-400 ${props.maxHeightClass}`}>
+        <div class={`mt-1 overflow-auto rounded-md bg-slate-100 p-2 pr-9 text-[11px] leading-5 text-slate-700 dark:bg-slate-800 dark:text-slate-200 ${props.maxHeightClass}`}>
           <pre class="m-0 whitespace-pre-wrap break-words font-mono">{props.tool.content}</pre>
         </div>
       </div>
@@ -114,8 +114,8 @@ export function ChatAssistantMessage(props: ChatAssistantMessageProps) {
     <div class="flex w-full justify-start">
       <div class="flex w-full min-w-0 flex-col items-start gap-2">
         {(props.currentTool || props.tools?.length) && (
-          <details class="group/tool-block w-full min-w-0">
-            <summary class="flex cursor-pointer list-none select-none items-center gap-2 px-1 py-1.5 text-[12px] text-slate-500 outline-none transition hover:bg-slate-100/70 focus-visible:ring-2 focus-visible:ring-indigo-500/40 dark:text-slate-400 dark:hover:bg-slate-800/60 [&::-webkit-details-marker]:hidden">
+          <details class="group/tool-block w-full min-w-0 open:border-b open:border-slate-200 dark:open:border-slate-700">
+            <summary class="flex cursor-pointer list-none select-none items-center gap-2 px-1 py-1.5 text-[12px] text-slate-500 outline-none transition focus-visible:ring-2 focus-visible:ring-indigo-500/40 dark:text-slate-400 [&::-webkit-details-marker]:hidden">
               <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-500" aria-hidden="true" />
               <span>{t("chat.currentTool", "当前执行工具")}</span>
               <span class="min-w-0 truncate font-medium text-slate-600 dark:text-slate-300">
@@ -140,7 +140,7 @@ export function ChatAssistantMessage(props: ChatAssistantMessageProps) {
 
         {props.approvalFiles?.length ? (
           <details class="group/approval w-full min-w-0">
-            <summary class="inline-flex cursor-pointer list-none select-none items-center gap-1 px-1 py-1.5 text-[11px] font-medium text-amber-600 outline-none transition hover:bg-amber-50/70 focus-visible:ring-2 focus-visible:ring-indigo-500/40 dark:text-amber-400 dark:hover:bg-amber-500/5 [&::-webkit-details-marker]:hidden">
+            <summary class="inline-flex cursor-pointer list-none select-none items-center gap-1 px-1 py-1.5 text-[11px] font-medium text-amber-600 outline-none transition focus-visible:ring-2 focus-visible:ring-indigo-500/40 dark:text-amber-400 [&::-webkit-details-marker]:hidden">
               <span>{t("chat.fileApproval", "需要审核的文件操作授权")}</span>
               <SummaryArrow class="h-4 w-4 group-open/approval:rotate-90" />
             </summary>

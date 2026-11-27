@@ -11,7 +11,38 @@ const markdown = `## 会议纪要
 - **待办**：补充错误提示与移动端布局
 
 \`\`\`ts
-const status = "ready";
+const status: string = "ready";
+\`\`\`
+
+\`\`\`python
+def summarize(items: list[str]) -> dict[str, int]:
+    return {"count": len(items)}
+\`\`\`
+
+\`\`\`json
+{
+  "status": "ready",
+  "count": 3
+}
+\`\`\`
+
+\`\`\`bash
+bun run --filter '@loong/ui' typecheck
+\`\`\`
+
+\`\`\`java
+public final class Message {
+    public static String greet(String name) {
+        return "Hello, " + name;
+    }
+}
+\`\`\`
+
+\`\`\`css
+.card {
+  border-radius: 8px;
+  color: var(--color-text);
+}
 \`\`\`
 
 详见 [项目计划](https://example.com/plan)。`;

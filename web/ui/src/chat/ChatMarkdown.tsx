@@ -1,4 +1,6 @@
-import {For, createMemo, createSignal, onCleanup} from "solid-js";
+import {For, Show, createMemo, createSignal, onCleanup} from "solid-js";
+import {codeToHtml, type Lang} from "@pierre/highlights";
+import githubDark from "@pierre/highlights/themes/github-dark";
 import type {JSX} from "@solidjs/web";
 
 import {CheckIcon, CopyIcon} from "../assets/icons";
@@ -151,6 +153,20 @@ function renderInline(text: string): JSX.Element[] {
 function CodeBlock(props: {language: string; text: string}) {
   const {t} = useUiI18n();
   const [copied, setCopied] = createSignal(false);
+  const highlighted = createMemo(() => {
+    if (!props.language) return "";
+    try {
+      const html = new TextDecoder().decode(codeToHtml(props.text, {
+        lang: props.language as Lang,
+        theme: githubDark,
+      }));
+      const start = html.indexOf("<code>");
+      const end = html.lastIndexOf("</code>");
+      return start === -1 || end === -1 ? "" : html.slice(start + 6, end);
+    } catch {
+      return "";
+    }
+  });
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   onCleanup(() => {
@@ -181,7 +197,9 @@ function CodeBlock(props: {language: string; text: string}) {
         </button>
       </div>
       <pre class="m-0 overflow-x-auto p-3 text-[12px] leading-5 text-slate-100">
-        <code>{props.text}</code>
+        <Show when={highlighted()} fallback={<code>{props.text}</code>}>
+          <code innerHTML={highlighted()} />
+        </Show>
       </pre>
     </div>
   );
