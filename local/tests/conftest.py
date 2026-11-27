@@ -110,10 +110,9 @@ async def _create_workspace(client, path) -> int:
     name = f"tpm_workspace-{uuid4().hex}"
 
     workspaces: list[str] = [f"{path}"]
-    json_str = json.dumps(workspaces, ensure_ascii=False)
 
     cloud = CloudClient(client,prefix=PATH_CLOUD_COMMON_PREFIX)
-    await cloud.workspaces.create(CreateWorkingDirectoryRequest(name=name, path=json_str))
+    await cloud.workspaces.create(CreateWorkingDirectoryRequest(name=name, path=workspaces))
     page = await cloud.workspaces.list(page=1, page_size=100)
     workspace = next((row for row in page.rows or [] if row.name == name), None)
     assert workspace is not None, "工作目录创建后未查询到"

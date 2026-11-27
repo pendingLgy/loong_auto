@@ -14,6 +14,8 @@ import {
 export interface SideNavProviderProps extends ParentProps {
   /** 左侧导航内容。 */
   left?: JSX.Element;
+  /** 点击新建对话。 */
+  onNewConversation?: () => void;
 }
 
 interface SideNavContextValue {
@@ -26,6 +28,7 @@ interface SideNavContextValue {
   setExitConfirm: Setter<boolean>;
   settingsOpen: Accessor<boolean>;
   setSettingsOpen: Setter<boolean>;
+  onNewConversation: () => void;
 }
 
 const SideNavContext = createContext<SideNavContextValue>();
@@ -49,6 +52,7 @@ export function SideNavProvider(props: SideNavProviderProps) {
         setExitConfirm,
         settingsOpen,
         setSettingsOpen,
+        onNewConversation: () => props.onNewConversation?.(),
       }}
     >
       {props.children}

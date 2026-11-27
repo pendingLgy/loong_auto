@@ -1,4 +1,4 @@
-import { createContext, useContext, type Accessor, type ParentProps } from "solid-js";
+import type {Accessor, ParentProps} from "solid-js";
 
 import {
   resolvedTheme,
@@ -7,28 +7,29 @@ import {
   toggleTheme,
   type ThemeMode,
 } from "../store/theme";
+import { createSimpleContext } from "./ContextHelper";
 
-export type {ThemeMode};
+export type { ThemeMode };
 
-interface GlobalContextValue {
+export interface GlobalContextValue {
   theme: Accessor<ThemeMode>;
   resolvedTheme: Accessor<"light" | "dark">;
   setTheme: (theme: ThemeMode) => void;
   toggleTheme: () => void;
 }
 
-const GlobalContext = createContext<GlobalContextValue>();
+const globalCtx  = createSimpleContext<GlobalContextValue>({
+  name: "GlobalContext",
+  gate: false,
+  init: (props: ParentProps) => ({
+    theme,
+    resolvedTheme,
+    setTheme,
+    toggleTheme,
+  }),
+});
 
-/** 应用级全局上下文；状态与持久化由 store 管理。 */
-export function GlobalProvider(props: ParentProps) {
-  return (
-    <GlobalContext value={{theme, resolvedTheme, setTheme, toggleTheme}}>
-      {props.children}
-    </GlobalContext>
-  );
-}
 
-/** 读取全局上下文，必须在 GlobalProvider 内使用。 */
-export function useGlobalContext(): GlobalContextValue {
-  return useContext(GlobalContext);
-}
+export const useGlobalContext = globalCtx.use
+export const GlobalProvider = globalCtx.provider
+

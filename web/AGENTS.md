@@ -48,7 +48,8 @@ web/
     ├── tsconfig.json
     ├── preview/
     └── src/
-        ├── component/
+        ├── menu/
+        ├── workspace/
         ├── index.ts
         └── styles.css
 ```
@@ -76,7 +77,7 @@ web/
 
 ### ui
 
-- 组件放在 `ui/src/component`，通过 `ui/src/index.ts` 导出。
+- 组件按类别放在 `ui/src` 子目录，通过 `ui/src/index.ts` 导出。
 - 组件按 `UI_Spec.md` 使用 Indigo 主色、Light/Dark、4px 间距与圆角规范。
 - `preview/` 是独立 Vite 预览应用，不参与应用构建。
 - 样式只使用 Tailwind 工具类，主题 token 放 `ui/src/styles.css`。

@@ -12,13 +12,13 @@ export interface WorkspaceResponse {
 
 export interface WorkspaceCreateRequest {
   name: string;
-  /** 工作目录路径列表，提交时序列化为 JSON 数组字符串。 */
+  /** 工作目录路径列表，云端保存为 JSON 字符串。 */
   path: string[];
 }
 
 export interface WorkspaceUpdateRequest {
   name: string;
-  /** 工作目录路径列表，提交时序列化为 JSON 数组字符串。 */
+  /** 工作目录路径列表，云端保存为 JSON 字符串。 */
   path: string[];
 }
 

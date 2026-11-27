@@ -1,5 +1,6 @@
 """工作目录持久化。"""
 
+import json
 from datetime import datetime, timezone
 from typing import List
 
@@ -19,7 +20,7 @@ class WorkspaceStore:
         self.db = db_proxy
         self.table = schema.GLOBAL_TABLES.workspace
 
-    async def create(self, tenant_id: int, user_id: int, name: str, path: str) -> WorkspaceResponse:
+    async def create(self, tenant_id: int, user_id: int, name: str, path: list[str]) -> WorkspaceResponse:
 
         now = utcnow()
         workspace_id = next_id()
@@ -28,7 +29,7 @@ class WorkspaceStore:
             "tenant_id": tenant_id,
             "user_id": user_id,
             "name": name,
-            "path": path,
+            "path": json.dumps(path, ensure_ascii=False),
             "is_deleted": 0,
             "created_at": now,
             "updated_at": now,
@@ -48,7 +49,7 @@ class WorkspaceStore:
         )
 
 
-    async def list(self, tenant_id: int, user_id: int, page: int = 1, page_size: int = 20) -> BasePageResponse[List[WorkspaceResponse]]:
+    async def list_page(self, tenant_id: int, user_id: int, page: int = 1, page_size: int = 20) -> BasePageResponse[List[WorkspaceResponse]]:
         page = max(page, 1)
         page_size = max(min(page_size, 1000), 1)
         where = (
@@ -81,13 +82,12 @@ class WorkspaceStore:
 
         return WorkspaceResponse.model_validate(row) if row else None
 
-    async def update(self, tenant_id: int, user_id: int, workspace_id: int, name: str,
-                     path: str) -> WorkspaceResponse:
+    async def update(self, tenant_id: int, user_id: int, workspace_id: int, name: str, path: list[str]) -> WorkspaceResponse:
         values = {}
         if name is not None:
             values["name"] = name
         if path is not None:
-            values["path"] = path
+            values["path"] = json.dumps(path, ensure_ascii=False)
 
         exist = await self.get(tenant_id, user_id, workspace_id)
         if exist is None:

@@ -23,7 +23,7 @@ async def list_workspaces(
     store: WorkspaceStore = Depends(Provide["WorkspaceStore"]),
 ):
     """分页查询当前用户的工作目录。"""
-    result = await store.list(request.state.tenant_id, request.state.identity.id, page, page_size)
+    result = await store.list_page(request.state.tenant_id, request.state.identity.id, page, page_size)
     return PageResponse.ok(request, result)
 
 

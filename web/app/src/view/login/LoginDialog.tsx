@@ -4,18 +4,11 @@ import {Dialog} from "@kobalte/core/dialog";
 import {useLocaleContext} from "../../context/LocaleContext";
 import {useServerContext} from "../../context/ServerContext";
 import {type LoginResponse} from "@loong/web-api";
-import type {AuthSession} from "../../store/auth";
+import {AuthSession, readAuthSession, saveAuthSession} from "../../store/auth";
 import {toErrorMessage} from "../../runtime/http_client_wrap";
 
 type LoginSessionInput = Omit<AuthSession, "user_token">;
 
-export interface LoginDialogProps {
-  loading: boolean;
-  error: string | null;
-  onComplete: (session: LoginSessionInput) => Promise<void>;
-  onLoadingChange: (loading: boolean) => void;
-  onError: (message: string | null) => void;
-}
 
 function toSession(response: LoginResponse): LoginSessionInput {
   const data = response as unknown as Record<string, unknown>;
@@ -23,7 +16,7 @@ function toSession(response: LoginResponse): LoginSessionInput {
   const accessToken = data.access_token;
   const refreshToken = data.refresh_token;
   if (typeof accessToken !== "string" || !accessToken
-      || typeof refreshToken !== "string" || !refreshToken) {
+    || typeof refreshToken !== "string" || !refreshToken) {
     throw new Error("登录响应缺少令牌");
   }
   return {
@@ -48,8 +41,12 @@ function toSession(response: LoginResponse): LoginSessionInput {
 }
 
 
+export interface LoginDialogProps {
+  onComplete: (session: LoginSessionInput) => Promise<void>;
+}
+
 /** 未登录时的登录 / 注册弹窗。 */
-export function LoginDialog(props: LoginDialogProps) {
+export function LoginDialog(props:LoginDialogProps) {
   const {locale, t} = useLocaleContext();
   const {api_client_proxy} = useServerContext();
   const [mode, setMode] = createSignal<"login" | "register">("login");
@@ -58,18 +55,16 @@ export function LoginDialog(props: LoginDialogProps) {
   const [confirmPassword, setConfirmPassword] = createSignal("");
   const [name, setName] = createSignal("");
   const [localError, setLocalError] = createSignal<string | null>(null);
+  const [loading, setLoading] = createSignal(false);
 
   const client = () => api_client_proxy();
 
   const switchMode = (next: "login" | "register") => {
     setMode(next);
     setLocalError(null);
-    props.onError(null);
   };
 
-  const login = async (): Promise<boolean> => {
-    props.onLoadingChange(true);
-    props.onError(null);
+  const do_login = async (): Promise<boolean> => {
     try {
       const response = await client().auth.login({
         username: username().trim(),
@@ -78,18 +73,18 @@ export function LoginDialog(props: LoginDialogProps) {
       });
 
       await props.onComplete(toSession(response));
+
       return true;
+
     } catch (reason) {
-      props.onError(toErrorMessage(reason));
+      setLocalError(toErrorMessage(reason))
       return false;
     } finally {
-      props.onLoadingChange(false);
+
     }
   };
 
   const register = async (): Promise<boolean> => {
-    props.onLoadingChange(true);
-    props.onError(null);
     try {
       await client().auth.register({
         username: username().trim(),
@@ -97,19 +92,17 @@ export function LoginDialog(props: LoginDialogProps) {
         name: name().trim() || undefined,
       });
     } catch (reason) {
-      props.onError(toErrorMessage(reason));
-      props.onLoadingChange(false);
       return false;
     }
-    props.onLoadingChange(false);
-    return login();
+    return do_login();
   };
 
   const submit = async (event: SubmitEvent) => {
     event.preventDefault();
+    setLoading(true);
     setLocalError(null);
     if (mode() === "login") {
-      await login();
+      await do_login();
     } else {
       if (password() !== confirmPassword()) {
         setLocalError(t("login.passwordMismatch", "两次输入的密码不一致"));
@@ -117,6 +110,8 @@ export function LoginDialog(props: LoginDialogProps) {
       }
       await register();
     }
+
+    setLoading(false);
   };
 
   const inputClass =
@@ -125,7 +120,7 @@ export function LoginDialog(props: LoginDialogProps) {
   return (
     <Dialog open modal>
       <Dialog.Portal>
-        <Dialog.Overlay class="fixed inset-0 z-50 bg-slate-950/40 backdrop-blur-sm" />
+        <Dialog.Overlay class="fixed inset-0 z-50 bg-slate-950/40 backdrop-blur-sm"/>
         <Dialog.Content
           class="fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl outline-none dark:border-slate-700 dark:bg-slate-900"
           onPointerDownOutside={(event) => event.preventDefault()}
@@ -202,18 +197,18 @@ export function LoginDialog(props: LoginDialogProps) {
               </label>
             </Show>
 
-            <Show when={localError() ?? props.error}>
+            <Show when={localError()}>
               <p role="alert" class="m-0 text-[13px] font-medium text-red-600 dark:text-red-400">
-                {localError() ?? props.error}
+                {localError()}
               </p>
             </Show>
 
             <button
               type="submit"
-              disabled={props.loading}
+              disabled={loading()}
               class="inline-flex h-9 items-center justify-center rounded-lg bg-indigo-500 px-4 text-[13px] font-medium text-white outline-none transition hover:bg-indigo-600 focus-visible:ring-2 focus-visible:ring-indigo-500/40 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {props.loading
+              {loading()
                 ? t("login.loading", "处理中…")
                 : mode() === "login"
                   ? t("login.submit", "登录")

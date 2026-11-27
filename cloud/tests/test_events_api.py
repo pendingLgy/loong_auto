@@ -31,9 +31,8 @@ async def _create_workspace(cloud: CloudClient, label: str):
     name = f"{label}-{uuid4().hex}"
 
     workspaces: list[str] = [f"F:/tmp/{name}"]
-    json_str = json.dumps(workspaces, ensure_ascii=False)
 
-    await cloud.workspaces.create(CreateWorkingDirectoryRequest(name=name, path=json_str))
+    await cloud.workspaces.create(CreateWorkingDirectoryRequest(name=name, path=workspaces))
     page = await cloud.workspaces.list(page=1, page_size=100)
     workspace = next((row for row in page.rows or [] if row.name == name), None)
     assert workspace is not None, "工作目录创建后未查询到"
@@ -43,9 +42,8 @@ async def _create_tmp_workspace(cloud: CloudClient, path:str):
     name = f"tmp-{uuid4().hex}"
 
     workspaces: list[str] = [f"{path}"]
-    json_str = json.dumps(workspaces, ensure_ascii=False)
 
-    await cloud.workspaces.create(CreateWorkingDirectoryRequest(name=name, path=json_str))
+    await cloud.workspaces.create(CreateWorkingDirectoryRequest(name=name, path=workspaces))
     page = await cloud.workspaces.list(page=1, page_size=100)
     workspace = next((row for row in page.rows or [] if row.name == name), None)
     assert workspace is not None, "工作目录创建后未查询到"

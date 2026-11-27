@@ -10,6 +10,8 @@ export interface MainLayoutProps {
   title?: string;
   /** 右侧区域标题。 */
   rightTitle?: string;
+  /** 点击新建对话。 */
+  onNewConversation?: () => void;
 }
 
 /** 主页面左、中、右三栏布局，支持拖动与折叠。 */
@@ -25,7 +27,7 @@ function MainLayoutContent(props: MainLayoutProps) {
 
   return (
     <div class="flex h-dvh w-full min-h-0 gap-0 overflow-hidden bg-slate-50 p-2.5 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-      <SideNavProvider>
+      <SideNavProvider onNewConversation={props.onNewConversation}>
         <SideNav />
       </SideNavProvider>
 

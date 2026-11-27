@@ -22,6 +22,7 @@ src/
 ├── store/
 └── view/
     ├── layout/
+    │   └── side_nav/
     ├── login/
     ├── setting/
     └── user/
