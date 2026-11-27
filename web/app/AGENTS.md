@@ -21,6 +21,7 @@ src/
 │   └── i18n/
 ├── store/
 └── view/
+    ├── chat/
     ├── layout/
     │   └── side_nav/
     ├── login/

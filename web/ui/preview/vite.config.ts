@@ -9,6 +9,14 @@ export default defineConfig({
     host: "127.0.0.1",
     port: 5174,
     strictPort: true,
+    // Windows 下通过轮询监听预览入口与 ../src 的组件源码。
+    watch: {
+      usePolling: true,
+      interval: 300,
+    },
+    hmr: {
+      overlay: true,
+    },
   },
   build: {
     outDir: "dist",

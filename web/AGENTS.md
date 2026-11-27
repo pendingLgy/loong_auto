@@ -48,6 +48,7 @@ web/
     ├── tsconfig.json
     ├── preview/
     └── src/
+        ├── chat/
         ├── menu/
         ├── workspace/
         ├── index.ts

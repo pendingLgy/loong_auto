@@ -1,6 +1,6 @@
 import { For, Show } from "solid-js";
 
-import type { MenuCategory, PreviewKey, WorkspaceView } from "../../types";
+import type { ChatView, MenuCategory, PreviewKey, WorkspaceView } from "../../types";
 
 export interface PreviewNavProps {
   active: PreviewKey;
@@ -9,6 +9,8 @@ export interface PreviewNavProps {
   onCategoryChange: (key: MenuCategory) => void;
   workspaceView: WorkspaceView;
   onWorkspaceViewChange: (view: WorkspaceView) => void;
+  chatView: ChatView;
+  onChatViewChange: (view: ChatView) => void;
 }
 
 const categories: Array<{key: MenuCategory; label: string}> = [
@@ -95,6 +97,52 @@ export function PreviewNav(props: PreviewNavProps) {
               class={itemClass(props.workspaceView === "error", true)}
             >
               错误提示
+            </button>
+          </div>
+        </Show>
+
+        <button
+          type="button"
+          onClick={() => props.onActiveChange("chat")}
+          aria-current={props.active === "chat" ? "page" : undefined}
+          class={itemClass(props.active === "chat")}
+        >
+          Chat
+        </button>
+
+        <Show when={props.active === "chat"}>
+          <div class="ml-3 grid gap-0.5 border-l border-slate-200 pl-2 dark:border-slate-700">
+            <button
+              type="button"
+              onClick={() => props.onChatViewChange("message")}
+              aria-current={props.chatView === "message" ? "page" : undefined}
+              class={itemClass(props.chatView === "message", true)}
+            >
+              ChatMessageList
+            </button>
+            <button
+              type="button"
+              onClick={() => props.onChatViewChange("user")}
+              aria-current={props.chatView === "user" ? "page" : undefined}
+              class={itemClass(props.chatView === "user", true)}
+            >
+              ChatUserMessage
+            </button>
+            <button
+              type="button"
+              onClick={() => props.onChatViewChange("assistant")}
+              aria-current={props.chatView === "assistant" ? "page" : undefined}
+              class={itemClass(props.chatView === "assistant", true)}
+            >
+              ChatAssistantMessage
+            </button>
+            <button
+              type="button"
+              onClick={() => props.onChatViewChange("input")}
+              aria-current={props.chatView === "input" ? "page" : undefined}
+              class={itemClass(props.chatView === "input", true)}
+            >
+              ChatPromptInput
             </button>
           </div>
         </Show>

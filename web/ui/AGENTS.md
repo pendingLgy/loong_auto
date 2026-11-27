@@ -17,6 +17,20 @@
 - 复杂组件需补充受控用法、插槽或错误处理示例。
 - 新增组件或修改 Props 后，同步更新预览场景、使用文档与 `src/index.ts` 导出。
 
+## 开发
+
+- `bun run dev:ui` 启动组件预览，修改 `src` 或 `preview` 时自动热更新。
+- 应用通过 `@loong/ui` 源码消费组件；同时运行 `pnpm dev:web` 或 `bun run dev:web` 时，`src` 修改也会触发热更新。
+- 预览服务固定端口 `5174`，Vite 使用轮询监听源码，避免 Windows 链接目录漏掉变更。
+
+## 国际化
+
+- UI 组件库通过 `UiI18nProvider` 提供 `en-US` 文案；中文由调用方通过 `t(key, fallback)` 的 fallback 提供。
+- 组件内部默认文案使用 `useUiI18n().t(key, "中文默认值")`，外部仍可通过 `labels` 或文案 Props 覆盖。
+- 业务应用可以继续通过 Props 注入自身国际化文案，不强制依赖 UI Provider。
+- 新增组件默认文案时，在调用处提供中文 fallback，并补充 `src/i18n/en-US.ts` 的英文消息。
+- 预览页右上角提供 `EN` / `中文` 切换，用于验证组件默认文案。
+
 ## 表单
 
 - 字段使用纵向布局：标签在上，输入框在下，间距 `gap-1.5`。

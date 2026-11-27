@@ -1,5 +1,8 @@
-import {createEffect, createMemo, createSignal, For, Show} from "solid-js";
+import {createEffect, createSignal, For, Show} from "solid-js";
 import {Dialog} from "@kobalte/core/dialog";
+
+import {PlusIcon, TrashIcon} from "../assets/icons";
+import {useUiI18n} from "../i18n";
 
 
 interface WorkspaceEntry {
@@ -29,52 +32,6 @@ export interface WorkspaceSaveData {
   paths: string[];
 }
 
-export interface WorkspaceDialogLabels {
-  title: string;
-  description: string;
-  close: string;
-  nameLabel: string;
-  namePlaceholder: string;
-  nameRequired: string;
-  nameMax: string;
-  selected: string;
-  workspaceRequired: string;
-  selectHint: string;
-  choose: string;
-  empty: string;
-  duplicate: string;
-  required: string;
-  edit: string;
-  remove: string;
-  pathLabel: string;
-  cancel: string;
-  save: string;
-  saving: string;
-}
-
-const DEFAULT_LABELS: WorkspaceDialogLabels = {
-  title: "工作区",
-  description: "选择需要纳入当前项目的本地文件夹。",
-  close: "关闭",
-  nameLabel: "工作区名称",
-  namePlaceholder: "输入工作区名称",
-  nameRequired: "请输入工作区名称",
-  nameMax: "工作区名称不能超过 {max} 个字符",
-  selected: "已选中工作区",
-  workspaceRequired: "请至少选择一个工作区",
-  selectHint: "浏览器仅提供文件夹名称，不暴露完整本地路径。",
-  choose: "选择工作区",
-  empty: "还没有选择工作区。",
-  duplicate: "该工作区已存在。",
-  required: "路径不能为空。",
-  edit: "编辑",
-  remove: "移除",
-  pathLabel: "工作区路径",
-  cancel: "取消",
-  save: "保存",
-  saving: "保存中…",
-};
-
 export interface WorkspaceDialogController {
   cleanError: () => void;
 }
@@ -95,36 +52,12 @@ export interface WorkspaceDialogProps {
   nameMaxLength?: number;
   /** 获取组件控制器，用于手动清理错误。 */
   ref?: (controller: WorkspaceDialogController) => void;
-  labels?: Partial<WorkspaceDialogLabels>;
 }
 
-
-function PlusIcon(props: { class?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
-         stroke-linecap="round" aria-hidden="true" class={props.class}>
-      <path d="M12 5v14M5 12h14"/>
-    </svg>
-  );
-}
-
-function TrashIcon(props: { class?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
-         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class={props.class}>
-      <path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
-      <path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/>
-      <path d="M10 11v6M14 11v6"/>
-    </svg>
-  );
-}
 
 /** 工作区弹窗：命名、选择目录与维护已选工作区。 */
 export function WorkspaceDialog(props: WorkspaceDialogProps) {
-  const labels = createMemo<WorkspaceDialogLabels>(() => ({
-    ...DEFAULT_LABELS,
-    ...props.labels,
-  }));
+  const {t} = useUiI18n();
   const [name, setName] = createSignal("");
   const [workspaces, setWorkspaces] = createSignal<WorkspaceEntry[]>([]);
   const [editingId, setEditingId] = createSignal<string | null>(null);
@@ -156,7 +89,7 @@ export function WorkspaceDialog(props: WorkspaceDialogProps) {
 
   const addWorkspace = (path: string) => {
     if (workspaces().some((workspace) => workspace.path === path)) {
-      setFormError(labels().duplicate);
+      setFormError(t("workspace.duplicate", "该工作区已存在。"));
       return;
     }
     setWorkspaces((current) => [...current, {id: newId(), path}]);
@@ -201,12 +134,12 @@ export function WorkspaceDialog(props: WorkspaceDialogProps) {
     const nextPath = draftPath().trim();
     if (!id) return;
     if (!nextPath) {
-      setFormError(labels().required);
+      setFormError(t("workspace.required", "路径不能为空。"));
       return;
     }
     if (workspaces().some((workspace) =>
       workspace.id !== id && workspace.path === nextPath)) {
-      setFormError(labels().duplicate);
+      setFormError(t("workspace.duplicate", "该工作区已存在。"));
       return;
     }
     setWorkspaces((current) => current.map((workspace) =>
@@ -226,15 +159,15 @@ export function WorkspaceDialog(props: WorkspaceDialogProps) {
     setNameError(null);
     setSelectedError(null);
     if (!name().trim()) {
-      setNameError(labels().nameRequired);
+      setNameError(t("workspace.nameRequired", "请输入工作区名称"));
       return;
     }
     if (name().trim().length > nameMaxLength()) {
-      setNameError(labels().nameMax.replace("{max}", String(nameMaxLength())));
+      setNameError(t("workspace.nameMax", "工作区名称不能超过 {max} 个字符").replace("{max}", String(nameMaxLength())));
       return;
     }
     if (workspaces().length === 0) {
-      setSelectedError(labels().workspaceRequired);
+      setSelectedError(t("workspace.workspaceRequired", "请至少选择一个工作区"));
       return;
     }
     setSaving(true);
@@ -269,16 +202,16 @@ export function WorkspaceDialog(props: WorkspaceDialogProps) {
             <header class="flex items-start justify-between gap-3">
               <div class="grid gap-1">
                 <Dialog.Title class="m-0 text-lg font-semibold text-slate-900 dark:text-slate-100">
-                  {labels().title}
+                  {t("workspace.title", "工作区")}
                 </Dialog.Title>
                 <Dialog.Description class="m-0 text-[13px] text-slate-500 dark:text-slate-400">
-                  {labels().description}
+                  {t("workspace.description", "选择需要纳入当前项目的本地文件夹。")}
                 </Dialog.Description>
               </div>
               <Dialog.CloseButton
                 onClick={() => props.onCancel?.()}
-                aria-label={labels().close}
-                title={labels().close}
+                aria-label={t("workspace.close", "关闭")}
+                title={t("workspace.close", "关闭")}
                 class="grid h-8 w-8 shrink-0 place-items-center rounded-md text-slate-400 outline-none transition hover:bg-slate-100 hover:text-slate-700 focus-visible:ring-2 focus-visible:ring-indigo-500/40 dark:hover:bg-slate-800 dark:hover:text-slate-200"
               >
                 ✕
@@ -288,7 +221,7 @@ export function WorkspaceDialog(props: WorkspaceDialogProps) {
             <div class="grid gap-1.5">
               <label for="workspace-name"
                      class="flex items-center gap-1 text-[13px] font-medium text-slate-700 dark:text-slate-200">
-                {labels().nameLabel}
+                {t("workspace.nameLabel", "工作区名称")}
                 <span class="text-red-500" aria-hidden="true">*</span>
               </label>
               <input
@@ -298,7 +231,7 @@ export function WorkspaceDialog(props: WorkspaceDialogProps) {
                   setName(event.currentTarget.value);
                   setNameError(null);
                 }}
-                placeholder={labels().namePlaceholder}
+                placeholder={t("workspace.namePlaceholder", "输入工作区名称")}
                 maxlength={nameMaxLength()}
                 aria-required="true"
                 aria-invalid={nameError() ? "true" : "false"}
@@ -325,7 +258,7 @@ export function WorkspaceDialog(props: WorkspaceDialogProps) {
                   <div class="flex items-center gap-2">
                     <h2
                       class="m-0 flex items-center gap-1 text-[13px] font-medium text-slate-700 dark:text-slate-200">
-                      {labels().selected}
+                      {t("workspace.selected", "已选中工作区")}
                       <span class="text-red-500" aria-hidden="true">*</span>
                     </h2>
                     <span
@@ -334,7 +267,7 @@ export function WorkspaceDialog(props: WorkspaceDialogProps) {
               </span>
                   </div>
                   <p class="m-0 text-[12px] text-slate-500 dark:text-slate-400">
-                    {labels().selectHint}
+                    {t("workspace.selectHint", "浏览器仅提供文件夹名称，不暴露完整本地路径。")}
                   </p>
                 </div>
                 <button
@@ -343,7 +276,7 @@ export function WorkspaceDialog(props: WorkspaceDialogProps) {
                   class="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-indigo-200 bg-indigo-50 px-3 text-[13px] font-medium text-indigo-600 outline-none transition hover:bg-indigo-100 focus-visible:ring-2 focus-visible:ring-indigo-500/40 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-300 dark:hover:bg-indigo-500/20"
                 >
                   <PlusIcon class="h-3.5 w-3.5"/>
-                  {labels().choose}
+                  {t("workspace.choose", "选择工作区")}
                 </button>
               </div>
 
@@ -371,7 +304,7 @@ export function WorkspaceDialog(props: WorkspaceDialogProps) {
               <Show when={workspaces().length === 0}>
                 <p
                   class="m-0 rounded-lg border border-dashed border-slate-300 p-3 text-[12px] text-slate-400 dark:border-slate-700 dark:text-slate-500">
-                  {labels().empty}
+                  {t("workspace.empty", "还没有选择工作区。")}
                 </p>
               </Show>
 
@@ -396,13 +329,13 @@ export function WorkspaceDialog(props: WorkspaceDialogProps) {
                                 onClick={() => startEdit(workspace)}
                                 class="rounded-md px-2 py-1 text-[12px] text-slate-500 outline-none transition hover:bg-slate-100 hover:text-slate-700 focus-visible:ring-2 focus-visible:ring-indigo-500/40 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                               >
-                                {labels().edit}
+                                {t("workspace.edit", "编辑")}
                               </button>
                               <button
                                 type="button"
                                 onClick={() => removeWorkspace(workspace.id)}
-                                aria-label={labels().remove}
-                                title={labels().remove}
+                                aria-label={t("workspace.remove", "移除")}
+                                title={t("workspace.remove", "移除")}
                                 class="grid h-7 w-7 place-items-center rounded-md text-slate-400 outline-none transition hover:bg-red-50 hover:text-red-600 focus-visible:ring-2 focus-visible:ring-red-500/40 dark:text-slate-500 dark:hover:bg-red-500/10 dark:hover:text-red-400"
                               >
                                 <TrashIcon class="h-3.5 w-3.5"/>
@@ -415,7 +348,7 @@ export function WorkspaceDialog(props: WorkspaceDialogProps) {
                           <input
                             value={draftPath()}
                             onInput={(event) => setDraftPath(event.currentTarget.value)}
-                            aria-label={labels().pathLabel}
+                            aria-label={t("workspace.pathLabel", "工作区路径")}
                             class="h-9 min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-2 text-[12px] text-slate-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
                           />
                           <div class="flex shrink-0 items-center gap-1.5">
@@ -424,14 +357,14 @@ export function WorkspaceDialog(props: WorkspaceDialogProps) {
                               onClick={() => setEditingId(null)}
                               class="rounded-md border border-slate-300 px-2 py-1 text-[12px] text-slate-600 outline-none transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                             >
-                              {labels().cancel}
+                              {t("workspace.cancel", "取消")}
                             </button>
                             <button
                               type="button"
                               onClick={saveEdit}
                               class="rounded-md bg-indigo-500 px-2 py-1 text-[12px] font-medium text-white outline-none transition hover:bg-indigo-600"
                             >
-                              {labels().save}
+                              {t("workspace.save", "保存")}
                             </button>
                           </div>
                         </div>
@@ -456,7 +389,7 @@ export function WorkspaceDialog(props: WorkspaceDialogProps) {
               onClick={cancel}
               class="h-9 rounded-lg border border-slate-300 px-3 text-[13px] font-medium text-slate-700 outline-none transition hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-indigo-500/40 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
             >
-              {labels().cancel}
+              {t("workspace.cancel", "取消")}
             </button>
             <button
               type="button"
@@ -469,7 +402,7 @@ export function WorkspaceDialog(props: WorkspaceDialogProps) {
                   class="h-3 w-3 animate-spin rounded-full border-2 border-white/40 border-t-white"
                   aria-hidden="true"/>
               </Show>
-              {saving() ? labels().saving : labels().save}
+              {saving() ? t("workspace.saving", "保存中…") : t("workspace.save", "保存")}
             </button>
           </footer>
         </Dialog.Content>

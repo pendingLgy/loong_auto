@@ -15,7 +15,6 @@ const props: PropRow[] = [
   {name: "onSave", type: "(data: WorkspaceSaveData) => boolean | void | Promise<boolean | void>", description: "点击保存时触发；返回 false 或 Promise reject 时保持弹窗打开。"},
   {name: "nameMaxLength", type: "number", description: "工作区名称最大长度，默认 30。"},
   {name: "ref", type: "(controller: WorkspaceDialogController) => void", description: "获取控制器，调用 cleanError 清空错误。"},
-  {name: "labels", type: "Partial<WorkspaceDialogLabels>", description: "覆盖内置文案。"},
 ];
 
 const usage = `const [open, setOpen] = createSignal(false);

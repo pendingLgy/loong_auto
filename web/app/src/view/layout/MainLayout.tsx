@@ -2,6 +2,7 @@ import { Show } from "solid-js";
 
 import { PanelIcon } from "../../assets/icons/PanelIcon";
 import { useLayoutContext } from "../../context/LayoutContext";
+import { ChatPage } from "../chat/ChatPage";
 import { SideNavProvider } from "../../context/SideNavContext";
 import { SideNav } from "./SideNav";
 
@@ -73,7 +74,9 @@ function MainLayoutContent(props: MainLayoutProps) {
           </button>
         </header>
 
-        <div class="min-h-0 flex-1 overflow-auto p-6" />
+        <div class="min-h-0 flex-1 overflow-hidden">
+          <ChatPage />
+        </div>
       </main>
 
       <Show when={right_open()}>
