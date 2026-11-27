@@ -56,6 +56,35 @@ async function parseResponse(response: Response): Promise<unknown> {
   return response.text();
 }
 
+function resolvePathParams(
+  path: string,
+  params: unknown,
+): {path: string; params: unknown} {
+  const names: string[] = [];
+  const resolved = path.replace(/\{([^}]+)\}/g, (_match, name: string) => {
+    names.push(name);
+    const value = params && typeof params === "object"
+      ? (params as Record<string, unknown>)[name]
+      : undefined;
+    if (value === undefined || value === null) {
+      throw new HttpRequestError(`缺少路径参数：${name}`);
+    }
+    return encodeURIComponent(String(value));
+  });
+
+  if (names.length === 0 || !params || typeof params !== "object") {
+    return {path: resolved, params};
+  }
+
+  const rest = {...(params as Record<string, unknown>)};
+  names.forEach((name) => delete rest[name]);
+  const keys = Object.keys(rest);
+  return {
+    path: resolved,
+    params: keys.length === 1 && keys[0] === "request" ? rest.request : rest,
+  };
+}
+
 async function send<TReq, TRes>(
   ep: Endpoint<TReq, TRes>,
   config: ApiConfig,
@@ -78,12 +107,13 @@ async function send<TReq, TRes>(
     translate: config.translate,
   });
 
-  const response = await http.request(ep.path, {
+  const resolved = resolvePathParams(ep.path, params);
+  const response = await http.request(resolved.path, {
     method: ep.method,
-    query: isGet && params && typeof params === "object"
-      ? params as Record<string, string | number | boolean | null | undefined>
+    query: isGet && resolved.params && typeof resolved.params === "object"
+      ? resolved.params as Record<string, string | number | boolean | null | undefined>
       : undefined,
-    body: !isGet ? params : undefined,
+    body: !isGet ? resolved.params : undefined,
     signal: init?.signal ?? undefined,
   });
   let body: unknown;
@@ -110,6 +140,8 @@ async function send<TReq, TRes>(
     if (envelope.code !== 200) {
       throw new HttpRequestError(envelope.msg ?? "请求失败");
     }
+    // 分页接口直接返回 PageResponse 本体，rows 不在 data 中。
+    if ("rows" in body) return body as TRes;
     return envelope.data as TRes;
   }
   return body as TRes;

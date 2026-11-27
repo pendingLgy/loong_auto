@@ -52,7 +52,7 @@ export function SideNavFooter() {
       key: "logout",
       label: t("user.menu.logout", "退出"),
       icon: <LogoutIcon class="h-3.5 w-3.5" />,
-      danger: true,
+      itemClass: "text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10",
     },
   ];
 

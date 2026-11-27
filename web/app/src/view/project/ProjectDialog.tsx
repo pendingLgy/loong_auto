@@ -1,4 +1,5 @@
-import type { WorkspaceDialogLabels, WorkspaceSaveData } from "@loong/ui";
+import { Show } from "solid-js";
+import type { WorkspaceDialogController, WorkspaceDialogLabels, WorkspaceSaveData } from "@loong/ui";
 import { WorkspaceDialog } from "@loong/ui";
 
 import { useLocaleContext } from "../../context/LocaleContext";
@@ -10,7 +11,8 @@ export interface ProjectDialogProps {
   onInit?: (data: WorkspaceSaveData) => void;
   onCancel?: () => void;
   onSave?: (data: WorkspaceSaveData) => void | Promise<void>;
-  error?: string;
+  nameMaxLength?: number;
+  ref?: (controller: WorkspaceDialogController) => void;
 }
 
 /** 应用侧工作区弹窗，注入国际化文案。 */
@@ -23,7 +25,10 @@ export function ProjectDialog(props: ProjectDialogProps) {
     close: t("project.close", "关闭"),
     nameLabel: t("project.nameLabel", "工作区名称"),
     namePlaceholder: t("project.namePlaceholder", "输入工作区名称"),
+    nameRequired: t("project.nameRequired", "请输入工作区名称"),
+    nameMax: t("project.nameMax", "工作区名称不能超过 {max} 个字符"),
     selected: t("project.selected", "已选中工作区"),
+    workspaceRequired: t("project.workspaceRequired", "请至少选择一个工作区"),
     selectHint: t("project.selectHint", "浏览器仅提供文件夹名称，不暴露完整本地路径。"),
     choose: t("project.choose", "选择工作区"),
     empty: t("project.empty", "还没有选择工作区。"),
@@ -34,18 +39,24 @@ export function ProjectDialog(props: ProjectDialogProps) {
     pathLabel: t("project.pathLabel", "工作区路径"),
     cancel: t("project.cancel", "取消"),
     save: t("project.save", "保存"),
+    saving: t("project.saving", "保存中…"),
   });
 
   return (
-    <WorkspaceDialog
-      open={props.open}
-      onOpenChange={props.onOpenChange}
-      initialData={props.initialData}
-      onInit={props.onInit}
-      onCancel={props.onCancel}
-      onSave={props.onSave}
-      error={props.error}
-      labels={labels()}
-    />
+    <Show when={props.open}>
+      <WorkspaceDialog
+        open
+        onOpenChange={(open) => {
+          if (!open) props.onOpenChange(false);
+        }}
+        initialData={props.initialData}
+        onInit={props.onInit}
+        onCancel={props.onCancel}
+        onSave={props.onSave}
+        nameMaxLength={props.nameMaxLength}
+        ref={props.ref}
+        labels={labels()}
+      />
+    </Show>
   );
 }

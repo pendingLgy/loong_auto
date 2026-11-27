@@ -15,9 +15,9 @@ const categories: Array<{key: MenuCategory; label: string}> = [
   {key: "basic", label: "基础"},
   {key: "default", label: "默认选中"},
   {key: "states", label: "状态"},
-  {key: "danger", label: "危险操作"},
+  {key: "custom", label: "自定义样式"},
   {key: "nested", label: "四级子菜单"},
-  {key: "props", label: "参数介绍"},
+  {key: "props", label: "使用文档"},
 ];
 
 /** 预览左侧组件与场景导航。 */

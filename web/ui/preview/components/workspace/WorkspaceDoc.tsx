@@ -13,13 +13,18 @@ const props: PropRow[] = [
   {name: "onInit", type: "(data: WorkspaceSaveData) => void", description: "打开并完成数据初始化后触发。"},
   {name: "onCancel", type: "() => void", description: "点击取消或关闭按钮时触发。"},
   {name: "onSave", type: "(data: WorkspaceSaveData) => boolean | void | Promise<boolean | void>", description: "点击保存时触发；返回 false 或 Promise reject 时保持弹窗打开。"},
-  {name: "error", type: "string", description: "外部错误提示，优先展示。"},
+  {name: "nameMaxLength", type: "number", description: "工作区名称最大长度，默认 30。"},
+  {name: "ref", type: "(controller: WorkspaceDialogController) => void", description: "获取控制器，调用 cleanError 清空错误。"},
   {name: "labels", type: "Partial<WorkspaceDialogLabels>", description: "覆盖内置文案。"},
 ];
 
 const usage = `const [open, setOpen] = createSignal(false);
+let dialog: WorkspaceDialogController | undefined;
 
 <WorkspaceDialog
+  ref={(value) => {
+    dialog = value;
+  }}
   open={open()}
   onOpenChange={setOpen}
   initialData={{name: "Loong", paths: ["D:\\\\workspace"]}}
@@ -40,7 +45,7 @@ export function WorkspaceDoc() {
           WorkspaceDialog
         </h2>
         <p class="m-0 text-sm text-slate-500 dark:text-slate-400">
-          工作区名称、目录选择、列表编辑与事件回调。
+          工作区名称、目录选择、必填校验、列表编辑与事件回调。
         </p>
       </div>
 
@@ -89,13 +94,20 @@ export function WorkspaceDoc() {
       </div>
 
       <div class="grid gap-2 rounded-lg border border-slate-200 p-4 text-[12px] text-slate-500 dark:border-slate-700 dark:text-slate-400">
+        <p class="m-0 font-medium text-slate-600 dark:text-slate-300">必填校验</p>
+        <p class="m-0">工作区名称必填，默认最多 30 个字符，可通过 nameMaxLength 调整。</p>
+        <p class="m-0">至少选择一个工作区；字段错误显示在对应输入框或列表标题下方，并预留高度避免布局跳动。</p>
+      </div>
+
+      <div class="grid gap-2 rounded-lg border border-slate-200 p-4 text-[12px] text-slate-500 dark:border-slate-700 dark:text-slate-400">
         <p class="m-0 font-medium text-slate-600 dark:text-slate-300">错误提示</p>
-        <p class="m-0">外部错误通过 error 传入；onSave 返回的 Promise 失败时，弹窗保持打开并显示错误消息。</p>
+        <p class="m-0">onSave 返回的 Promise 失败时，弹窗保持打开并显示错误消息。</p>
+        <p class="m-0">通过 ref 获取 WorkspaceDialogController，调用 cleanError() 手动清空错误。</p>
       </div>
 
       <div class="grid gap-2 rounded-lg border border-slate-200 p-4 text-[12px] text-slate-500 dark:border-slate-700 dark:text-slate-400">
         <p class="m-0 font-medium text-slate-600 dark:text-slate-300">事件顺序</p>
-        <p class="m-0">打开弹窗 → onInit → 编辑 → onSave 或 onCancel。</p>
+        <p class="m-0">打开弹窗 → onInit → 编辑 → 校验 → onSave 或 onCancel。</p>
       </div>
     </div>
   );

@@ -91,9 +91,9 @@ const menuSets: Record<MenuCategory, MenuItem[]> = {
     {key: "password", label: "普通项"},
     {key: "disabled", label: "不可用项", disabled: true},
   ],
-  danger: [
-    {key: "logout", label: "退出登录", danger: true},
-    {key: "delete", label: "删除账户", danger: true},
+  custom: [
+    {key: "logout", label: "退出登录", itemClass: "text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"},
+    {key: "delete", label: "删除账户", itemClass: "text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"},
     {key: "cancel", label: "取消"},
   ],
   props: [],
@@ -144,7 +144,7 @@ export function MenuPreview(props: MenuPreviewProps) {
     basic: "general",
     default: "profile-detail",
     states: firstLeaf(menuSets.states),
-    danger: firstLeaf(menuSets.danger),
+    custom: firstLeaf(menuSets.custom),
     nested: "devices",
     props: "",
     ...saved?.selected,
@@ -194,7 +194,7 @@ export function MenuPreview(props: MenuPreviewProps) {
           Menu
         </h2>
         <p class="m-0 text-sm text-slate-500 dark:text-slate-400">
-          纵向菜单、子菜单、插槽、选中态、禁用项与危险操作。
+          纵向菜单、子菜单、插槽、选中态、禁用项与自定义样式。
         </p>
       </div>
 
@@ -260,7 +260,7 @@ export function MenuPreview(props: MenuPreviewProps) {
           场景说明
         </p>
         <p class="m-0 text-[12px] text-slate-500 dark:text-slate-400">
-          左侧切换基础、状态、危险操作与四级子菜单场景；拖拽滑杆调整组件宽高。
+          左侧切换基础、状态、自定义样式与四级子菜单场景；拖拽滑杆调整组件宽高。
         </p>
       </div>
       </div>

@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createSignal } from "solid-js";
+import { For, Show, createSignal } from "solid-js";
 import type { JSX } from "@solidjs/web";
 
 export interface MenuItem {
@@ -9,9 +9,10 @@ export interface MenuItem {
   /** 自定义内容插槽，优先于 label。 */
   slot?: JSX.Element;
   disabled?: boolean;
-  danger?: boolean;
   /** 子菜单。 */
   children?: MenuItem[];
+  /** 追加到该菜单项按钮的 Tailwind 类。 */
+  itemClass?: string;
 }
 
 export interface MenuProps {
@@ -63,26 +64,34 @@ function MenuLevel(props: MenuLevelProps) {
         const children = () => item.children ?? [];
         const hasChildren = () => children().length > 0;
         const open = () => props.expanded().includes(item.key);
+        const activate = () => {
+          if (item.disabled) return;
+          if (hasChildren()) props.onToggle(item.key);
+          else props.onSelect?.(item.key);
+        };
 
         return (
           <>
-            <button
-              type="button"
+            <div
               role="menuitem"
-              disabled={item.disabled}
+              tabindex={item.disabled ? undefined : 0}
+              aria-disabled={item.disabled ? "true" : undefined}
               aria-current={props.value === item.key ? "page" : undefined}
               aria-haspopup={hasChildren() ? "menu" : undefined}
               aria-expanded={hasChildren() ? (open() ? "true" : "false") : undefined}
-              onClick={() => hasChildren()
-                ? props.onToggle(item.key)
-                : props.onSelect?.(item.key)}
-              class={`flex h-9 w-full items-center gap-2 rounded-md px-2.5 text-left text-[13px] outline-none transition focus-visible:ring-2 focus-visible:ring-indigo-500/40 disabled:cursor-not-allowed disabled:opacity-40 ${
-                item.danger
-                  ? "text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"
-                  : props.value === item.key
-                    ? "bg-indigo-50 font-medium text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-300"
-                    : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-              }`}
+              onClick={activate}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                activate();
+              }}
+              class={`flex h-9 w-full items-center gap-2 rounded-md px-2.5 text-left text-[13px] outline-none transition focus-visible:ring-2 focus-visible:ring-indigo-500/40 ${
+                item.disabled ? "cursor-not-allowed opacity-40" : "cursor-pointer"
+              } ${
+                props.value === item.key
+                  ? "bg-indigo-50 font-medium text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-300"
+                  : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+              } ${item.itemClass ?? ""}`}
             >
               <Show when={item.icon}>
                 <span class="grid h-4 w-4 shrink-0 place-items-center" aria-hidden="true">
@@ -100,7 +109,7 @@ function MenuLevel(props: MenuLevelProps) {
                   {open() ? "▾" : "▸"}
                 </span>
               </Show>
-            </button>
+            </div>
 
             <Show when={hasChildren() && open()}>
               <div
@@ -156,14 +165,6 @@ export function Menu(props: MenuProps) {
     props.onSelect?.(key);
   };
 
-  createEffect(
-    () => props.value,
-    (value) => {
-      if (!value) return;
-      const path = pathTo(props.items, value);
-      if (path) expand(path);
-    },
-  );
 
   return (
     <div

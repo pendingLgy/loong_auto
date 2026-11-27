@@ -30,17 +30,23 @@ export function App() {
     document.documentElement.classList.contains("dark"),
   );
   const saved = readSelection();
-  const [active, setActive] = createSignal<PreviewKey>(saved?.active ?? "menu");
-  const [category, setCategory] = createSignal<MenuCategory>(saved?.category ?? "basic");
-  const [workspaceView, setWorkspaceView] = createSignal<WorkspaceView>(
-    saved?.workspaceView ?? "preview",
-  );
+  const active = saved?.active && ["menu", "workspace", "theme"].includes(saved.active)
+    ? saved.active : "menu";
+  const category = saved?.category
+    && ["basic", "default", "states", "custom", "nested", "props"].includes(saved.category)
+    ? saved.category : "basic";
+  const workspaceView = saved?.workspaceView
+    && ["preview", "doc", "error"].includes(saved.workspaceView)
+    ? saved.workspaceView : "preview";
+  const [activeState, setActive] = createSignal<PreviewKey>(active);
+  const [categoryState, setCategory] = createSignal<MenuCategory>(category);
+  const [workspaceViewState, setWorkspaceView] = createSignal<WorkspaceView>(workspaceView);
 
   createEffect(
     () => ({
-      active: active(),
-      category: category(),
-      workspaceView: workspaceView(),
+      active: activeState(),
+      category: categoryState(),
+      workspaceView: workspaceViewState(),
     }),
     (selection) => {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(selection));
@@ -75,30 +81,30 @@ export function App() {
 
       <div class="grid min-h-0 gap-5 lg:grid-cols-[220px_1fr]">
         <PreviewNav
-          active={active()}
-          category={category()}
+          active={activeState()}
+          category={categoryState()}
           onActiveChange={setActive}
           onCategoryChange={setCategory}
-          workspaceView={workspaceView()}
+          workspaceView={workspaceViewState()}
           onWorkspaceViewChange={setWorkspaceView}
         />
 
         <section class="min-h-0 min-w-0 overflow-auto rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
-          <Show when={active() === "menu"}>
-            <MenuPreview category={category()} />
+          <Show when={activeState() === "menu"}>
+            <MenuPreview category={categoryState()} />
           </Show>
-          <Show when={active() === "workspace"}>
-            <Show when={workspaceView() === "preview"}>
+          <Show when={activeState() === "workspace"}>
+            <Show when={workspaceViewState() === "preview"}>
               <WorkspacePreview />
             </Show>
-            <Show when={workspaceView() === "doc"}>
+            <Show when={workspaceViewState() === "doc"}>
               <WorkspaceDoc />
             </Show>
-            <Show when={workspaceView() === "error"}>
+            <Show when={workspaceViewState() === "error"}>
               <WorkspaceErrorPreview />
             </Show>
           </Show>
-          <Show when={active() === "theme"}>
+          <Show when={activeState() === "theme"}>
             <ThemePreview />
           </Show>
         </section>
