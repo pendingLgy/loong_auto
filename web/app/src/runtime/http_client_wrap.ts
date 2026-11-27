@@ -7,7 +7,7 @@ import {
   type ApiConfig,
   DEFAULT_API_CONFIG,
   HttpRequestError,
-  HttpUnauthorizedError
+  HttpUnauthorizedError, HttpRefreshTokenExpiredError
 } from "./http";
 
 export interface CreateWrappedClientOptions {
@@ -97,7 +97,7 @@ export function createWrappedApiClient(
     const program = Effect.gen(function* () {
       const session = readAuthSession();
       if (!session?.refresh_token) {
-        return yield* Effect.fail(new HttpUnauthorizedError("登录过期，请重新登录"));
+        return yield* Effect.fail(new HttpRefreshTokenExpiredError("登录过期，请重新登录"));
       }
 
       const nextToken = yield* Effect.tryPromise({
@@ -114,13 +114,13 @@ export function createWrappedApiClient(
         Effect.catchAll((err) => {
           const msg =
             err instanceof Error ? err.message : "刷新登录状态失败，请重新登录";
-          return Effect.fail(new HttpUnauthorizedError(msg));
+          return Effect.fail(new HttpRefreshTokenExpiredError(msg));
         }),
       );
 
       if (typeof nextToken !== "string" || !nextToken) {
         return yield* Effect.fail(
-          new HttpUnauthorizedError("刷新令牌响应缺少 access_token"),
+          new HttpRefreshTokenExpiredError("刷新令牌响应缺少 access_token"),
         );
       }
 
@@ -130,7 +130,7 @@ export function createWrappedApiClient(
       Effect.tapError((error) =>
         Effect.sync(() => {
           notifyError(toErrorMessage(error));
-          if (error instanceof HttpUnauthorizedError) {
+          if (error instanceof HttpRefreshTokenExpiredError) {
             onSessionExpired?.();
           }
         }),

@@ -25,3 +25,12 @@ export class HttpUnauthorizedError extends HttpRequestError {
     this.name = "HttpUnauthorizedError";
   }
 }
+
+
+/** REFRESH_TOKEN失效 / 登录过期。 */
+export class HttpRefreshTokenExpiredError extends HttpRequestError {
+  constructor(message: string, status = 401, data?: unknown) {
+    super(message, status, data);
+    this.name = "HttpRefreshTokenExpiredError";
+  }
+}
